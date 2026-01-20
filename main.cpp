@@ -1,22 +1,22 @@
-#include <cstdint>
-#include <cstddef>
 #include "memory.h"
+#include <cstddef>
+#include <cstdint>
 
 // Set up linkers, BSS sections, and constructors.
 extern "C" void setup_mmu(); // in mmu.S
-using ConstructorType = void(*)();
+using ConstructorType = void (*)();
 extern ConstructorType __init_array_start, __init_array_end; // defined in linker script
 
 extern "C" {
-    int kmain() {
-    #if defined(MMU)
-        setup_mmu();
-    #endif
-        // C++ constructors.
-        for (ConstructorType* ctr = &__init_array_start; ctr < &__init_array_end; ++ctr) {
-            (*ctr)();
-        }
+int kmain() {
+#if defined(MMU)
+  setup_mmu();
+#endif
+  // C++ constructors.
+  for (ConstructorType *ctr = &__init_array_start; ctr < &__init_array_end; ++ctr) {
+    (*ctr)();
+  }
 
-        return 0;
-    }
+  return 0;
+}
 }
