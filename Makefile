@@ -17,7 +17,7 @@ MMUFLAGS:=-mstrict-align -mgeneral-regs-only
 endif
 WARNINGS:=-Wall -Wextra -Wpedantic -Wno-unused-const-variable -Werror=shadow -Wconversion \
         -Wsign-conversion -Wcast-align -Wstrict-aliasing -Wreorder -Wuninitialized -Wdouble-promotion -Wvirtual-move-assign
-CXXFLAGS:= -std=c++20 -g -pipe -static -ffreestanding -fno-exceptions -fno-rtti -fno-use-cxa-atexit -march=armv8-a -mcpu=cortex-a72 $(OPT) $(MMUFLAGS) $(WARNINGS) \
+CXXFLAGS:= -std=c++23 -g -pipe -static -ffreestanding -fno-exceptions -fno-rtti -fno-use-cxa-atexit -march=armv8-a -mcpu=cortex-a72 $(OPT) $(MMUFLAGS) $(WARNINGS) \
 		-nostdlib -fno-threadsafe-statics -fno-zero-initialized-in-bss
 
 # -Wl,option tells gcc to pass 'option' to the linker with commas replaced by spaces
@@ -26,7 +26,7 @@ LDFLAGS :=-Wl,-nmagic -Wl,-Tlinker.ld -Wl,--no-warn-rwx-segments -nostartfiles
 
 # Source files and include dirs
 SOURCES := $(wildcard *.S) $(wildcard *.cpp)
-# Create .o and .d files for every .c and .S (hand-written assembly) file
+# Create .o and .d files for every .cpp and .S (hand-written assembly) file
 OBJECTS := $(patsubst %.S, %.o, $(patsubst %.cpp, %.o, $(SOURCES)))
 DEPENDS := $(patsubst %.S, %.d, $(patsubst %.cpp, %.d, $(SOURCES)))
 
@@ -52,7 +52,7 @@ endif
 %.o: %.S Makefile
 	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
-%.o: %.c Makefile
+%.o: %.cpp Makefile
 	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 -include $(DEPENDS)
