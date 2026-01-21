@@ -1,14 +1,31 @@
 #include "task.h"
+#include "slab_allocator.h"
 #include "task_queue.h"
 
+// 128 of 64 bytes task descriptors.
+extern char __task_descriptors_begin[];
+extern char __task_descriptors_end[];
+
+// 128 of 2 mb task stack.
+extern char __task_stack_begin[];
+extern char __task_stack_end[];
+
 namespace {
-SlabAllocator<TaskDescriptor, 32> taskAllocator;
+SlabAllocator taskAllocator(&__task_descriptors_begin, &__task_descriptors_end, sizeof(TaskDescriptor));
+SlabAllocator taskStackAllocator(&__task_stack_begin, &__task_stack_end, 2 * 1024 * 1024);
+
 MultiLevelQueue<RoundRobinQueue> queue{};
 int globalTidCounter = 0;
 } // namespace
 
-extern "C" {
+TaskDescriptor& TaskScheduler::scheduleNextTask() {
+  queue.next();
+  return queue.current();
+}
 
+void TaskScheduler::activate(TaskDescriptor&) {}
+
+extern "C" {
 // Return the positive integer task id of the newly created task.
 // -1 invalid priority.
 // -2 kernel is out of task descriptors.
@@ -26,9 +43,20 @@ int Create(int priority, void (*function)()) {
   }
 
   // Allocate and register a new task.
-  TaskDescriptor* td = taskAllocator.allocate();
-  td->tid = globalTidCounter;
-  td->priority = priority;
+  TaskDescriptor* td = (TaskDescriptor*)taskAllocator.allocate();
+  void* sp = taskStackAllocator.allocate();
+
+  *td = TaskDescriptor{
+      .tid = globalTidCounter,
+      .priority = priority,
+      .parent = nullptr, // ???
+      .nextReady = nullptr,
+      .nextSend = nullptr,
+      .runState = nullptr, // ???
+      .stackPointer = sp,  // ???
+  };
+
+  queue.enque(*td);
   return globalTidCounter;
 }
 
