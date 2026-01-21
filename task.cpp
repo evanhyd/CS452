@@ -1,19 +1,19 @@
 #include "task.h"
 #include "slab_allocator.h"
 #include "task_queue.h"
-
-// 128 of 64 bytes task descriptors.
-extern char __task_descriptors_begin[];
-extern char __task_descriptors_end[];
-
-// 128 of 2 mb task stack.
-extern char __task_stack_begin[];
-extern char __task_stack_end[];
+#include <cstddef>
+#include <iterator>
+#include <limits>
+#include <utility>
 
 namespace {
-constexpr size_t TASK_STACK_SIZE = 2 << 20;
-SlabAllocator taskAllocator(&__task_descriptors_begin, &__task_descriptors_end, sizeof(TaskDescriptor));
-SlabAllocator taskStackAllocator(&__task_stack_begin, &__task_stack_end, TASK_STACK_SIZE);
+struct TaskStack {
+  static constexpr size_t TASK_STACK_SIZE = 1 << 20;
+  alignas(16) std::byte data[TASK_STACK_SIZE];
+  void* top() { return std::end(data); }
+};
+SlabAllocator<TaskDescriptor, 128> taskAllocator{};
+SlabAllocator<TaskStack, 128> taskStackAllocator{};
 
 MultiLevelQueue<RoundRobinQueue> queue{};
 int globalTidCounter = 0;
@@ -24,7 +24,12 @@ TaskDescriptor& TaskScheduler::scheduleNextTask() {
   return queue.current();
 }
 
-void TaskScheduler::activate(TaskDescriptor&) {}
+void TaskScheduler::activate(TaskDescriptor& td) {
+  // TODO: implement this properly.
+  if (td.entryFunction) {
+    std::exchange(td.entryFunction, nullptr)();
+  }
+}
 
 extern "C" {
 // Return the positive integer task id of the newly created task.
@@ -37,24 +42,30 @@ int Create(int priority, void (*function)()) {
     return -1;
   }
 
-  // Check tid overflow.
-  ++globalTidCounter;
-  if (globalTidCounter == 0) {
+  // Check if out of task descriptors.
+  if (taskAllocator.full()) {
     return -2;
   }
 
+  // Check tid overflow
+  if (globalTidCounter == std::numeric_limits<decltype(globalTidCounter)>::max()) {
+    return -2;
+  }
+  ++globalTidCounter;
+
   // Allocate and register a new task.
-  TaskDescriptor* td = (TaskDescriptor*)taskAllocator.allocate();
-  void* sp = (uint8_t*)taskStackAllocator.allocate() + TASK_STACK_SIZE;
+  TaskDescriptor* td = taskAllocator.allocate();
+  TaskStack* ts = taskStackAllocator.allocate();
 
   *td = TaskDescriptor{
       .tid = globalTidCounter,
       .priority = priority,
-      .parent = nullptr, // ???
+      .parent = &queue.current(),
       .nextReady = nullptr,
       .nextSend = nullptr,
-      .runState = nullptr, // ???
-      .stackPointer = sp,  // ???
+      .entryFunction = function,
+      .runState = nullptr,       // ???
+      .stackPointer = ts->top(), // ???
   };
 
   queue.enque(*td);
@@ -66,10 +77,7 @@ int MyTid() { return queue.current().tid; }
 
 // Returns the task id of the task that created the calling task.
 // If the parent is dead, it may trigger undefined behavior such as launching the nuke (PLS DONT).
-int MyParentTid() {
-  // TDOO: add implementation.
-  return 0;
-}
+int MyParentTid() { return queue.current().parent->tid; }
 
 // Causes a task to pause executing.
 // The task is moved to the end of its priority queue, and will resume executing when next scheduled.

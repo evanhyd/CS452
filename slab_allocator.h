@@ -1,44 +1,42 @@
 #pragma once
 #include "kit_algorithm.h"
+#include <cstddef>
 #include <cstdint>
+#include <new>
 
 // Slab allocator or pool allocator.
 // Allocate a set of fixed size memory block.
 // Can be used for trolling.
-class SlabAllocator {
-  struct IntrusiveLinkage {
+template <typename T, size_t N> class SlabAllocator {
+  union IntrusiveLinkage {
     IntrusiveLinkage* next;
+    alignas(T) std::byte storage[sizeof(T)];
   };
-  IntrusiveLinkage* data;
+  IntrusiveLinkage* free;
+  IntrusiveLinkage data[N];
 
 public:
-  SlabAllocator(void* beginAddress, void* endAddress, size_t blockSize) : data((IntrusiveLinkage*)(beginAddress)) {
-    uintptr_t bytes = reinterpret_cast<uintptr_t>(endAddress) - reinterpret_cast<uintptr_t>(beginAddress);
-    size_t capacity = bytes / blockSize;
-
-    for (size_t i = 0; i < capacity - 1; ++i) {
-      IntrusiveLinkage* curr = (IntrusiveLinkage*)((uint8_t*)(data) + blockSize * i);
-      IntrusiveLinkage* child = (IntrusiveLinkage*)((uint8_t*)(data) + blockSize * (i + 1));
-      curr->next = child;
+  SlabAllocator() : free{&data[0]} {
+    for (size_t i = 0; i < N - 1; ++i) {
+      data[i].next = &data[i + 1];
     }
-
-    IntrusiveLinkage* last = (IntrusiveLinkage*)((uint8_t*)(data) + blockSize * (capacity - 1));
-    last->next = nullptr;
+    data[N - 1].next = nullptr;
   }
 
-  void* allocate() {
-    void* ptr = data;
-    data = data->next;
-    return ptr;
+  T* allocate() {
+    IntrusiveLinkage* ptr = free;
+    free = free->next;
+    return std::launder(reinterpret_cast<T*>(ptr->storage));
   }
 
-  void deallocate(void* ptr) {
+  void deallocate(T* ptr) {
     // Ignore nullptr.
     if (!ptr) {
       return;
     }
-
-    static_cast<IntrusiveLinkage*>(ptr)->next = data;
-    data = static_cast<IntrusiveLinkage*>(ptr);
+    ptr->next = free;
+    free = std::launder(reinterpret_cast<IntrusiveLinkage*>(ptr));
   }
+
+  bool full() const { return free == nullptr; }
 };
