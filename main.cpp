@@ -14,7 +14,7 @@ extern char* rodata;
 
 void bar() {
   while (true) {
-    Uart::syncPrint(Uart::CONSOLE, "yes");
+    Uart::syncPrint(Uart::kConsole, "yes");
   }
 }
 
@@ -29,8 +29,8 @@ int kmain() {
   }
 
   // Set up UART.
-  Uart::configAndEnable(Uart::CONSOLE);
-  Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "");
+  Uart::configAndEnable(Uart::kConsole);
+  Uart::syncPrint(Uart::kConsole, "Kitty kernel version: " __DATE__ " / " __TIME__ "");
 
   // Schedule a bar task.
   int tid = Create(Priority::MEDIUM, bar);
@@ -38,7 +38,7 @@ int kmain() {
 
   TaskDescriptor& taskp = TaskScheduler::scheduleNextTask();
   kit::formatString(buffer, "Task ID %d, address %X %X", tid, &tid, &taskp);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(Uart::kConsole, buffer);
 
   for (;;) {
     TaskDescriptor& task = TaskScheduler::scheduleNextTask();

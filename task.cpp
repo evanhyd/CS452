@@ -11,8 +11,9 @@ extern char __task_stack_begin[];
 extern char __task_stack_end[];
 
 namespace {
+constexpr size_t TASK_STACK_SIZE = 2 << 20;
 SlabAllocator taskAllocator(&__task_descriptors_begin, &__task_descriptors_end, sizeof(TaskDescriptor));
-SlabAllocator taskStackAllocator(&__task_stack_begin, &__task_stack_end, 2 * 1024 * 1024);
+SlabAllocator taskStackAllocator(&__task_stack_begin, &__task_stack_end, TASK_STACK_SIZE);
 
 MultiLevelQueue<RoundRobinQueue> queue{};
 int globalTidCounter = 0;
@@ -44,7 +45,7 @@ int Create(int priority, void (*function)()) {
 
   // Allocate and register a new task.
   TaskDescriptor* td = (TaskDescriptor*)taskAllocator.allocate();
-  void* sp = taskStackAllocator.allocate();
+  void* sp = (uint8_t*)taskStackAllocator.allocate() + TASK_STACK_SIZE;
 
   *td = TaskDescriptor{
       .tid = globalTidCounter,
