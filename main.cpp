@@ -30,10 +30,9 @@ int kmain() {
 
   // Schedule a bar task.
   int tid = Create(Priority::MEDIUM, bar);
-  char buffer[128];
 
-  TaskDescriptor& taskp = TaskScheduler::scheduleNextTask();
-  kit::formatString(buffer, "Task ID %d, address %X %X\n", tid, &tid, &taskp);
+  char buffer[128];
+  kit::formatString(buffer, "Task ID %d\n", tid);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
   for (;;) {
