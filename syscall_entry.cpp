@@ -29,8 +29,14 @@ void syscallEntry(StackContext* userStack) {
     break;
   }
 
-  TaskDescriptor& task = TaskScheduler::scheduleNextTask();
-  TaskScheduler::activate(task);
+  if (TaskDescriptor* task = TaskScheduler::scheduleNextTask()) {
+    TaskScheduler::activate(*task);
+  } else {
+    // what to do when done?
+    logDebug("all tasks exited");
+    for (;;) {
+    }
+  }
 }
 
 void placeholderEntry() { logError("hit placeholder in vectors"); }

@@ -22,7 +22,7 @@ extern "C" [[noreturn]] void switchTask(void* sp);
 
 TaskDescriptor* TaskScheduler::currentTask() { return currentTask_; }
 
-TaskDescriptor& TaskScheduler::scheduleNextTask() { return queue.current(); }
+TaskDescriptor* TaskScheduler::scheduleNextTask() { return queue.current(); }
 
 void TaskScheduler::activate(TaskDescriptor& td) {
   currentTask_ = &td;
@@ -66,7 +66,7 @@ int Create(int priority, void (*function)()) {
   *td = TaskDescriptor{
       .tid = globalTidCounter,
       .priority = priority,
-      .parent = queue.empty() ? nullptr : &queue.current(),
+      .parent = TaskScheduler::currentTask(),
       .stackMemory = ts,
       .nextReady = nullptr,
       .nextSend = nullptr,
@@ -96,8 +96,8 @@ void Yield() { queue.next(); }
 // Causes a task to cease execution permanently. It is removed from all priority queues, send queues, receive queues and
 // event queues. Resources owned by the task, primarily its memory and task descriptor, may be reclaimed.
 void Exit() {
-  queue.pop(); // TaskScheduler::currentTask() == queue.current()
   auto currTask = TaskScheduler::currentTask();
+  queue.remove(*currTask);
   taskStackAllocator.deallocate(currTask->stackMemory);
   taskDescriptorsAllocator.deallocate(currTask);
 }

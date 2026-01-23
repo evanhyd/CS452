@@ -10,10 +10,9 @@ extern ConstructorType __init_array_start, __init_array_end; // defined in linke
 extern char* rodata;
 
 void bar() {
-  unsigned i = 0;
   char buffer[32];
-  while (true) {
-    kit::formatString(buffer, "bar %u\n", i++);
+  for (unsigned int i = 0; i < 100000; ++i) {
+    kit::formatString(buffer, "bar %u\n", i);
     Uart::syncPrint(Uart::CONSOLE, buffer);
     ::Yield();
   }
@@ -39,6 +38,6 @@ extern "C" void kmain() {
   kit::formatString(buffer, "Task ID %d\n", tid);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
-  TaskDescriptor& task = TaskScheduler::scheduleNextTask();
-  TaskScheduler::activate(task);
+  TaskDescriptor* task = TaskScheduler::scheduleNextTask();
+  TaskScheduler::activate(*task);
 }

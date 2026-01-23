@@ -35,6 +35,33 @@ public:
   }
 
   TaskDescriptor& current() { return *head; }
+
+  void remove(const TaskDescriptor& td) {
+    if (head == &td && tail == &td) {
+      head = nullptr;
+      tail = nullptr;
+      return;
+    }
+
+    TaskDescriptor* prev = tail;
+    TaskDescriptor* curr = head;
+    do {
+      if (curr == &td) {
+        prev->nextReady = curr->nextReady;
+        if (head == &td) {
+          head = curr->nextReady;
+        }
+        if (tail == &td) {
+          tail = prev;
+        }
+        return;
+      }
+      prev = curr;
+      curr = curr->nextReady;
+    } while (curr != head);
+
+    logError("remove() on a non-existing task");
+  }
 };
 
 // Multi level queues that support different priorities.
@@ -73,12 +100,14 @@ public:
     logError("next() on an empty queue");
   }
 
-  TaskDescriptor& current() {
+  TaskDescriptor* current() {
     for (T& queue : queues) {
       if (!queue.empty()) {
-        return queue.current();
+        return &queue.current();
       }
     }
-    logError("current() on an empty queue");
+    return nullptr;
   }
+
+  void remove(const TaskDescriptor& td) { queues[td.priority].remove(td); }
 };
