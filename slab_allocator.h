@@ -1,4 +1,5 @@
 #pragma once
+#include "debug.h"
 #include "kit_algorithm.h"
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,9 @@ public:
   }
 
   T* allocate() {
+    if (!free) {
+      logError("allocator run out of memory");
+    }
     IntrusiveLinkage* ptr = free;
     free = free->next;
     return std::launder(reinterpret_cast<T*>(ptr->storage));

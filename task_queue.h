@@ -1,4 +1,5 @@
 #pragma once
+#include "debug.h"
 #include "task.h"
 
 // Cyclic queue that uses round robin to schedule the tasks.
@@ -56,18 +57,20 @@ public:
     for (T& queue : queues) {
       if (!queue.empty()) {
         queue.pop();
-        break;
+        return;
       }
     }
+    logError("pop() on an emptty queue");
   }
 
   void next() {
     for (T& queue : queues) {
       if (!queue.empty()) {
         queue.next();
-        break;
+        return;
       }
     }
+    logError("next() on an emptty queue");
   }
 
   TaskDescriptor& current() {
@@ -76,8 +79,6 @@ public:
         return queue.current();
       }
     }
-    assert(false);
-    for (;;) {
-    };
+    logError("current() on an emptty queue");
   }
 };

@@ -1,5 +1,6 @@
 .global svcEntry
 .global switchTask
+.global taskWrapper
 
 switchTask:
     // General registers.
