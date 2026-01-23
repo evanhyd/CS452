@@ -25,13 +25,19 @@ static_assert(sizeof(StackContext) % 16 == 0, "sp must aligned to 16");
 
 SlabAllocator<TaskDescriptor, 128> taskDescriptorsAllocator{};
 SlabAllocator<TaskStack, 128> taskStackAllocator{};
-
 MultiLevelQueue<RoundRobinQueue> queue{};
 int globalTidCounter = 0;
 
-} // namespace
-
 extern "C" void switchTask(uint64_t sp);
+
+// A wrapper function to the actual task entry.
+// This automatically frees up the task.
+void taskEntryWrapper(TaskEntry entry) {
+  entry();
+  Exit();
+}
+
+} // namespace
 
 TaskDescriptor& TaskScheduler::scheduleNextTask() {
   queue.next();
@@ -63,10 +69,12 @@ int Create(int priority, void (*function)()) {
   ++globalTidCounter;
 
   // Allocate a new task stack.
-  // Initialize all 32 registers: x0-x30, and pretend the context is already saved there.
+  // Initialize all 32 registers: x0-x30, Pstate, ELR.
+  // Set up entry to the task wrapper.
   TaskStack* ts = taskStackAllocator.allocate();
   memset(ts->offsetFromTop(sizeof(StackContext)), 0, sizeof(StackContext));
-  *(uintptr_t*)(ts->offsetFromTop(sizeof(StackContext))) = uintptr_t(function);
+  *(uint64_t*)(ts->offsetFromTop(sizeof(StackContext))) = uint64_t(taskEntryWrapper);
+  *(uint64_t*)(ts->offsetFromTop(sizeof(uintptr_t))) = uint64_t(function);
 
   // Allocate a new task descriptor.
   TaskDescriptor* td = taskDescriptorsAllocator.allocate();
@@ -74,7 +82,7 @@ int Create(int priority, void (*function)()) {
       .tid = globalTidCounter,
       .priority = priority,
       .parent = nullptr, // &queue.current() hangs the program, as there's no task in the queue currently. we need to
-                         // discuss how we should define the parent of such task
+                         // discuss how we should define the parent of the first task.
       .nextReady = nullptr,
       .nextSend = nullptr,
       .runState = 0,
