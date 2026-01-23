@@ -38,8 +38,9 @@ public:
     if (!ptr) {
       return;
     }
-    ptr->next = free;
+    IntrusiveLinkage* old = free;
     free = std::launder(reinterpret_cast<IntrusiveLinkage*>(ptr));
+    free->next = old;
   }
 
   bool full() const { return free == nullptr; }

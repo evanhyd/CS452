@@ -1,6 +1,6 @@
 #pragma once
 #include "debug.h"
-#include "task.h"
+#include "task_handler.h"
 
 // Cyclic queue that uses round robin to schedule the tasks.
 class RoundRobinQueue {
@@ -60,7 +60,7 @@ public:
         return;
       }
     }
-    logError("pop() on an emptty queue");
+    logError("pop() on an empty queue");
   }
 
   void next() {
@@ -70,7 +70,7 @@ public:
         return;
       }
     }
-    logError("next() on an emptty queue");
+    logError("next() on an empty queue");
   }
 
   TaskDescriptor& current() {
@@ -79,6 +79,6 @@ public:
         return queue.current();
       }
     }
-    logError("current() on an emptty queue");
+    logError("current() on an empty queue");
   }
 };

@@ -7,7 +7,7 @@ OBJCOPY:=$(XBINDIR)/$(TRIPLE)-objcopy
 OBJDUMP:=$(XBINDIR)/$(TRIPLE)-objdump
 
 MMU?=on
-OPT?=-O3 -flto=auto
+OPT?=-O3
 
 # COMPILE OPTIONS
 ifeq ($(MMU),on)

@@ -54,6 +54,10 @@ _start:
 	ldr x3, =HCR_RW
 	msr hcr_el2, x3
 
+	// load vector table
+	ldr x0, =vectors
+	msr vbar_el1, x0
+
 	// switch to EL1 by fake exception return
 	ldr x4, =(SPSR_MASK_ALL | SPSR_EL1)
 	msr spsr_el2, x4

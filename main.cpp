@@ -1,5 +1,6 @@
 #include "fmt.h"
 #include "task.h"
+#include "task_handler.h"
 #include "uart.h"
 
 // Set up linkers, BSS sections, and constructors.
@@ -9,13 +10,16 @@ extern ConstructorType __init_array_start, __init_array_end; // defined in linke
 extern char* rodata;
 
 void bar() {
+  unsigned i = 0;
+  char buffer[32];
   while (true) {
-    Uart::syncPrint(Uart::CONSOLE, "yes");
+    kit::formatString(buffer, "bar %u\n", i++);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
+    ::Yield();
   }
 }
 
-extern "C" {
-int kmain() {
+extern "C" void kmain() {
 #if defined(MMU)
   setup_mmu();
 #endif
@@ -29,17 +33,12 @@ int kmain() {
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "\n");
 
   // Schedule a bar task.
-  int tid = Create(Priority::MEDIUM, bar);
+  int tid = syscall_handler::Create(Priority::MEDIUM, bar);
 
   char buffer[128];
   kit::formatString(buffer, "Task ID %d\n", tid);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
-  for (;;) {
-    TaskDescriptor& task = TaskScheduler::scheduleNextTask();
-    TaskScheduler::activate(task);
-  }
-
-  return 0;
-}
+  TaskDescriptor& task = TaskScheduler::scheduleNextTask();
+  TaskScheduler::activate(task);
 }
