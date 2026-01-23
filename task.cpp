@@ -15,10 +15,10 @@ struct TaskStack {
 };
 
 struct StackContext {
-  uint64_t x[31]; // x0 - x30
-  uint64_t xzr;   // padding
-  uint64_t pstate;
-  uint64_t pc;
+  uint64_t x[31];  // x0 - x30
+  uint64_t xzr;    // padding
+  uint64_t pstate; // SPSR_EL1
+  uint64_t pc;     // ELR_EL1
   StackContext() = delete;
 };
 static_assert(sizeof(StackContext) % 16 == 0, "sp must aligned to 16");
@@ -67,7 +67,6 @@ int Create(int priority, void (*function)()) {
   TaskStack* ts = taskStackAllocator.allocate();
   memset(ts->offsetFromTop(sizeof(StackContext)), 0, sizeof(StackContext));
   *(uintptr_t*)(ts->offsetFromTop(sizeof(StackContext))) = uintptr_t(function);
-  *((uintptr_t*)(ts->offsetFromTop(sizeof(StackContext))) + 1) = uintptr_t(function);
 
   // Allocate a new task descriptor.
   TaskDescriptor* td = taskDescriptorsAllocator.allocate();
