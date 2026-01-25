@@ -6,7 +6,7 @@
 
 static void otherTask() {
   char buffer[64];
-  kit::formatString(buffer, "MyTid: %d, MyParentTid: %d\n", ::MyTid(), ::MyParentTid());
+  kit::formatString(buffer, "MyTid: %d, MyParentTid: %d\r\n", ::MyTid(), ::MyParentTid());
   Uart::syncPrint(Uart::CONSOLE, buffer);
   ::Yield();
   Uart::syncPrint(Uart::CONSOLE, buffer);
@@ -16,20 +16,20 @@ void firstTask() {
   char buffer[64];
 
   int t1 = ::Create(Priority::LOW, otherTask);
-  kit::formatString(buffer, "Created: %d\n", t1);
+  kit::formatString(buffer, "Created: %d\r\n", t1);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
   int t2 = ::Create(Priority::LOW, otherTask);
-  kit::formatString(buffer, "Created: %d\n", t2);
+  kit::formatString(buffer, "Created: %d\r\n", t2);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
   int t3 = ::Create(Priority::HIGH, otherTask);
-  kit::formatString(buffer, "Created: %d\n", t3);
+  kit::formatString(buffer, "Created: %d\r\n", t3);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
   int t4 = ::Create(Priority::HIGH, otherTask);
-  kit::formatString(buffer, "Created: %d\n", t4);
+  kit::formatString(buffer, "Created: %d\r\n", t4);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
-  Uart::syncPrint(Uart::CONSOLE, "FirstUserTask: exiting\n");
+  Uart::syncPrint(Uart::CONSOLE, "FirstUserTask: exiting\r\n");
 }

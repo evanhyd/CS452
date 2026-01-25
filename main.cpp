@@ -21,7 +21,7 @@ extern "C" void kmain() {
 
   // Set up UART.
   Uart::configAndEnable(Uart::CONSOLE);
-  Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "\n");
+  Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "\r\n");
 
   // Schedule a bar task.
   [[maybe_unused]] int tid = syscall_handler::Create(Priority::MEDIUM, firstTask);

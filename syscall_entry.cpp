@@ -35,7 +35,7 @@ void syscallEntry(StackContext* userStack) {
   if (TaskDescriptor* task = TaskScheduler::getNextScheduledTask()) {
     TaskScheduler::activateTask(*task);
   } else {
-    Uart::syncPrint(Uart::CONSOLE, "All tasks exited. Press any key to reboot...\n");
+    Uart::syncPrint(Uart::CONSOLE, "All tasks exited. Press any key to reboot...\r\n");
     Uart::syncRead(Uart::CONSOLE);
     _reboot();
   }
