@@ -18,12 +18,10 @@ struct TaskStack {
 struct TaskDescriptor {
   int tid; // task identifier
   int priority;
-  TaskDescriptor* parent;
+  int parentTid;
   TaskStack* stackMemory;
   TaskDescriptor* nextReady; // next task in the task's ready queue
-  TaskDescriptor* nextSend;  // next task on the task's send queuee
 
-  int runState;       // ready, suspend etc
   void* stackPointer; // sp
 };
 
@@ -33,7 +31,8 @@ struct TaskScheduler {
   TaskScheduler() = delete;
   static TaskDescriptor* getCurrentTask();
   static TaskDescriptor* getNextScheduledTask();
-  static void scheduleNextTask();
+  static void moveTaskToEnd(TaskDescriptor& td);
+  static void removeTask(TaskDescriptor& td);
   [[noreturn]] static void activateTask(TaskDescriptor& td);
 };
 

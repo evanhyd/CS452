@@ -26,8 +26,11 @@ TaskDescriptor* TaskScheduler::getCurrentTask() { return currentTask_; }
 // Return the task descriptor of the next scheduled task, or nullptr if there isn't any.
 TaskDescriptor* TaskScheduler::getNextScheduledTask() { return queue.current(); }
 
-// Schedule the next task in the queue.
-void TaskScheduler::scheduleNextTask() { queue.next(); }
+// Move the given task to the end of its priority queue.
+void TaskScheduler::moveTaskToEnd(TaskDescriptor& td) { queue.moveToEnd(td); }
+
+// Remove the given task from its priority queue.
+void TaskScheduler::removeTask(TaskDescriptor& td) { queue.remove(td); }
 
 // Context switch to the task denoted by its task descriptor.
 void TaskScheduler::activateTask(TaskDescriptor& td) {
@@ -69,14 +72,13 @@ int Create(int priority, void (*function)()) {
 
   // Allocate a new task descriptor.
   TaskDescriptor* td = taskDescriptorsAllocator.allocate();
+  TaskDescriptor* currTask = TaskScheduler::getCurrentTask();
   *td = TaskDescriptor{
       .tid = globalTidCounter,
       .priority = priority,
-      .parent = TaskScheduler::getCurrentTask(),
+      .parentTid = currTask ? currTask->tid : -1,
       .stackMemory = ts,
       .nextReady = nullptr,
-      .nextSend = nullptr,
-      .runState = 0,
       .stackPointer = context,
   };
   queue.enque(*td);
@@ -87,26 +89,19 @@ int Create(int priority, void (*function)()) {
 int MyTid() { return TaskScheduler::getCurrentTask()->tid; }
 
 // Returns the task id of the task that created the calling task.
-// If the task is created directly by the kernel, such as the first task, then return 0.
-// If the parent is dead, it may trigger undefined behavior such as launching the nuke (PLS DONT).
-int MyParentTid() {
-  if (TaskDescriptor* parent = TaskScheduler::getCurrentTask()->parent) {
-    return parent->tid;
-  }
-  return 0;
-}
+// If the task has no parent (i.e. the initial task created by the kernel), return -1.
+// If the parent is dead, it still returns the original parent tid.
+int MyParentTid() { return TaskScheduler::getCurrentTask()->parentTid; }
 
 // Causes a task to pause executing.
 // The task is moved to the end of its priority queue, and will resume executing when next scheduled.
-void Yield() {
-  // The kernel entry always schedule the next task.
-}
+void Yield() { TaskScheduler::moveTaskToEnd(*TaskScheduler::getCurrentTask()); }
 
 // Causes a task to cease execution permanently. It is removed from all priority queues, send queues, receive queues and
 // event queues. Resources owned by the task, primarily its memory and task descriptor, may be reclaimed.
 void Exit() {
   auto currTask = TaskScheduler::getCurrentTask();
-  queue.remove(*currTask);
+  TaskScheduler::removeTask(*currTask);
   taskStackAllocator.deallocate(currTask->stackMemory);
   taskDescriptorsAllocator.deallocate(currTask);
 }

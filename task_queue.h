@@ -37,6 +37,11 @@ public:
 
   TaskDescriptor& current() { return *head; }
 
+  void moveToEnd(const TaskDescriptor& td) {
+    remove(td);
+    enque(const_cast<TaskDescriptor&>(td));
+  }
+
   void remove(const TaskDescriptor& td) {
     if (head == &td && tail == &td) {
       head = nullptr;
@@ -109,6 +114,8 @@ public:
     }
     return nullptr;
   }
+
+  void moveToEnd(TaskDescriptor& td) { queues[td.priority].moveToEnd(td); }
 
   void remove(const TaskDescriptor& td) { queues[td.priority].remove(td); }
 };
