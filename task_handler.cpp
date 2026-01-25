@@ -24,7 +24,10 @@ extern "C" [[noreturn]] void switchTask(void* sp);
 TaskDescriptor* TaskScheduler::getCurrentTask() { return currentTask_; }
 
 // Return the task descriptor of the next scheduled task, or nullptr if there isn't any.
-TaskDescriptor* TaskScheduler::getNextTask() { return queue.current(); }
+TaskDescriptor* TaskScheduler::getNextScheduledTask() { return queue.current(); }
+
+// Schedule the next task in the queue.
+void TaskScheduler::scheduleNextTask() { queue.next(); }
 
 // Context switch to the task denoted by its task descriptor.
 void TaskScheduler::activateTask(TaskDescriptor& td) {
@@ -95,7 +98,9 @@ int MyParentTid() {
 
 // Causes a task to pause executing.
 // The task is moved to the end of its priority queue, and will resume executing when next scheduled.
-void Yield() { queue.next(); }
+void Yield() {
+  // The kernel entry always schedule the next task.
+}
 
 // Causes a task to cease execution permanently. It is removed from all priority queues, send queues, receive queues and
 // event queues. Resources owned by the task, primarily its memory and task descriptor, may be reclaimed.

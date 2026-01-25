@@ -15,15 +15,19 @@ void syscallEntry(StackContext* userStack) {
   case 1:
     userStack->x0 = static_cast<uint64_t>(
         syscall_handler::Create(static_cast<int>(userStack->x0), reinterpret_cast<void (*)()>(userStack->x1)));
+    TaskScheduler::scheduleNextTask();
     break;
   case 2:
     userStack->x0 = static_cast<uint64_t>(syscall_handler::MyTid());
+    TaskScheduler::scheduleNextTask();
     break;
   case 3:
     userStack->x0 = static_cast<uint64_t>(syscall_handler::MyParentTid());
+    TaskScheduler::scheduleNextTask();
     break;
   case 4:
     syscall_handler::Yield();
+    TaskScheduler::scheduleNextTask();
     break;
   case 5:
     syscall_handler::Exit();
@@ -32,7 +36,7 @@ void syscallEntry(StackContext* userStack) {
     break;
   }
 
-  if (TaskDescriptor* task = TaskScheduler::getNextTask()) {
+  if (TaskDescriptor* task = TaskScheduler::getNextScheduledTask()) {
     TaskScheduler::activateTask(*task);
   } else {
     Uart::syncPrint(Uart::CONSOLE, "All tasks exited. Press any key to reboot...\n");

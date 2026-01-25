@@ -32,7 +32,8 @@ struct TaskDescriptor {
 struct TaskScheduler {
   TaskScheduler() = delete;
   static TaskDescriptor* getCurrentTask();
-  static TaskDescriptor* getNextTask();
+  static TaskDescriptor* getNextScheduledTask();
+  static void scheduleNextTask();
   [[noreturn]] static void activateTask(TaskDescriptor& td);
 };
 

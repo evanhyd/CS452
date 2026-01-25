@@ -26,6 +26,6 @@ extern "C" void kmain() {
   // Schedule a bar task.
   [[maybe_unused]] int tid = syscall_handler::Create(Priority::MEDIUM, firstTask);
 
-  TaskDescriptor* task = TaskScheduler::getNextTask();
+  TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
 }
