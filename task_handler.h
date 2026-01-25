@@ -4,6 +4,8 @@
 
 #include <cstddef>
 
+// A placeholder class to define the size of the task stack frame.
+// Configure TASK_STACK_SIZE to change the task stack size.
 struct TaskStack {
   static constexpr size_t TASK_STACK_SIZE = 1 << 20;
   alignas(16) std::byte data[TASK_STACK_SIZE];
@@ -17,7 +19,7 @@ struct TaskDescriptor {
   int tid; // task identifier
   int priority;
   TaskDescriptor* parent;
-  struct TaskStack* stackMemory;
+  TaskStack* stackMemory;
   TaskDescriptor* nextReady; // next task in the task's ready queue
   TaskDescriptor* nextSend;  // next task on the task's send queuee
 
@@ -25,6 +27,8 @@ struct TaskDescriptor {
   void* stackPointer; // sp
 };
 
+// A singleton class that schedules the tasks.
+// Internally, it uses a multi-level round robin queue.
 struct TaskScheduler {
   TaskScheduler() = delete;
   static TaskDescriptor* currentTask();
@@ -32,6 +36,7 @@ struct TaskScheduler {
   [[noreturn]] static void activate(TaskDescriptor& td);
 };
 
+// A palceholder class to define the saved context of each user task.
 struct StackContext {
   uint64_t elr_el1;
   uint64_t spsr_el1;

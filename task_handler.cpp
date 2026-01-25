@@ -20,10 +20,13 @@ int globalTidCounter = 0;
 
 extern "C" [[noreturn]] void switchTask(void* sp);
 
+// Return the task descriptor of the currently running task, or nullptr if there isn't any.
 TaskDescriptor* TaskScheduler::currentTask() { return currentTask_; }
 
+// Return the task descriptor of the next scheduled task, or nullptr if there isn't any.
 TaskDescriptor* TaskScheduler::scheduleNextTask() { return queue.current(); }
 
+// Context switch to the task denoted by its task descriptor.
 void TaskScheduler::activate(TaskDescriptor& td) {
   currentTask_ = &td;
   switchTask(td.stackPointer);
@@ -81,12 +84,13 @@ int Create(int priority, void (*function)()) {
 int MyTid() { return TaskScheduler::currentTask()->tid; }
 
 // Returns the task id of the task that created the calling task.
+// If the task is created directly by the kernel, such as the first task, then return 0.
 // If the parent is dead, it may trigger undefined behavior such as launching the nuke (PLS DONT).
 int MyParentTid() {
   if (TaskDescriptor* parent = TaskScheduler::currentTask()->parent) {
     return parent->tid;
   }
-  return -1;
+  return 0;
 }
 
 // Causes a task to pause executing.
