@@ -31,9 +31,9 @@ struct TaskDescriptor {
 // Internally, it uses a multi-level round robin queue.
 struct TaskScheduler {
   TaskScheduler() = delete;
-  static TaskDescriptor* currentTask();
-  static TaskDescriptor* scheduleNextTask();
-  [[noreturn]] static void activate(TaskDescriptor& td);
+  static TaskDescriptor* getCurrentTask();
+  static TaskDescriptor* getNextTask();
+  [[noreturn]] static void activateTask(TaskDescriptor& td);
 };
 
 // A palceholder class to define the saved context of each user task.

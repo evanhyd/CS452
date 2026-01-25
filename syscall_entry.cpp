@@ -9,7 +9,7 @@
 extern "C" [[noreturn]] void _reboot();
 
 void syscallEntry(StackContext* userStack) {
-  TaskScheduler::currentTask()->stackPointer = userStack;
+  TaskScheduler::getCurrentTask()->stackPointer = userStack;
 
   switch (userStack->esr_el1 & 0xFFFF) {
   case 1:
@@ -32,8 +32,8 @@ void syscallEntry(StackContext* userStack) {
     break;
   }
 
-  if (TaskDescriptor* task = TaskScheduler::scheduleNextTask()) {
-    TaskScheduler::activate(*task);
+  if (TaskDescriptor* task = TaskScheduler::getNextTask()) {
+    TaskScheduler::activateTask(*task);
   } else {
     Uart::syncPrint(Uart::CONSOLE, "All tasks exited. Press any key to reboot...\n");
     Uart::syncRead(Uart::CONSOLE);
