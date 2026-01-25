@@ -6,8 +6,7 @@
 #include <new>
 
 // Slab allocator or pool allocator.
-// Allocate a set of fixed size memory block.
-// Can be used for trolling.
+// Allocate an array of fixed size memory blocks.
 template <typename T, size_t N> class SlabAllocator {
   union IntrusiveLinkage {
     IntrusiveLinkage* next;

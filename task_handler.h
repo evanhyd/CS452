@@ -13,8 +13,8 @@ struct TaskStack {
   void* offsetFromTop(size_t bytes) { return data + TASK_STACK_SIZE - bytes; }
 };
 
+// The handle to an allocated task. Contains all the meta data.
 // Allocated in kernel memory during kernel initialization.
-// Every existing task has a TD allocated to it.
 struct TaskDescriptor {
   int tid; // task identifier
   int priority;
