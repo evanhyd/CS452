@@ -4,8 +4,6 @@
 
 #include <cstddef>
 
-enum Priority : int { HIGH, MEDIUM, LOW, COUNT };
-
 struct TaskStack {
   static constexpr size_t TASK_STACK_SIZE = 1 << 20;
   alignas(16) std::byte data[TASK_STACK_SIZE];

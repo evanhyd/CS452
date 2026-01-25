@@ -2,8 +2,11 @@
 
 #include "debug.h"
 #include "task_handler.h"
+#include "uart.h"
 
 #include <cstdint>
+
+extern "C" [[noreturn]] void _reboot();
 
 void syscallEntry(StackContext* userStack) {
   TaskScheduler::currentTask()->stackPointer = userStack;
@@ -32,10 +35,9 @@ void syscallEntry(StackContext* userStack) {
   if (TaskDescriptor* task = TaskScheduler::scheduleNextTask()) {
     TaskScheduler::activate(*task);
   } else {
-    // what to do when done?
-    logDebug("all tasks exited");
-    for (;;) {
-    }
+    Uart::syncPrint(Uart::CONSOLE, "All tasks exited. Press any key to reboot...\n");
+    Uart::syncRead(Uart::CONSOLE);
+    _reboot();
   }
 }
 

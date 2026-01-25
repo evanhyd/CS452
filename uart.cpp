@@ -90,7 +90,13 @@ void Uart::configAndEnable(size_t line) {
 void Uart::syncPrint(size_t line, const char* cstring) {
   for (; *cstring; ++cstring) {
     while (uartInstances[line].FR & UART_FR_TXFF) {
-    };
+    }
     uartInstances[line].DR = *cstring;
   }
+}
+
+char Uart::syncRead(size_t line) {
+  while (uartInstances[line].FR & UART_FR_RXFE) {
+  }
+  return static_cast<char>(uartInstances[line].DR);
 }

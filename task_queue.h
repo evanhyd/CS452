@@ -1,5 +1,6 @@
 #pragma once
 #include "debug.h"
+#include "task.h"
 #include "task_handler.h"
 
 // Cyclic queue that uses round robin to schedule the tasks.

@@ -35,4 +35,5 @@ public:
 
   static void configAndEnable(size_t line);
   static void syncPrint(size_t line, const char* cstring);
+  static char syncRead(size_t line);
 };
