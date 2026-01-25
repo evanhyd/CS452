@@ -26,10 +26,6 @@ extern "C" void kmain() {
   // Schedule a bar task.
   [[maybe_unused]] int tid = syscall_handler::Create(Priority::MEDIUM, firstTask);
 
-  char buffer[64];
-  kit::formatString(buffer, "Created: %d\n", tid);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
-
-  TaskDescriptor* task = TaskScheduler::scheduleNextTask();
-  TaskScheduler::activate(*task);
+  TaskDescriptor* task = TaskScheduler::getNextTask();
+  TaskScheduler::activateTask(*task);
 }
