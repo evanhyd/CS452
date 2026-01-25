@@ -5,7 +5,7 @@
 #include "uart.h"
 
 static void otherTask() {
-  char buffer[32];
+  char buffer[64];
   kit::formatString(buffer, "MyTid: %d, MyParentTid: %d\n", ::MyTid(), ::MyParentTid());
   Uart::syncPrint(Uart::CONSOLE, buffer);
   ::Yield();
@@ -13,7 +13,7 @@ static void otherTask() {
 }
 
 void firstTask() {
-  char buffer[32];
+  char buffer[64];
 
   int t1 = ::Create(Priority::LOW, otherTask);
   kit::formatString(buffer, "Created: %d\n", t1);
