@@ -1,0 +1,106 @@
+#include "task_queue.h"
+#include "task_handler.h"
+
+bool RoundRobinQueue::empty() const { return !head; }
+
+void RoundRobinQueue::enque(TaskDescriptor& td) {
+  if (!head) {
+    head = &td;
+    tail = &td;
+  }
+  tail->next = &td;
+  tail = &td;
+  tail->next = head;
+}
+
+void RoundRobinQueue::pop() {
+  if (head == tail) {
+    head = nullptr;
+    return;
+  }
+  head = head->next;
+  tail->next = head;
+}
+
+void RoundRobinQueue::next() {
+  tail = head;
+  head = head->next;
+}
+
+TaskDescriptor& RoundRobinQueue::current() { return *head; }
+
+void RoundRobinQueue::moveToEnd(TaskDescriptor& td) {
+  remove(td);
+  enque(td);
+}
+
+void RoundRobinQueue::remove(TaskDescriptor& td) {
+  if (head == &td && tail == &td) {
+    head = nullptr;
+    tail = nullptr;
+    return;
+  }
+
+  TaskDescriptor* prev = tail;
+  TaskDescriptor* curr = head;
+  do {
+    if (curr == &td) {
+      prev->next = curr->next;
+      if (head == &td) {
+        head = curr->next;
+      }
+      if (tail == &td) {
+        tail = prev;
+      }
+      return;
+    }
+    prev = curr;
+    curr = curr->next;
+  } while (curr != head);
+
+  logError("remove() on a non-existing task");
+}
+
+bool MultiLevelQueue::empty() const {
+  for (const RoundRobinQueue& queue : queues) {
+    if (!queue.empty()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void MultiLevelQueue::enque(TaskDescriptor& td) { queues[td.priority].enque(td); }
+
+void MultiLevelQueue::pop() {
+  for (auto& queue : queues) {
+    if (!queue.empty()) {
+      queue.pop();
+      return;
+    }
+  }
+  logError("pop() on an empty queue");
+}
+
+void MultiLevelQueue::next() {
+  for (auto& queue : queues) {
+    if (!queue.empty()) {
+      queue.next();
+      return;
+    }
+  }
+  logError("next() on an empty queue");
+}
+
+TaskDescriptor* MultiLevelQueue::current() {
+  for (auto& queue : queues) {
+    if (!queue.empty()) {
+      return &queue.current();
+    }
+  }
+  return nullptr;
+}
+
+void MultiLevelQueue::moveToEnd(TaskDescriptor& td) { queues[td.priority].moveToEnd(td); }
+
+void MultiLevelQueue::remove(TaskDescriptor& td) { queues[td.priority].remove(td); }

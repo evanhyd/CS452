@@ -2,6 +2,7 @@
 
 #include "fmt.h"
 #include "task.h"
+#include "task_queue.h"
 #include "uart.h"
 
 static void otherTask() {

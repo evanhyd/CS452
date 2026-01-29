@@ -3,6 +3,9 @@
 .global MyParentTid
 .global Yield
 .global Exit
+.global Send
+.global Receive
+.global Reply
 
 Create:
     svc #1
@@ -22,4 +25,16 @@ Yield:
 
 Exit:
     svc #5
+    ret
+
+Send:
+    svc #6
+    ret
+
+Receive:
+    svc #7
+    ret
+
+Reply:
+    svc #8
     ret
