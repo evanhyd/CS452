@@ -1,26 +1,27 @@
 #include "syscall_entry.h"
 
+#include "comm_handler.h"
 #include "debug.h"
 #include "task_handler.h"
+#include "task_manager.h"
 #include "uart.h"
-
-#include <cstdint>
 
 extern "C" [[noreturn]] void _reboot();
 
 void syscallEntry(StackContext* userStack) {
-  TaskScheduler::getCurrentTask()->stackPointer = userStack;
+  auto currTask = TaskScheduler::getCurrentTask();
+  currTask->stackPointer = userStack;
 
   switch (userStack->esr_el1 & 0xFFFF) {
   case 1: // Create
-    userStack->x0 = static_cast<uint64_t>(
+    currTask->setRetValue(
         syscall_handler::Create(static_cast<int>(userStack->x0), reinterpret_cast<void (*)()>(userStack->x1)));
     break;
   case 2: // MyTid
-    userStack->x0 = static_cast<uint64_t>(syscall_handler::MyTid());
+    currTask->setRetValue(syscall_handler::MyTid());
     break;
   case 3: // MyParentTid
-    userStack->x0 = static_cast<uint64_t>(syscall_handler::MyParentTid());
+    currTask->setRetValue(syscall_handler::MyParentTid());
     break;
   case 4: // Yield
     syscall_handler::Yield();
@@ -33,8 +34,9 @@ void syscallEntry(StackContext* userStack) {
   case 7: // Receive
     break;
   case 8: // Reply
-    userStack->x0 =
-        syscall_handler::Reply(int(userStack->x0), reinterpret_cast<const char*>(userStack->x1), size_t(userStack->x2));
+    currTask->setRetValue(syscall_handler::Reply(static_cast<int>(userStack->x0),
+                                                 reinterpret_cast<const char*>(userStack->x1),
+                                                 static_cast<int>(userStack->x2)));
     break;
   default:
     break;

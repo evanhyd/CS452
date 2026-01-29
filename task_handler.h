@@ -1,81 +1,9 @@
 #pragma once
 #include "slab_allocator.h"
 #include "task_queue.h"
+#include <bit>
+#include <concepts>
 #include <cstddef>
-
-// Define the size of the task stack frame.
-// Configure TASK_STACK_SIZE to change the task stack size.
-struct TaskStack {
-  static constexpr size_t TASK_STACK_SIZE = 1 << 20;
-  alignas(16) std::byte data[TASK_STACK_SIZE];
-  void* top() { return data + TASK_STACK_SIZE; }
-  void* offsetFromTop(size_t bytes) { return data + TASK_STACK_SIZE - bytes; }
-};
-
-// Define the saved context of each user task.
-struct StackContext {
-  uint64_t elr_el1;
-  uint64_t spsr_el1;
-  uint64_t x30;
-  uint64_t esr_el1;
-  uint64_t x28, x29;
-  uint64_t x26, x27;
-  uint64_t x24, x25;
-  uint64_t x22, x23;
-  uint64_t x20, x21;
-  uint64_t x18, x19;
-  uint64_t x16, x17;
-  uint64_t x14, x15;
-  uint64_t x12, x13;
-  uint64_t x10, x11;
-  uint64_t x8, x9;
-  uint64_t x6, x7;
-  uint64_t x4, x5;
-  uint64_t x2, x3;
-  uint64_t x0, x1;
-};
-static_assert(sizeof(StackContext) % 16 == 0, "sp must aligned to 16");
-
-// Define the message format.
-struct MessageControlBlock {
-  const char* message;
-  int messageSize;
-  char* receiveBuffer;
-  int receiveBufferSize;
-};
-
-enum class RunState : int {
-  READY,
-  SEND_WAIT,
-  RECEIVE_WAIT,
-  REPLY_WAIT,
-};
-
-// The handle to an allocated task. Contains all the meta data.
-// Allocated in kernel memory during kernel initialization.
-struct TaskDescriptor {
-  int tid; // task identifier
-  int priority;
-  int parentTid;
-  TaskStack* stackMemory;
-  TaskDescriptor* next; // next task in the queue
-  void* stackPointer;
-  RunState runState;
-  MessageControlBlock messageControlBlock;
-  MultiLevelQueue sendWaitQueue;
-};
-
-// A singleton class that schedules the tasks.
-// Internally, it uses a multi-level round robin queue.
-struct TaskScheduler {
-  TaskScheduler() = delete;
-  static TaskDescriptor* getCurrentTask();
-  static TaskDescriptor* getNextScheduledTask();
-  static void moveTaskToEnd(TaskDescriptor& td);
-  static void removeTask(TaskDescriptor& td);
-  static TaskDescriptor* getTaskDescriptor(int tid);
-  [[noreturn]] static void activateTask(TaskDescriptor& td);
-};
 
 namespace syscall_handler {
 
@@ -84,8 +12,5 @@ int MyTid();
 int MyParentTid();
 void Yield();
 void Exit();
-int Send(int tid, const char* message, int messageSize, char* replyBuffer, int replyBufferSize);
-int Receive(int* tid, char* receiveBuffer, int receiveBufferSize);
-int Reply(int tid, const char* reply, int replySize);
 
 } // namespace syscall_handler

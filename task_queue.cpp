@@ -1,5 +1,5 @@
 #include "task_queue.h"
-#include "task_handler.h"
+#include "task_manager.h"
 
 bool RoundRobinQueue::empty() const { return !head; }
 
@@ -13,13 +13,19 @@ void RoundRobinQueue::enque(TaskDescriptor& td) {
   tail->next = head;
 }
 
-void RoundRobinQueue::pop() {
+TaskDescriptor* RoundRobinQueue::pop() {
+  if (!head) {
+    return nullptr;
+  }
+  TaskDescriptor* ret = head;
   if (head == tail) {
     head = nullptr;
-    return;
+    tail = nullptr;
+  } else {
+    head = head->next;
+    tail->next = head;
   }
-  head = head->next;
-  tail->next = head;
+  return ret;
 }
 
 void RoundRobinQueue::next() {
@@ -71,16 +77,6 @@ bool MultiLevelQueue::empty() const {
 }
 
 void MultiLevelQueue::enque(TaskDescriptor& td) { queues[td.priority].enque(td); }
-
-void MultiLevelQueue::pop() {
-  for (auto& queue : queues) {
-    if (!queue.empty()) {
-      queue.pop();
-      return;
-    }
-  }
-  logError("pop() on an empty queue");
-}
 
 void MultiLevelQueue::next() {
   for (auto& queue : queues) {

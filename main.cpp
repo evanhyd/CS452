@@ -1,7 +1,6 @@
-#include "fmt.h"
 #include "k1_tasks.h"
-#include "task.h"
 #include "task_handler.h"
+#include "task_manager.h"
 #include "uart.h"
 
 // Set up linkers, BSS sections, and constructors.

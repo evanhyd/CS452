@@ -5,7 +5,7 @@
 #include <utility>
 
 void logDebug(const char* cstring, std::source_location loc) {}
-[[noreturn]] void logError(const char* cstring, std::source_location loc) { std::unreachable(); }
+void logError(const char* cstring, std::source_location loc) { std::unreachable(); }
 
 #else
 

@@ -14,7 +14,8 @@ class RoundRobinQueue {
 public:
   bool empty() const;
   void enque(TaskDescriptor& td);
-  void pop();
+  // return nullptr if empty
+  TaskDescriptor* pop();
   void next();
   TaskDescriptor& current();
   void moveToEnd(TaskDescriptor& td);
@@ -28,7 +29,6 @@ class MultiLevelQueue {
 public:
   bool empty() const;
   void enque(TaskDescriptor& td);
-  void pop();
   void next();
   TaskDescriptor* current();
   void moveToEnd(TaskDescriptor& td);
