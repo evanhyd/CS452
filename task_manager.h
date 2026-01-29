@@ -74,6 +74,7 @@ struct MessageControlBlock {
   int messageSize;
   char* receiveBuffer;
   int receiveBufferSize;
+  int* senderTid;
 };
 
 enum class RunState : int {

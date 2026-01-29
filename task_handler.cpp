@@ -1,5 +1,6 @@
 #include "task_handler.h"
 
+#include "syscalls.h"
 #include "task_manager.h"
 #include <cstdint>
 

@@ -1,4 +1,5 @@
-#include "k1_tasks.h"
+#include "kit_algorithm.h"
+#include "name_server.h"
 #include "task_handler.h"
 #include "task_manager.h"
 #include "uart.h"
@@ -22,9 +23,12 @@ extern "C" void kmain() {
   Uart::configAndEnable(Uart::CONSOLE);
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "\r\n");
 
-  // Schedule a bar task.
-  [[maybe_unused]] int tid = syscall_handler::Create(Priority::MEDIUM, firstTask);
+  int nameServerTid = syscall_handler::Create(Priority::MEDIUM, nameServerTask);
+  KIT_ASSERT(nameServerTid == NAME_SERVER_TID);
+
+  syscall_handler::Create(Priority::MEDIUM, testTask);
 
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
+  // TaskDescriptor* task = tidAllocator.getTaskDescriptor(nameServerTid);
   TaskScheduler::activateTask(*task);
 }

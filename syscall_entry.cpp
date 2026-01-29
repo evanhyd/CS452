@@ -30,8 +30,14 @@ void syscallEntry(StackContext* userStack) {
     syscall_handler::Exit();
     break;
   case 6: // Send
+    currTask->setRetValue(syscall_handler::Send(
+        static_cast<int>(userStack->x0), reinterpret_cast<const char*>(userStack->x1), static_cast<int>(userStack->x2),
+        reinterpret_cast<char*>(userStack->x3), static_cast<int>(userStack->x4)));
     break;
   case 7: // Receive
+    currTask->setRetValue(syscall_handler::Receive(reinterpret_cast<int*>(userStack->x0),
+                                                   reinterpret_cast<char*>(userStack->x1),
+                                                   static_cast<int>(userStack->x2)));
     break;
   case 8: // Reply
     currTask->setRetValue(syscall_handler::Reply(static_cast<int>(userStack->x0),
