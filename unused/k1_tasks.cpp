@@ -1,5 +1,4 @@
 #include "k1_tasks.h"
-
 #include "fmt.h"
 #include "syscalls.h"
 #include "task_queue.h"
@@ -13,6 +12,7 @@ static void otherTask() {
   Uart::syncPrint(Uart::CONSOLE, buffer);
 }
 
+namespace k1 {
 void firstTask() {
   char buffer[64];
 
@@ -34,3 +34,4 @@ void firstTask() {
 
   Uart::syncPrint(Uart::CONSOLE, "FirstUserTask: exiting\r\n");
 }
+} // namespace k1

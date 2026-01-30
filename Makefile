@@ -15,10 +15,15 @@ MMUFLAGS:=-DMMU
 else
 MMUFLAGS:=-mstrict-align -mgeneral-regs-only
 endif
+
+# Include Paths
+INCDIRS = -I.
+
+# Flags
 WARNINGS:=-Wall -Wextra -Wpedantic -Wno-unused-const-variable -Werror=shadow -Wconversion \
         -Wsign-conversion -Wcast-align -Wstrict-aliasing -Wreorder -Wuninitialized -Wdouble-promotion -Wvirtual-move-assign
 CXXFLAGS:= -std=c++23 -g -pipe -static -ffreestanding -fno-exceptions -fno-rtti -fno-use-cxa-atexit -march=armv8-a -mcpu=cortex-a72 $(OPT) $(MMUFLAGS) $(WARNINGS) \
-		-nostdlib -fno-threadsafe-statics -fno-zero-initialized-in-bss
+		-nostdlib -fno-threadsafe-statics -fno-zero-initialized-in-bss $(INCDIRS)
 
 # -Wl,option tells gcc to pass 'option' to the linker with commas replaced by spaces
 # doing this rather than calling the linker directly simplifies the compilation procedure
