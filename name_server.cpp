@@ -34,42 +34,56 @@ int send(Message::Type type, const char* name) {
 } // namespace
 
 void nameServerTask() {
-  static constexpr size_t MAX_ENTRIES = 1024;
+  static constexpr size_t MAX_ENTRIES = 128;
   Entry nameTable[MAX_ENTRIES];
   size_t nameCount = 0;
   char buffer[64];
+
+  // Register the server name.
+  const auto registerHandler = [&](const Message& msg, int senderTid) {
+    for (size_t i = 0; i < nameCount; ++i) {
+      if (strncmp(nameTable[i].name, msg.name, MAX_NAME_LENGTH) == 0) {
+        nameTable[i].tid = senderTid;
+        return 0;
+      }
+    }
+
+    if (nameCount < MAX_ENTRIES) {
+      nameTable[nameCount].tid = senderTid;
+      strncpy(nameTable[nameCount].name, msg.name, MAX_NAME_LENGTH);
+      ++nameCount;
+      return 0;
+    }
+
+    // Run out of name entry, *should not happen.
+    return -1;
+  };
+
+  // Lookup the server name.
+  const auto whoIsHandler = [&](const Message& msg, int) {
+    for (size_t i = 0; i < nameCount; ++i) {
+      if (strncmp(nameTable[i].name, msg.name, MAX_NAME_LENGTH) == 0) {
+        return nameTable[i].tid;
+      }
+    }
+    return -2;
+  };
 
   while (true) {
     Message msg;
     int senderTid;
     ::Receive(&senderTid, reinterpret_cast<char*>(&msg), sizeof(msg));
     int response;
-    if (msg.type == Message::Type::REGISTER_AS) {
-      response = 0;
-      bool found = false;
-      for (size_t i = 0; i < nameCount; ++i) {
-        if (strncmp(nameTable[i].name, msg.name, MAX_NAME_LENGTH) == 0) {
-          nameTable[i].tid = senderTid;
-          found = true;
-          break;
-        }
-      }
-      if (!found && nameCount < MAX_ENTRIES) {
-        nameTable[nameCount].tid = senderTid;
-        strncpy(nameTable[nameCount].name, msg.name, MAX_NAME_LENGTH);
-        ++nameCount;
-      } else {
-        response = -2;
-      }
-    } else if (msg.type == Message::Type::WHO_IS) {
-      response = -2;
-      for (size_t i = 0; i < nameCount; ++i) {
-        if (strncmp(nameTable[i].name, msg.name, MAX_NAME_LENGTH) == 0) {
-          response = nameTable[i].tid;
-          break;
-        }
-      }
+
+    switch (msg.type) {
+    case Message::Type::REGISTER_AS:
+      response = registerHandler(msg, senderTid);
+      break;
+    case Message::Type::WHO_IS:
+      response = whoIsHandler(msg, senderTid);
+      break;
     }
+
     if (int res = ::Reply(senderTid, reinterpret_cast<const char*>(&response), sizeof(response)); res < 0) {
       kit::formatString(buffer, "NameServer: Reply to %d failed with code %d\r\n", senderTid, res);
       Uart::syncPrint(Uart::CONSOLE, buffer);
@@ -77,8 +91,18 @@ void nameServerTask() {
   }
 }
 
+// Registers the task id of the caller under the given name.
+// Return Value
+// 0	success.
+// -1	unable to reach name server.
+// -2   if the name entry is full.
 extern "C" int RegisterAs(const char* name) { return send(Message::Type::REGISTER_AS, name); }
 
+// Asks the name server for the task id of the task that is registered under the given name.
+// Return Value
+// tid	task id of the registered task.
+// -1	unable to reach name server.
+// -2   if no such name is registered.
 extern "C" int WhoIs(const char* name) { return send(Message::Type::WHO_IS, name); }
 
 void testTask() {
@@ -91,6 +115,15 @@ void testTask() {
     Uart::syncPrint(Uart::CONSOLE, buffer);
     return;
   }
+
+  // Register twice, should override without error.
+  regResult = RegisterAs(testName);
+  if (regResult < 0) {
+    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
+    return;
+  }
+
   Uart::syncPrint(Uart::CONSOLE, "Trying WhoIs\r\n");
   int whoIsResult = WhoIs(testName);
   if (whoIsResult != ::MyTid()) {
