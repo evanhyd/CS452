@@ -1,5 +1,6 @@
 #pragma once
 #include "debug.h"
+#include <source_location>
 
 struct TaskDescriptor;
 
@@ -18,7 +19,7 @@ public:
   void next();
   TaskDescriptor& current();
   void moveToEnd(TaskDescriptor& td);
-  void remove(TaskDescriptor& td);
+  void remove(TaskDescriptor& td, std::source_location = std::source_location::current());
 };
 
 // Multi level round robin queues that support different priorities.

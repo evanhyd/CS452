@@ -79,7 +79,6 @@ int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
   memcpy(receiveBuffer, sender->messageControlBlock.message, size_t(transferSize));
 
   // Move the sender to replyWait.
-  currTask->sendWaitQueue.remove(*sender);
   sender->runState = RunState::REPLY_WAIT;
   return transferSize;
 }

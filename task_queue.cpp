@@ -1,5 +1,6 @@
 #include "task_queue.h"
 #include "task_manager.h"
+#include <source_location>
 
 bool RoundRobinQueue::empty() const { return !head; }
 
@@ -40,7 +41,7 @@ void RoundRobinQueue::moveToEnd(TaskDescriptor& td) {
   enque(td);
 }
 
-void RoundRobinQueue::remove(TaskDescriptor& td) {
+void RoundRobinQueue::remove(TaskDescriptor& td, std::source_location loc) {
   if (head == &td && tail == &td) {
     head = nullptr;
     tail = nullptr;
@@ -64,7 +65,7 @@ void RoundRobinQueue::remove(TaskDescriptor& td) {
     curr = curr->next;
   } while (curr != head);
 
-  logError("remove() on a non-existing task");
+  logError("remove() on a non-existing task", loc);
 }
 
 bool MultiLevelQueue::empty() const {

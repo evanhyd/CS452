@@ -25,7 +25,7 @@ enum class RPSMessageType : uint8_t {
   MATCH_RESULT,
   QUIT,
 };
-enum class PlayType : uint8_t { ROCK, PAPER, SCISSORS, EMPTY };
+enum class PlayType : uint8_t { EMPTY, ROCK, PAPER, SCISSORS };
 
 // Request to sign up to the RPS game.
 struct SignUpMessage {};
@@ -143,8 +143,9 @@ void rpsServerTask() {
   const auto quitHandler = [&](const QuitMessage& request) {
     Lobby& lobby = lobbies[request.lobbyId];
     lobby.isPlaying = false;
-    ::Reply(lobby.player1Tid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage));
-    ::Reply(lobby.player2Tid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage));
+    RPSMessage reply = {.type = RPSMessageType::QUIT, .quitMessage = request};
+    ::Reply(lobby.player1Tid, reinterpret_cast<const char*>(&reply), sizeof(RPSMessage));
+    ::Reply(lobby.player2Tid, reinterpret_cast<const char*>(&reply), sizeof(RPSMessage));
   };
 
   // Handle all the requests.
@@ -172,6 +173,7 @@ void rpsServerTask() {
 void rpsClientTask() {
   int serverTid = WhoIs(RPS_SERVER_NAME);
   int lobbyId = 0;
+  char buffer[128];
 
   // Enroll into the challenger queue.
   RPSMessage request = {.type = RPSMessageType::SIGNUP, .signUpMessage = SignUpMessage{}};
@@ -181,15 +183,20 @@ void rpsClientTask() {
 
   // No availabe lobby.
   if (reply.type == RPSMessageType::NO_AVAILABLE_LOBBY) {
-    Uart::syncPrint(Uart::CONSOLE, "No available lobby! Please come back in a few hours.\r\n");
+    Uart::syncPrint(Uart::CONSOLE, "No available lobby! Please check again later.\r\n");
     return;
   }
   lobbyId = reply.lobbyAssignedMessage.lobbyId;
+  kit::formatString(buffer,
+                    "Lobby[%d] Enter your move [r]ock, [p]aper, [s]cissor or any other letter to quit: ", lobbyId);
+  Uart::syncPrint(Uart::CONSOLE, buffer);
 
   // Play the move.
-  Uart::syncPrint(Uart::CONSOLE, "Enter your move [r]ock, [p]aper, [s]cissor or any other letter to quit.\r\n");
-  PlayType play = []() {
+  PlayType play = [&buffer]() {
     char c = Uart::syncRead(Uart::CONSOLE);
+    kit::formatString(buffer, "%c\r\n", c);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
+
     if (c == 'r' || c == 'R')
       return PlayType::ROCK;
     if (c == 'p' || c == 'P')
@@ -204,7 +211,8 @@ void rpsClientTask() {
     request = {.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{lobbyId}};
     ::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
            sizeof(RPSMessage));
-    Uart::syncPrint(Uart::CONSOLE, "Quitted the game.\r\n");
+    kit::formatString(buffer, "Lobby[%d] You quitted the game. The game is cancelled!\r\n", lobbyId);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
     return;
   }
 
@@ -215,7 +223,8 @@ void rpsClientTask() {
 
   // Opponent rage quitted.
   if (reply.type == RPSMessageType::QUIT) {
-    Uart::syncPrint(Uart::CONSOLE, "Opponent has quitted the game. The game is cancelled\r\n");
+    kit::formatString(buffer, "Lobby[%d] Opponent quitted the game. The game is cancelled!\r\n", lobbyId);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
     return;
   }
 
@@ -236,16 +245,19 @@ void rpsClientTask() {
       logError("impossible result");
     }
   }(reply.matchResultMessage.myPlay, reply.matchResultMessage.opponentPlay);
-  char buffer[128];
-  kit::formatString(buffer, "You played %s, opponent played %s, result %s\r\n",
+
+  kit::formatString(buffer, "Lobby[%d] You played %s, opponent played %s, result %s.\r\n", lobbyId,
                     playNames[int(reply.matchResultMessage.myPlay)],
                     playNames[int(reply.matchResultMessage.opponentPlay)], result);
+  Uart::syncPrint(Uart::CONSOLE, buffer);
 
   // Quit the game.
   request = {.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{lobbyId}};
   ::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
          sizeof(RPSMessage));
-  Uart::syncPrint(Uart::CONSOLE, "Quitted the game.\r\n");
+
+  kit::formatString(buffer, "Lobby[%d] Game finished normally!\r\n", lobbyId);
+  Uart::syncPrint(Uart::CONSOLE, buffer);
 }
 
 void FirstUserTask() {
