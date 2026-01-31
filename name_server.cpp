@@ -2,6 +2,7 @@
 #include "debug.h"
 #include "fmt.h"
 #include "kit_algorithm.h" // strncpy, strncmp
+#include "static_stack.h"
 #include "syscalls.h"
 #include "task_manager.h"
 #include "task_queue.h"
@@ -18,11 +19,13 @@ struct Message {
   char name[MAX_NAME_LENGTH];
 };
 
-struct Entry {
+struct NameEntry {
   int tid;
   char name[MAX_NAME_LENGTH];
 };
 
+// Send a query to the name server.
+// Return the reseponse code that depends on the query type.
 int send(Message::Type type, const char* name) {
   Message msg;
   msg.type = type;
@@ -37,23 +40,22 @@ int send(Message::Type type, const char* name) {
 
 void nameServerTask() {
   static constexpr size_t MAX_ENTRIES = 128;
-  Entry nameTable[MAX_ENTRIES];
-  size_t nameCount = 0;
+  StaticStack<NameEntry, MAX_ENTRIES> nameTable;
   char buffer[64];
 
   // Register the server name.
   const auto registerHandler = [&](const Message& msg, int senderTid) {
-    for (size_t i = 0; i < nameCount; ++i) {
-      if (strncmp(nameTable[i].name, msg.name, MAX_NAME_LENGTH) == 0) {
-        nameTable[i].tid = senderTid;
+    for (NameEntry& entry : nameTable) {
+      if (strncmp(entry.name, msg.name, MAX_NAME_LENGTH) == 0) {
+        entry.tid = senderTid;
         return 0;
       }
     }
 
-    if (nameCount < MAX_ENTRIES) {
-      nameTable[nameCount].tid = senderTid;
-      strncpy(nameTable[nameCount].name, msg.name, MAX_NAME_LENGTH);
-      ++nameCount;
+    if (!nameTable.full()) {
+      nameTable.push(NameEntry{});
+      nameTable.top().tid = senderTid;
+      strncpy(nameTable.top().name, msg.name, MAX_NAME_LENGTH);
       return 0;
     }
 
@@ -63,9 +65,9 @@ void nameServerTask() {
 
   // Lookup the server name.
   const auto whoIsHandler = [&](const Message& msg, int) {
-    for (size_t i = 0; i < nameCount; ++i) {
-      if (strncmp(nameTable[i].name, msg.name, MAX_NAME_LENGTH) == 0) {
-        return nameTable[i].tid;
+    for (const NameEntry& entry : nameTable) {
+      if (strncmp(entry.name, msg.name, MAX_NAME_LENGTH) == 0) {
+        return entry.tid;
       }
     }
     return -2;
