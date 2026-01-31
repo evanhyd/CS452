@@ -8,6 +8,7 @@
 #include "task_queue.h"
 #include "uart.h"
 #include <cstdint>
+#include <iterator>
 
 namespace {
 
@@ -26,6 +27,15 @@ enum class RPSMessageType : uint8_t {
   QUIT,
 };
 enum class PlayType : uint8_t { EMPTY, ROCK, PAPER, SCISSORS };
+
+const char* playToString(PlayType play) {
+  static constexpr const char* playNames[] = {"empty", "rock", "paper", "scissors"};
+  auto idx = static_cast<uint8_t>(play);
+  if (idx >= std::size(playNames)) {
+    logError("invalid PlayType");
+  }
+  return playNames[idx];
+}
 
 // Request to sign up to the RPS game.
 struct SignUpMessage {};
@@ -229,7 +239,6 @@ void rpsClientTask() {
   }
 
   // Result;
-  const char* playNames[] = {"rock", "paper", "scissors"};
   const char* result = [](PlayType me, PlayType you) {
     if (me == you) {
       return "draw";
@@ -247,8 +256,8 @@ void rpsClientTask() {
   }(reply.matchResultMessage.myPlay, reply.matchResultMessage.opponentPlay);
 
   kit::formatString(buffer, "Lobby[%d] You played %s, opponent played %s, result %s.\r\n", lobbyId,
-                    playNames[int(reply.matchResultMessage.myPlay)],
-                    playNames[int(reply.matchResultMessage.opponentPlay)], result);
+                    playToString(reply.matchResultMessage.myPlay), playToString(reply.matchResultMessage.opponentPlay),
+                    result);
   Uart::syncPrint(Uart::CONSOLE, buffer);
 
   // Quit the game.

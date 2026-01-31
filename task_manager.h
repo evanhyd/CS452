@@ -12,24 +12,24 @@ class Tid {
   static constexpr size_t INDEX_MASK = (1uz << MASK_WIDTH) - 1;
 
 public:
-  Tid() : value{} {}
-  Tid(unsigned generation, size_t index)
+  constexpr Tid() : value{} {}
+  constexpr Tid(unsigned generation, size_t index)
       : value{(generation << MASK_WIDTH) | static_cast<unsigned>(index & INDEX_MASK)} {}
 
-  static Tid fromRaw(int raw) {
+  static constexpr Tid fromRaw(int raw) {
     unsigned value = static_cast<unsigned>(raw);
     return Tid{value >> MASK_WIDTH, value & INDEX_MASK};
   }
-  static Tid invalid() { return fromRaw(-1); }
+  static constexpr Tid invalid() { return fromRaw(-1); }
 
-  int raw() const { return static_cast<int>(value); }
-  unsigned generation() const { return value >> MASK_WIDTH; }
-  size_t index() const { return value & INDEX_MASK; }
+  constexpr int raw() const { return static_cast<int>(value); }
+  constexpr unsigned generation() const { return value >> MASK_WIDTH; }
+  constexpr size_t index() const { return value & INDEX_MASK; }
 
   struct TaskDescriptor* descriptor() const;
   struct TaskStack* stack() const;
 
-  friend bool operator==(Tid, Tid) = default;
+  constexpr friend bool operator==(Tid, Tid) = default;
 
 private:
   unsigned value;

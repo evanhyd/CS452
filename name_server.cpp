@@ -12,7 +12,7 @@
 namespace {
 
 constexpr size_t MAX_NAME_LENGTH = 64;
-Tid nameServerTid = Tid::invalid();
+constinit Tid nameServerTid = Tid::invalid();
 
 struct Message {
   enum class Type : uint8_t { REGISTER_AS, WHO_IS } type;
