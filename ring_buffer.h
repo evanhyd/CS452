@@ -21,10 +21,27 @@ public:
 
   // Pop from the front of the queue.
   T pop() {
+    if (sz == 0) {
+      logError("ring buffer is empty");
+    }
     T value = data[head];
     head = (head + 1) % capacity;
     --sz;
     return value;
+  }
+
+  T& front() {
+    if (sz == 0) {
+      logError("ring buffer is empty");
+    }
+    return data[head];
+  }
+
+  const T& front() const {
+    if (sz == 0) {
+      logError("ring buffer is empty");
+    }
+    return data[head];
   }
 
   size_t size() const { return sz; }

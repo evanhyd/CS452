@@ -8,3 +8,18 @@ void* memcpy(void* dest, const void* src, size_t n);
 int strncmp(const char* s1, const char* s2, size_t n);
 char* strncpy(char* dest, const char* src, size_t n);
 }
+
+namespace kit {
+template <typename T> T min(const T& l, const T& r) { return l < r ? l : r; }
+
+template <typename T> T max(const T& l, const T& r) { return l < r ? r : l; }
+
+template <typename It, typename Unary> It find_if(It begin, It end, const Unary& good) {
+  for (; begin != end; ++begin) {
+    if (good(*begin)) {
+      break;
+    }
+  }
+  return begin;
+}
+} // namespace kit

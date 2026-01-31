@@ -1,7 +1,6 @@
 #include "syscall_comm_handler.h"
 #include "kit_algorithm.h" // memcpy
 #include "task_manager.h"
-#include <algorithm>
 
 namespace syscall_handler {
 
@@ -30,7 +29,7 @@ int Send(int tid, const char* message, int messageSize, char* replyBuffer, int r
 
   if (receiver->runState == RunState::RECEIVE_WAIT) {
     // Copy the data to the receiver.
-    int transferSize = std::min(messageSize, receiver->messageControlBlock.receiveBufferSize);
+    int transferSize = kit::min(messageSize, receiver->messageControlBlock.receiveBufferSize);
     memcpy(receiver->messageControlBlock.receiveBuffer, message, size_t(transferSize));
     *receiver->messageControlBlock.senderTid = currTask->tid.raw();
 
@@ -76,7 +75,7 @@ int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
 
   // Copy sender's message.
   *tid = sender->tid.raw();
-  int transferSize = std::min(receiveBufferSize, sender->messageControlBlock.messageSize);
+  int transferSize = kit::min(receiveBufferSize, sender->messageControlBlock.messageSize);
   memcpy(receiveBuffer, sender->messageControlBlock.message, size_t(transferSize));
 
   // Move the sender to replyWait.
@@ -105,7 +104,7 @@ int Reply(int tid, const char* reply, int replySize) {
   }
 
   // Copy the reply message.
-  int transferSize = std::min(replySize, sender->messageControlBlock.receiveBufferSize);
+  int transferSize = kit::min(replySize, sender->messageControlBlock.receiveBufferSize);
   memcpy(sender->messageControlBlock.receiveBuffer, reply, size_t(transferSize));
 
   // Move sender to readyQueue.
