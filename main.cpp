@@ -1,7 +1,10 @@
+#include "k2_tasks.h"
 #include "kit_algorithm.h"
 #include "name_server.h"
 #include "syscall_handler.h"
+#include "syscalls.h"
 #include "task_manager.h"
+#include "task_queue.h"
 #include "uart.h"
 
 // Set up linkers, BSS sections, and constructors.
@@ -23,12 +26,9 @@ extern "C" void kmain() {
   Uart::configAndEnable(Uart::CONSOLE);
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "\r\n");
 
-  int nameServerTid = syscall_handler::Create(Priority::MEDIUM, nameServerTask);
-  KIT_ASSERT(nameServerTid == NAME_SERVER_TID);
-
-  syscall_handler::Create(Priority::MEDIUM, testTask);
+  // Main entry.
+  ::Create(Priority::MEDIUM, k2::FirstUserTask);
 
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
-  // TaskDescriptor* task = tidAllocator.getTaskDescriptor(nameServerTid);
   TaskScheduler::activateTask(*task);
 }

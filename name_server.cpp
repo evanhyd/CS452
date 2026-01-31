@@ -1,16 +1,20 @@
 #include "name_server.h"
+#include "debug.h"
 #include "fmt.h"
 #include "kit_algorithm.h" // strncpy, strncmp
 #include "syscalls.h"
+#include "task_manager.h"
+#include "task_queue.h"
 #include "uart.h"
 #include <cstddef>
 
 namespace {
 
-const int MAX_NAME_LENGTH = 64;
+constexpr size_t MAX_NAME_LENGTH = 64;
+Tid nameServerTid = Tid::invalid();
 
 struct Message {
-  enum class Type { REGISTER_AS, WHO_IS } type;
+  enum class Type : uint8_t { REGISTER_AS, WHO_IS } type;
   char name[MAX_NAME_LENGTH];
 };
 
@@ -24,14 +28,12 @@ int send(Message::Type type, const char* name) {
   msg.type = type;
   strncpy(msg.name, name, MAX_NAME_LENGTH);
   int response;
-  if (::Send(NAME_SERVER_TID, reinterpret_cast<const char*>(&msg), sizeof(msg), reinterpret_cast<char*>(&response),
+  if (::Send(nameServerTid.raw(), reinterpret_cast<const char*>(&msg), sizeof(msg), reinterpret_cast<char*>(&response),
              sizeof(response)) < 0) {
     return -1;
   }
   return response;
 }
-
-} // namespace
 
 void nameServerTask() {
   static constexpr size_t MAX_ENTRIES = 128;
@@ -91,19 +93,42 @@ void nameServerTask() {
   }
 }
 
+} // namespace
+
+extern "C" {
 // Registers the task id of the caller under the given name.
 // Return Value
 // 0	success.
 // -1	unable to reach name server.
 // -2   if the name entry is full.
-extern "C" int RegisterAs(const char* name) { return send(Message::Type::REGISTER_AS, name); }
+int RegisterAs(const char* name) {
+  if (nameServerTid == Tid::invalid()) {
+    return -1;
+  }
+  return send(Message::Type::REGISTER_AS, name);
+}
 
 // Asks the name server for the task id of the task that is registered under the given name.
 // Return Value
 // tid	task id of the registered task.
 // -1	unable to reach name server.
 // -2   if no such name is registered.
-extern "C" int WhoIs(const char* name) { return send(Message::Type::WHO_IS, name); }
+int WhoIs(const char* name) {
+  if (nameServerTid == Tid::invalid()) {
+    return -1;
+  }
+  return send(Message::Type::WHO_IS, name);
+}
+}
+
+namespace name_server {
+
+// Create a name server and register its task id internally.
+// Return the task id.
+int createNameServerTask(int priority) {
+  nameServerTid = Tid::fromRaw(::Create(priority, nameServerTask));
+  return nameServerTid.raw();
+}
 
 void testTask() {
   char buffer[64];
@@ -134,3 +159,4 @@ void testTask() {
 
   Uart::syncPrint(Uart::CONSOLE, "TestTask passed\r\n");
 }
+} // namespace name_server

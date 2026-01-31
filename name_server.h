@@ -1,7 +1,11 @@
 #pragma once
 
-constexpr static int NAME_SERVER_TID = 0;
+extern "C" {
+int RegisterAs(const char* name);
+int WhoIs(const char* name);
+}
 
-void nameServerTask();
-
+namespace name_server {
+int createNameServerTask(int priority);
 void testTask();
+} // namespace name_server
