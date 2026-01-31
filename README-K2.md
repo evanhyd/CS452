@@ -1,4 +1,4 @@
-# CS452 K1
+# CS452 K2
 
 There are no special requirements to build the program beyond running `make` on the `linux.student.cs` environment, which generates the image at `kitty_kernel.img`.
 
