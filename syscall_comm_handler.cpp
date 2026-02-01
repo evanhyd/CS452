@@ -12,7 +12,12 @@ static constexpr int RET_PLACEHOLDER = -67;
 // reply buffer provided for it. Longer replies are truncated.
 // -1	tid is not the task id of an existing task.
 // -2   send-receive-reply transaction could not be completed.
+// -9 invalid arguments: messaage/replyBuffer is nullptr or messageSize/replyBufferSize is negative.
 int Send(int tid, const char* message, int messageSize, char* replyBuffer, int replyBufferSize) {
+
+  if (!message || messageSize < 0 || !replyBuffer || replyBufferSize < 0) {
+    return -9;
+  }
 
   TaskDescriptor* receiver = tidAllocator.getTaskDescriptor(tid);
   if (!receiver) {
@@ -40,7 +45,7 @@ int Send(int tid, const char* message, int messageSize, char* replyBuffer, int r
     // Move receiver from receive wait to ready.
     TaskScheduler::enqueTask(*receiver);
     receiver->runState = RunState::READY;
-    receiver->setRetValue(messageSize);
+    receiver->setRetValue(transferSize);
 
   } else {
     // Move sender from ready to send wait.
@@ -57,7 +62,13 @@ int Send(int tid, const char* message, int messageSize, char* replyBuffer, int r
 // Return Value
 // >= 0 the size of the message sent by the sender(stored in tid).The actual message is less than
 // or equal to the size of the message buffer supplied. Longer messages are truncated.
+// -9 receiveBuffer is nullptr or receiveBufferSize is negative
 int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
+
+  if (!receiveBuffer || receiveBufferSize < 0) {
+    return -9;
+  }
+
   auto currTask = TaskScheduler::getCurrentTask();
 
   // Set up the message control block.
@@ -91,9 +102,14 @@ int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
 // Return Value
 // >= 0 the size of the reply message transmitted to the original sender task. If this is less than the size of the
 // reply message, the message has been truncated.
-// - 1 tid is not the task id of an existing task.
-// - 2 tid is not the task id of a reply-blocked task.
+// -1 tid is not the task id of an existing task.
+// -2 tid is not the task id of a reply-blocked task.
+// -9 reply is nullptr or replySize is negative.
 int Reply(int tid, const char* reply, int replySize) {
+
+  if (!reply || replySize < 0) {
+    return -9;
+  }
 
   TaskDescriptor* sender = tidAllocator.getTaskDescriptor(tid);
   // Invalid task.

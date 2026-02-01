@@ -5,7 +5,7 @@
 
 namespace timer {
 
-inline class SystemTimer {
+inline constexpr class SystemTimer {
   static constexpr uintptr_t TIMER_BASE = 0xFE003000;
 
   struct Registers {
@@ -30,7 +30,6 @@ inline class SystemTimer {
 public:
   uint32_t now() const { return regs().CLO; }
   uint32_t since(uint32_t timestamp) const { return now() - timestamp; }
-
 } system_timer;
 
 } // namespace timer

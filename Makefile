@@ -9,11 +9,21 @@ OBJDUMP:=$(XBINDIR)/$(TRIPLE)-objdump
 MMU?=on
 OPT?=-O3
 
+CACHE?=b
+
 # COMPILE OPTIONS
 ifeq ($(MMU),on)
 MMUFLAGS:=-DMMU
 else
 MMUFLAGS:=-mstrict-align -mgeneral-regs-only
+endif
+
+ifeq ($(CACHE),b)
+MMUFLAGS+= -DENABLE_ICACHE -DENABLE_DCACHE
+else ifeq ($(CACHE),i)
+MMUFLAGS+= -DENABLE_ICACHE
+else ifeq ($(CACHE),d)
+MMUFLAGS+= -DENABLE_DCACHE
 endif
 
 # Include Paths

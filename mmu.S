@@ -19,8 +19,12 @@ setup_mmu:
 	// enable mmu & caches
 	mrs x3, sctlr_el1
 	orr x3, x3, 1     // mmu
+#ifdef ENABLE_DCACHE
 	orr x3, x3, 1<<2  // data cache
+#endif
+#ifdef ENABLE_ICACHE
 	orr x3, x3, 1<<12 // instruction cache
+#endif
 	msr sctlr_el1, x3
 	dsb sy
 	isb
