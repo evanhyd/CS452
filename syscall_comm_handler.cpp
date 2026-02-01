@@ -31,7 +31,7 @@ int Send(int tid, const char* message, int messageSize, char* replyBuffer, int r
     // Copy the data to the receiver.
     int transferSize = kit::min(messageSize, receiver->messageControlBlock.receiveBufferSize);
     memcpy(receiver->messageControlBlock.receiveBuffer, message, size_t(transferSize));
-    *receiver->messageControlBlock.senderTid = currTask->tid.raw();
+    *(receiver->messageControlBlock.senderTid) = currTask->tid.raw();
 
     // Move sender from ready to reply wait.
     TaskScheduler::removeTask(*currTask);
@@ -71,6 +71,10 @@ int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
     TaskScheduler::removeTask(*currTask);
     currTask->runState = RunState::RECEIVE_WAIT;
     return RET_PLACEHOLDER;
+  }
+
+  if (sender->runState != RunState::SEND_WAIT) {
+    logError("sender not in SEND_WAIT state");
   }
 
   // Copy sender's message.

@@ -6,6 +6,7 @@
 #include "ring_buffer.h"
 #include "syscalls.h"
 #include "task_queue.h"
+#include "timer.h"
 #include "uart.h"
 #include <cstdint>
 #include <iterator>
@@ -86,13 +87,20 @@ struct Lobby {
   PlayType player2Play;
 };
 
-} // namespace
-
-namespace k2 {
-
 void rpsServerTask() {
   // Register to the name server.
-  RegisterAs(RPS_SERVER_NAME);
+  if (RegisterAs(RPS_SERVER_NAME) < 0) {
+    Uart::syncPrint(Uart::CONSOLE, "[SERVER] failed to register to name server\r\n");
+    return;
+  }
+
+  const auto doReply = [](int tid, const RPSMessage& msg) {
+    if (int ret = ::Reply(tid, reinterpret_cast<const char*>(&msg), sizeof(RPSMessage)); ret < 0) {
+      static char buffer[128];
+      kit::formatString(buffer, "[SERVER] failed to reply to client %d (code %d)\r\n", tid, ret);
+      Uart::syncPrint(Uart::CONSOLE, buffer);
+    }
+  };
 
   RingBuffer<int, MAX_QUEUE_SIZE> playerQueue;
   Lobby lobbies[MAX_LOBBY] = {};
@@ -121,12 +129,17 @@ void rpsServerTask() {
       int lobbyId = int(lobbyIt - lobbies);
       msg = {.type = RPSMessageType::LOBBY_ASSIGNED, .lobbyAssignedMessage = LobbyAssignedMessage{lobbyId}};
     }
-    ::Reply(player1Tid, reinterpret_cast<const char*>(&msg), sizeof(RPSMessage));
-    ::Reply(player2Tid, reinterpret_cast<const char*>(&msg), sizeof(RPSMessage));
+    doReply(player1Tid, msg);
+    doReply(player2Tid, msg);
   };
 
   const auto playHandler = [&](int senderTid, const PlayMessage& request) {
     Lobby& lobby = lobbies[request.lobbyId];
+
+    if (!lobby.isPlaying) {
+      doReply(senderTid, {.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{request.lobbyId}});
+      return;
+    }
 
     // Player plays the move.
     if (lobby.player1Tid == senderTid) {
@@ -139,23 +152,26 @@ void rpsServerTask() {
     if (lobby.player1Play != PlayType::EMPTY && lobby.player2Play != PlayType::EMPTY) {
       RPSMessage reply = {.type = RPSMessageType::MATCH_RESULT,
                           .matchResultMessage = MatchResultMessage{lobby.player1Play, lobby.player2Play}};
-      ::Reply(lobby.player1Tid, reinterpret_cast<const char*>(&reply), sizeof(RPSMessage));
+      doReply(lobby.player1Tid, reply);
       reply = {.type = RPSMessageType::MATCH_RESULT,
                .matchResultMessage = MatchResultMessage{lobby.player2Play, lobby.player1Play}};
-      ::Reply(lobby.player2Tid, reinterpret_cast<const char*>(&reply), sizeof(RPSMessage));
-
+      doReply(lobby.player2Tid, reply);
       // Reset the lobby but continue playing.
       lobby.player1Play = PlayType::EMPTY;
       lobby.player2Play = PlayType::EMPTY;
     }
   };
 
-  const auto quitHandler = [&](const QuitMessage& request) {
+  const auto quitHandler = [&](int senderTid, const QuitMessage& request) {
     Lobby& lobby = lobbies[request.lobbyId];
     lobby.isPlaying = false;
     RPSMessage reply = {.type = RPSMessageType::QUIT, .quitMessage = request};
-    ::Reply(lobby.player1Tid, reinterpret_cast<const char*>(&reply), sizeof(RPSMessage));
-    ::Reply(lobby.player2Tid, reinterpret_cast<const char*>(&reply), sizeof(RPSMessage));
+    doReply(senderTid, reply);
+    if (lobby.player1Tid == senderTid && lobby.player2Play != PlayType::EMPTY) {
+      doReply(lobby.player2Tid, reply);
+    } else if (lobby.player2Tid == senderTid && lobby.player1Play != PlayType::EMPTY) {
+      doReply(lobby.player1Tid, reply);
+    }
   };
 
   // Handle all the requests.
@@ -172,7 +188,7 @@ void rpsServerTask() {
       playHandler(senderTid, request.playMessage);
       break;
     case RPSMessageType::QUIT:
-      quitHandler(request.quitMessage);
+      quitHandler(senderTid, request.quitMessage);
       break;
     default:
       logError("invalid and impossible client request");
@@ -180,61 +196,94 @@ void rpsServerTask() {
   }
 }
 
-void rpsClientTask() {
-  int serverTid = WhoIs(RPS_SERVER_NAME);
-  int lobbyId = 0;
+template <bool Interactive> void rpsClientTask() {
+  int lobbyId = -1;
   char buffer[128];
+  const auto log = [&lobbyId, tid = ::MyTid()](const char* msg, bool newline = true) {
+    static char lBuf[128];
+    if (lobbyId == -1) {
+      kit::formatString(lBuf, "Client[%d] ", tid);
+    } else {
+      kit::formatString(lBuf, "Client[%d] Lobby[%d] ", tid, lobbyId);
+    }
+    Uart::syncPrint(Uart::CONSOLE, lBuf);
+    Uart::syncPrint(Uart::CONSOLE, msg);
+    if (newline) {
+      Uart::syncPrint(Uart::CONSOLE, "\r\n");
+    }
+  };
+
+  int serverTid = WhoIs(RPS_SERVER_NAME);
+  if (serverTid < 0) {
+    log("Failed to find RPS server!");
+    return;
+  }
+
+  RPSMessage reply;
+  const auto send = [&](const RPSMessage& request) {
+    if (::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
+               sizeof(RPSMessage)) < 0) {
+      log("Failed to send request to server!");
+      return false;
+    }
+    return true;
+  };
 
   // Enroll into the challenger queue.
-  RPSMessage request = {.type = RPSMessageType::SIGNUP, .signUpMessage = SignUpMessage{}};
-  RPSMessage reply;
-  ::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
-         sizeof(RPSMessage));
+  if (!send({.type = RPSMessageType::SIGNUP, .signUpMessage = SignUpMessage{}})) {
+    log("Failed to send signup request to server!");
+    return;
+  }
 
-  // No availabe lobby.
+  // No available lobby.
   if (reply.type == RPSMessageType::NO_AVAILABLE_LOBBY) {
-    Uart::syncPrint(Uart::CONSOLE, "No available lobby! Please check again later.\r\n");
+    log("No available lobby!");
     return;
   }
   lobbyId = reply.lobbyAssignedMessage.lobbyId;
-  kit::formatString(buffer,
-                    "Lobby[%d] Enter your move [r]ock, [p]aper, [s]cissor or any other letter to quit: ", lobbyId);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
 
-  // Play the move.
-  PlayType play = [&buffer]() {
-    char c = Uart::syncRead(Uart::CONSOLE);
-    kit::formatString(buffer, "%c\r\n", c);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
+  PlayType play;
+  if constexpr (Interactive) {
+    log("Enter your move [r]ock, [p]aper, [s]cissor or any other letter to quit: ", false);
 
-    if (c == 'r' || c == 'R')
-      return PlayType::ROCK;
-    if (c == 'p' || c == 'P')
-      return PlayType::PAPER;
-    if (c == 's' || c == 'S')
-      return PlayType::SCISSORS;
-    return PlayType::EMPTY;
-  }();
+    // Play the move.
+    play = [&buffer]() {
+      char c = Uart::syncRead(Uart::CONSOLE);
+      kit::formatString(buffer, "%c\r\n", c);
+      Uart::syncPrint(Uart::CONSOLE, buffer);
 
-  // Player wants to quit.
-  if (play == PlayType::EMPTY) {
-    request = {.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{lobbyId}};
-    ::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
-           sizeof(RPSMessage));
-    kit::formatString(buffer, "Lobby[%d] You quitted the game. The game is cancelled!\r\n", lobbyId);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
-    return;
+      if (c == 'r' || c == 'R')
+        return PlayType::ROCK;
+      if (c == 'p' || c == 'P')
+        return PlayType::PAPER;
+      if (c == 's' || c == 'S')
+        return PlayType::SCISSORS;
+      return PlayType::EMPTY;
+    }();
+
+    // Player wants to quit.
+    if (play == PlayType::EMPTY) {
+      if (!send({.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{lobbyId}})) {
+        log("Failed to send quit request to server!");
+        return;
+      }
+      log("You quit the game. The game is cancelled!");
+      return;
+    }
+  } else {
+    // Non-interactive mode, "random" play.
+    play = static_cast<PlayType>((timer::system_timer.now() % 3) + 1);
   }
 
   // Player wants to play.
-  request = {.type = RPSMessageType::PLAY, .playMessage = PlayMessage{lobbyId, play}};
-  ::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
-         sizeof(RPSMessage));
+  if (!send({.type = RPSMessageType::PLAY, .playMessage = PlayMessage{lobbyId, play}})) {
+    log("Failed to send play request to server!");
+    return;
+  }
 
   // Opponent rage quitted.
   if (reply.type == RPSMessageType::QUIT) {
-    kit::formatString(buffer, "Lobby[%d] Opponent quitted the game. The game is cancelled!\r\n", lobbyId);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
+    log("Opponent quit the game. The game is cancelled!");
     return;
   }
 
@@ -255,29 +304,66 @@ void rpsClientTask() {
     }
   }(reply.matchResultMessage.myPlay, reply.matchResultMessage.opponentPlay);
 
-  kit::formatString(buffer, "Lobby[%d] You played %s, opponent played %s, result %s.\r\n", lobbyId,
+  kit::formatString(buffer, "You played %s, opponent played %s, result %s.",
                     playToString(reply.matchResultMessage.myPlay), playToString(reply.matchResultMessage.opponentPlay),
                     result);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  log(buffer);
 
   // Quit the game.
-  request = {.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{lobbyId}};
-  ::Send(serverTid, reinterpret_cast<const char*>(&request), sizeof(RPSMessage), reinterpret_cast<char*>(&reply),
-         sizeof(RPSMessage));
+  if (!send({.type = RPSMessageType::QUIT, .quitMessage = QuitMessage{lobbyId}})) {
+    log("Failed to send quit request to server!");
+    return;
+  }
+  if (reply.type != RPSMessageType::QUIT) {
+    log("Unexpected response from server when quitting the game!");
+    return;
+  }
 
-  kit::formatString(buffer, "Lobby[%d] Game finished normally!\r\n", lobbyId);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  log("Game finished normally!");
 }
+
+void TestInteractive() {
+  ::Create(Priority::MEDIUM, rpsClientTask<true>);
+  ::Create(Priority::MEDIUM, rpsClientTask<true>);
+}
+
+template <Priority P> void TestNonInteractive() {
+  for (int i = 0; i < 32; ++i) {
+    ::Create(P, rpsClientTask<false>);
+    ::Create(P, rpsClientTask<false>);
+  }
+}
+
+} // namespace
+
+namespace k2 {
 
 void FirstUserTask() {
   // Creates the name server.
   name_server::createNameServerTask(Priority::MEDIUM);
 
   // Creates the Rock/Paper/Scissors server.
-  ::Create(Priority::MEDIUM, rpsServerTask);
+  ::Create(Priority::HIGH, rpsServerTask);
 
   // Creates the Rock/Paper/Scissors clients.
-  ::Create(Priority::MEDIUM, rpsClientTask);
-  ::Create(Priority::MEDIUM, rpsClientTask);
+
+  Uart::syncPrint(Uart::CONSOLE, "Test 1: Interactive clients... press any key to start...");
+  Uart::syncRead(Uart::CONSOLE);
+  Uart::syncPrint(Uart::CONSOLE, "\r\n");
+  ::Create(Priority::MEDIUM, TestInteractive);
+
+  Uart::syncPrint(
+      Uart::CONSOLE,
+      "Test 2: Medium (lower than server) priority clients with automatic random play... press any key to start...");
+  Uart::syncRead(Uart::CONSOLE);
+  Uart::syncPrint(Uart::CONSOLE, "\r\n");
+  ::Create(Priority::MEDIUM, TestNonInteractive<Priority::MEDIUM>);
+
+  Uart::syncPrint(
+      Uart::CONSOLE,
+      "Test 3: High (same as server) priority clients with automatic random play... press any key to start...");
+  Uart::syncRead(Uart::CONSOLE);
+  Uart::syncPrint(Uart::CONSOLE, "\r\n");
+  ::Create(Priority::MEDIUM, TestNonInteractive<Priority::HIGH>);
 }
 } // namespace k2

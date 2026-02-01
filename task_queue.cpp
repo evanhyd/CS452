@@ -42,6 +42,9 @@ void RoundRobinQueue::moveToEnd(TaskDescriptor& td) {
 }
 
 void RoundRobinQueue::remove(TaskDescriptor& td, std::source_location loc) {
+  if (!head) {
+    logError("remove() on empty queue", loc);
+  }
   if (head == &td && tail == &td) {
     head = nullptr;
     tail = nullptr;

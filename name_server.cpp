@@ -1,11 +1,9 @@
 #include "name_server.h"
-#include "debug.h"
 #include "fmt.h"
 #include "kit_algorithm.h" // strncpy, strncmp
 #include "static_stack.h"
 #include "syscalls.h"
 #include "task_manager.h"
-#include "task_queue.h"
 #include "uart.h"
 #include <cstddef>
 

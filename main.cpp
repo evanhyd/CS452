@@ -1,8 +1,5 @@
 #include "k2_tasks.h"
-#include "kit_algorithm.h"
-#include "name_server.h"
 #include "syscall_handler.h"
-#include "syscalls.h"
 #include "task_manager.h"
 #include "task_queue.h"
 #include "uart.h"
@@ -29,7 +26,7 @@ extern "C" void kmain() {
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ "\r\n");
 
   // Main entry.
-  syscall_handler::Create(Priority::MEDIUM, k2::FirstUserTask);
+  syscall_handler::Create(Priority::LOW, k2::FirstUserTask);
 
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
