@@ -27,7 +27,7 @@ using ConstructorType = void (*)();
 extern ConstructorType __init_array_start, __init_array_end; // defined in linker script
 extern char* rodata;
 
-void test() { Uart::syncPrint(Uart::CONSOLE, "test creating\r\n"); }
+static constexpr bool K2_PERF_TESTING = false;
 
 extern "C" void kmain() {
 #if defined(MMU)
@@ -43,11 +43,11 @@ extern "C" void kmain() {
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
 
   // Main entry.
-  if (0)
-    syscall_handler::Create(Priority::LOW, k2::FirstUserTask);
-  else
+  if constexpr (K2_PERF_TESTING) {
     syscall_handler::Create(Priority::HIGH, k2::perfTestSpawner);
-
+  } else {
+    syscall_handler::Create(Priority::LOW, k2::FirstUserTask);
+  }
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
 }
