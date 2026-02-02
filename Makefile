@@ -45,7 +45,7 @@ SOURCES := $(wildcard *.S) $(wildcard *.cpp)
 OBJECTS := $(patsubst %.S, %.o, $(patsubst %.cpp, %.o, $(SOURCES)))
 DEPENDS := $(patsubst %.S, %.d, $(patsubst %.cpp, %.d, $(SOURCES)))
 
-.PHONY: all clean binary
+.PHONY: all clean binary k2_perf_test
 
 all: $(FILENAME).img
 
@@ -54,6 +54,9 @@ clean:
 
 binary: all
 	rm -f $(OBJECTS) $(DEPENDS) $(FILENAME).elf
+
+k2_perf_test: CXXFLAGS += -DK2_PERF_TEST
+k2_perf_test: binary
 
 $(FILENAME).img: $(FILENAME).elf
 	$(OBJCOPY) -S -O binary $< $@; sync
