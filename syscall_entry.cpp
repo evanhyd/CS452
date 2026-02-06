@@ -1,6 +1,8 @@
 #include "syscall_entry.h"
 
 #include "debug.h"
+#include "fmt.h"
+#include "irq_handler.h"
 #include "syscall_comm_handler.h"
 #include "syscall_handler.h"
 #include "task_manager.h"
@@ -57,4 +59,21 @@ void syscallEntry(StackContext* userStack) {
   }
 }
 
-void placeholderEntry() { logError("hit placeholder in vectors"); }
+void interruptEntry(StackContext* userStack) {
+  auto currTask = TaskScheduler::getCurrentTask();
+  currTask->stackPointer = userStack;
+
+  irq_handler::interruptEntry();
+
+  if (TaskDescriptor* task = TaskScheduler::getNextScheduledTask()) {
+    TaskScheduler::activateTask(*task);
+  } else {
+    logError("No tasks to schedule after IRQ!\r\n");
+  }
+}
+
+void placeholderEntry(int group, int entry) {
+  char buf[64];
+  kit::formatString(buf, "hit placeholder in vectors: %d, %d\r\n", group, entry);
+  logError(buf);
+}

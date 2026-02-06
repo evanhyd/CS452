@@ -26,7 +26,7 @@ int Create(int priority, void (*function)()) {
   // Initialize all 32 registers: x0-x30, Pstate, ELR.
   // Set up entry to the task wrapper.
   TaskStack* ts = tid.stack();
-  StackContext* context = new (ts->offsetFromTop(sizeof(StackContext))) StackContext{};
+  StackContext* context = ::new (ts->offsetFromTop(sizeof(StackContext))) StackContext{};
   context->elr_el1 = reinterpret_cast<uint64_t>(function);
   context->x30 = reinterpret_cast<uint64_t>(&::Exit);
 

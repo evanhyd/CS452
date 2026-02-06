@@ -41,7 +41,7 @@ _start:
 	orr x0, x0, #(0x1 << 6)
 	msr s3_1_c15_c2_1, x0
 
-	// EL2 (Hypervisor Mode) to EL1 (Kenel Mode)
+	// EL2 (Hypervisor Mode) to EL1 (Kernel Mode)
 	mrs	x1, CurrentEL
 	and	x1, x1, #8
 	cbz	x1, el1_entry

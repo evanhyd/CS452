@@ -1,10 +1,9 @@
 #pragma once
 #include "debug.h"
+#include "syscalls.h"
 #include <source_location>
 
 struct TaskDescriptor;
-
-enum Priority : int { HIGH, MEDIUM, LOW, COUNT };
 
 // Cyclic queue that uses round robin to schedule the tasks.
 class RoundRobinQueue {

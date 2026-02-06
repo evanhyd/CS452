@@ -6,6 +6,7 @@
 .global Send
 .global Receive
 .global Reply
+.global AwaitEvent
 
 Create:
     svc #1
@@ -37,4 +38,8 @@ Receive:
 
 Reply:
     svc #8
+    ret
+
+AwaitEvent:
+    svc #9
     ret

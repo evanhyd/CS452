@@ -3,10 +3,11 @@
 .global vectors
 
 .extern syscallEntry
+.extern interruptEntry
 .extern placeholderEntry
 .extern _start
 
-svcEntry:
+.macro PREP_KERNEL_ENTRY
     msr SPSel, #0
 
     stp x0, x1, [sp, #-16]!
@@ -39,8 +40,17 @@ svcEntry:
     // Otherwise, will gradually consume all kernel stack space
     ldr x1, =_start
     mov sp, x1
+.endm
+
+svcEntry:
+    PREP_KERNEL_ENTRY
 
     b syscallEntry
+
+irqEntry:
+    PREP_KERNEL_ENTRY
+
+    b interruptEntry
 
 switchTask:
     // Set user SP to task's SP, and switch to user mode.
@@ -74,40 +84,68 @@ switchTask:
 vectors:
     // Group 1 (Current EL SP0)
     .align 7
+    mov x0, #1
+    mov x1, #0
     b placeholderEntry
     .align 7
+    mov x0, #1
+    mov x1, #1
     b placeholderEntry
     .align 7
+    mov x0, #1
+    mov x1, #2
     b placeholderEntry
     .align 7
+    mov x0, #1
+    mov x1, #3
     b placeholderEntry
 
     // Group 2 (Current EL SPx)
     .align 7
+    mov x0, #2
+    mov x1, #0
     b placeholderEntry
     .align 7
+    mov x0, #2
+    mov x1, #1
     b placeholderEntry
     .align 7
+    mov x0, #2
+    mov x1, #2
     b placeholderEntry
     .align 7
+    mov x0, #2
+    mov x1, #3
     b placeholderEntry
 
     // Group 3 (Lower EL 64)
     .align 7
     b svcEntry
     .align 7
+    b irqEntry
+    .align 7
+    mov x0, #3
+    mov x1, #2
     b placeholderEntry
     .align 7
-    b placeholderEntry
-    .align 7
+    mov x0, #3
+    mov x1, #3
     b placeholderEntry
 
     // Group 4 (Lower EL 32)
     .align 7
+    mov x0, #4
+    mov x1, #0
     b placeholderEntry
     .align 7
+    mov x0, #4
+    mov x1, #1
     b placeholderEntry
     .align 7
+    mov x0, #4
+    mov x1, #2
     b placeholderEntry
     .align 7
+    mov x0, #4
+    mov x1, #3
     b placeholderEntry

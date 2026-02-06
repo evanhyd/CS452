@@ -1,8 +1,8 @@
-#include "k2_perf_tasks.h"
-#include "k2_tasks.h"
+#include "gic.h"
 #include "syscall_handler.h"
 #include "task_manager.h"
 #include "task_queue.h"
+#include "timer.h"
 #include "uart.h"
 
 #ifdef __OPTIMIZE__
@@ -40,12 +40,21 @@ extern "C" void kmain() {
   Uart::configAndEnable(Uart::CONSOLE);
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
 
+  // Route the interrupts to CPU 0.
+  gic::gicd_manager.setInterruptPriorityThresholdForQemu();
+  gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER1, 0);
+  gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER3, 0);
+  gic::gicd_manager.enableInterrupt(gic::InterruptId::TIMER1);
+
   // Main entry.
-#ifdef K2_PERF_TEST
-  syscall_handler::Create(Priority::HIGH, k2::perfTestSpawner);
-#else
-  syscall_handler::Create(Priority::LOW, k2::FirstUserTask);
-#endif
+  using namespace timer::literals;
+  timer::system_timer.setChannel1After(timer::TICK_DURATION);
+
+  [[maybe_unused]] int idleTid = syscall_handler::Create(Priority::LOWEST, []() {
+    while (true) {
+      asm volatile("wfi");
+    }
+  });
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
 }

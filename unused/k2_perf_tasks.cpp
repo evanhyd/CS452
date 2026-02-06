@@ -8,7 +8,6 @@
 namespace {
 
 constexpr int REPETITIONS = 100'000;
-// constexpr int REPETITIONS = 5;
 
 template <int MessageSize> void sender() {
   char message[(size_t)MessageSize]{};
