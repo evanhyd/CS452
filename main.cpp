@@ -41,7 +41,6 @@ extern "C" void kmain() {
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
 
   // Route the interrupts to CPU 0.
-  gic::gicd_manager.setInterruptPriorityThresholdForQemu();
   gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER1, 0);
   gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER3, 0);
   gic::gicd_manager.enableInterrupt(gic::InterruptId::TIMER1);
