@@ -29,7 +29,7 @@ private:
   uint32_t microseconds_;
 };
 
-inline constexpr Time TICK_DURATION = Time::fromMillis(1000);
+inline constexpr Time TICK_DURATION = Time::fromMillis(10);
 
 namespace literals {
 

@@ -41,6 +41,8 @@ extern "C" void kmain() {
   Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
 
   // Route the interrupts to CPU 0.
+  gic::gicd_manager.init();
+  gic::gicc_manager.init();
   gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER1, 0);
   gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER3, 0);
   gic::gicd_manager.enableInterrupt(gic::InterruptId::TIMER1);
@@ -51,7 +53,7 @@ extern "C" void kmain() {
 
   [[maybe_unused]] int idleTid = syscall_handler::Create(Priority::LOWEST, []() {
     while (true) {
-      asm volatile("wfi");
+      asm("wfi");
     }
   });
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();

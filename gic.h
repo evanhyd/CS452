@@ -61,6 +61,8 @@ inline constexpr class GicdManager {
   }
 
 public:
+  void init() const { regs().GICD_CTLR = 1; }
+
   // Route the interrupt to CPU's IRQ handler.
   void routeInterupt(InterruptId interruptId, uint32_t cpuId) const {
     static constexpr uint32_t interruptPerRegister = 4;
@@ -134,6 +136,11 @@ inline constexpr class GicdcManager {
   }
 
 public:
+  void init() const {
+    regs().GICC_CTLR = 1;
+    regs().GICC_PMR = 0xFF;
+  }
+
   // Sets interrupt state to Active in GIC
   // Returns interruptID.
   InterruptId readAndActivateInterruptId() const { return static_cast<InterruptId>(regs().GICC_IAR); }
