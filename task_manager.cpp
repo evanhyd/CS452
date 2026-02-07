@@ -1,7 +1,10 @@
 #include "task_manager.h"
 #include "debug.h"
+#include "fmt.h"
 #include "gic.h"
 #include "syscall_task_handler.h"
+#include "timer.h"
+#include "uart.h"
 
 namespace {
 
@@ -14,6 +17,9 @@ TaskDescriptor* currentTask = nullptr;
 
 // idle task stuff
 Tid idleTid;
+timer::Time intervalStart;
+timer::Time idlePart;
+timer::Time lastSwitchTime;
 
 size_t interruptIdToIndex(gic::InterruptEventId interruptId) {
   switch (interruptId) {
@@ -87,7 +93,47 @@ void TaskScheduler::notifyAllEventBlockedTasks(gic::InterruptEventId eventId, in
 extern "C" [[noreturn]] void switchTask(void* sp);
 
 void TaskScheduler::activateTask(TaskDescriptor& td) {
+  using namespace timer::literals;
+
+  auto now = timer::system_timer.now();
+  if (currentTask) {
+    if (currentTask->tid == idleTid) {
+      idlePart += now - lastSwitchTime;
+    }
+  } else {
+    intervalStart = now;
+  }
+
+  auto delta = now - intervalStart;
+  if (delta >= 500_ms) {
+    auto idlePerMille = static_cast<uint64_t>(idlePart.micros()) * 1000 / delta.micros();
+    auto idlePercent = idlePerMille / 10;
+    auto idleFraction = idlePerMille % 10;
+
+    // TODO: use ansi to print in place somewhere?
+    char buf[64];
+    char* end = kit::strAppend(buf, "Idle: ");
+    if (idlePercent == 100) {
+      end = kit::strAppend(end, "100.");
+    } else {
+      if (idlePercent < 10) {
+        end = kit::strAppend(end, ' ');
+      } else {
+        end = kit::strAppend(end, static_cast<char>('0' + idlePercent / 10));
+      }
+      end = kit::strAppend(end, static_cast<char>('0' + idlePercent % 10));
+      end = kit::strAppend(end, '.');
+      end = kit::strAppend(end, static_cast<char>('0' + idleFraction));
+    }
+    end = kit::strAppend(end, "%\r\n");
+    Uart::syncPrint(Uart::CONSOLE, buf);
+
+    intervalStart = now;
+    idlePart = 0_us;
+  }
+
   currentTask = &td;
+  lastSwitchTime = now;
   switchTask(td.stackPointer);
 }
 

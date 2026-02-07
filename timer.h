@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 
@@ -32,6 +33,8 @@ public:
 
   constexpr Time& operator+=(const Time& other) { return *this = *this + other; }
   constexpr Time& operator-=(const Time& other) { return *this = *this - other; }
+
+  constexpr auto operator<=>(const Time& other) const = default;
 
 private:
   uint32_t microseconds_;
