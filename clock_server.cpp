@@ -5,7 +5,7 @@
 
 namespace clock_server {
 
-enum class ClockServerMessageType : int { TIME, DELAY, DELAY_UNTIL };
+enum class ClockServerMessageType : int { TIME, DELAY, DELAY_UNTIL, NOTIFIER_UPDATE };
 
 struct TimeMessage {};
 
@@ -17,12 +17,17 @@ struct DelayUntilMessage {
   int ticks;
 };
 
+struct NotifierUpdateMessage {
+  int ticks;
+};
+
 struct ClockServerMessage {
   ClockServerMessageType type;
   union {
     TimeMessage timeMessage;
     DelayMessage delayMessage;
     DelayUntilMessage delayUntilMessage;
+    NotifierUpdateMessage notifierUpdateMessage;
   };
 };
 
@@ -65,11 +70,23 @@ int DelayUntil(int tid, int ticks) {
   return value;
 }
 
+void clockNotifierTask() {
+  for (;;) {
+    int ticks = ::AwaitEvent(static_cast<int>(gic::InterruptEventId::TIMER1));
+    ClockServerMessage msg = {.type = ClockServerMessageType::NOTIFIER_UPDATE,
+                              .notifierUpdateMessage = NotifierUpdateMessage{ticks}};
+    char devnull;
+    ::Send(::MyParentTid(), reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), &devnull, sizeof(char));
+  }
+}
+
 void clockServerTask() {
   const int initializedTick = ::AwaitEvent(static_cast<int>(gic::InterruptEventId::TIMER1));
   if (initializedTick == -1) {
     logError("invalid timer event data");
   }
+
+  int currentTick = initializedTick;
 
   for (;;) {
     int tid;
@@ -85,6 +102,11 @@ void clockServerTask() {
     case ClockServerMessageType::DELAY:
       break;
     case ClockServerMessageType::DELAY_UNTIL:
+      break;
+    case ClockServerMessageType::NOTIFIER_UPDATE:
+      currentTick = msg.notifierUpdateMessage.ticks;
+      // TODO: process sleeping clock clients.
+      // TODO: reply
       break;
     default:
       break;
