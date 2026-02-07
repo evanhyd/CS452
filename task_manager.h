@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gic.h"
 #include "task_queue.h"
 #include <bit>
 #include <cstddef>
@@ -79,9 +80,10 @@ struct MessageControlBlock {
 
 enum class RunState : int {
   READY,
-  SEND_WAIT,
-  RECEIVE_WAIT,
-  REPLY_WAIT,
+  SEND_BLOCKED,
+  RECEIVE_BLOCKED,
+  REPLY_BLOCKED,
+  EVENT_BLOCKED,
 };
 
 // The handle to an allocated task. Contains all the meta data.
@@ -133,15 +135,26 @@ inline constinit TidAllocator tidAllocator{};
 struct TaskScheduler {
   TaskScheduler() = delete;
 
+  // Return the task descriptor of the currently running task, or nullptr if there isn't any.
   static TaskDescriptor* getCurrentTask();
+
   // Return the task descriptor of the next scheduled task, or nullptr if there isn't any.
   static TaskDescriptor* getNextScheduledTask();
-  // Return the task descriptor of the currently running task, or nullptr if there isn't any.
-  static void enqueTask(TaskDescriptor& td);
-  // Move the given task to the end of its priority queue.
-  static void moveTaskToEnd(TaskDescriptor& td);
-  // Remove the given task from its priority queue.
-  static void removeTask(TaskDescriptor& td);
+
+  // Enque the task to the ready task.
+  static void enqueReadyTask(TaskDescriptor& td);
+
+  // Move the given task to the end of the ready priority queue.
+  static void moveReadyTaskToEnd(TaskDescriptor& td);
+
+  // Remove the given task from ready priority queue.
+  static void removeReadyTask(TaskDescriptor& td);
+
+  // Enque the task to the event blocked queue partitioned by eventId.
+  static void enqueEventBlockedTask(gic::InterruptEventId eventId, TaskDescriptor& td);
+
+  // Notify the event blocked tasks, and move all to the ready queue.
+  static void notifyAllEventBlockedTasks(gic::InterruptEventId eventId, int eventValue);
 
   // Context switch to the task denoted by its task descriptor.
   static void activateTask [[noreturn]] (TaskDescriptor& td);

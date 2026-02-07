@@ -5,6 +5,8 @@
 
 namespace timer {
 
+inline constexpr uint32_t TICK_DURATION_US = 10000;
+
 // A Time class that can represent the smallest tick precision of the system timer.
 class Time {
   constexpr explicit Time(uint32_t microseconds) : microseconds_{microseconds} {}
@@ -17,6 +19,7 @@ public:
   constexpr uint32_t micros() const { return microseconds_; }
   constexpr uint32_t millis() const { return microseconds_ / 1000; }
   constexpr uint32_t secs() const { return microseconds_ / 1'000'000; }
+  constexpr uint32_t ticks() const { return microseconds_ / TICK_DURATION_US; }
 
   constexpr friend Time operator+(const Time& a, const Time& b) {
     return Time::fromMicros(a.microseconds_ + b.microseconds_);
@@ -29,7 +32,7 @@ private:
   uint32_t microseconds_;
 };
 
-inline constexpr Time TICK_DURATION = Time::fromMillis(10);
+inline constexpr Time TICK_DURATION = Time::fromMicros(TICK_DURATION_US);
 
 namespace literals {
 

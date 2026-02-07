@@ -1,14 +1,17 @@
-#include "syscall_entry.h"
+#include "exception_entry.h"
 
 #include "debug.h"
 #include "fmt.h"
-#include "irq_handler.h"
+#include "gic.h"
 #include "syscall_comm_handler.h"
-#include "syscall_handler.h"
+#include "syscall_interrupt_handler.h"
+#include "syscall_task_handler.h"
 #include "task_manager.h"
+#include "timer.h"
 #include "uart.h"
 
-extern "C" [[noreturn]] void _reboot();
+extern "C" {
+[[noreturn]] void _reboot();
 
 void syscallEntry(StackContext* userStack) {
   auto currTask = TaskScheduler::getCurrentTask();
@@ -46,6 +49,9 @@ void syscallEntry(StackContext* userStack) {
                                                  reinterpret_cast<const char*>(userStack->x1),
                                                  static_cast<int>(userStack->x2)));
     break;
+  case 9: // AwaitEvent
+    syscall_handler::AwaitEvent(static_cast<int>(userStack->x0));
+    break;
   default:
     break;
   }
@@ -59,12 +65,35 @@ void syscallEntry(StackContext* userStack) {
   }
 }
 
-void interruptEntry(StackContext* userStack) {
+void irqEntry(StackContext* userStack) {
+  // Update task stack.
   auto currTask = TaskScheduler::getCurrentTask();
   currTask->stackPointer = userStack;
 
-  irq_handler::interruptEntry();
+  // Check the interrupt type.
+  auto interruptId = gic::gicc_manager.readAndActivateInterruptId();
+  char buf[64];
+  kit::formatString(buf, "Interrupt ID: %u", static_cast<uint32_t>(interruptId));
+  logDebug(buf);
 
+  switch (interruptId) {
+  case gic::InterruptEventId::TIMER1:
+    TaskScheduler::notifyAllEventBlockedTasks(gic::InterruptEventId::TIMER1, int(timer::system_timer.now().ticks()));
+    timer::system_timer.clearChannel1();
+    timer::system_timer.setChannel1After(timer::TICK_DURATION);
+    break;
+  case gic::InterruptEventId::TIMER3:
+    TaskScheduler::notifyAllEventBlockedTasks(gic::InterruptEventId::TIMER3, int(timer::system_timer.now().ticks()));
+    timer::system_timer.clearChannel3();
+    timer::system_timer.setChannel3After(timer::TICK_DURATION);
+    break;
+  default:
+    break;
+  }
+
+  gic::gicc_manager.deactivateInterrupt(interruptId);
+
+  // Switch to other task.
   if (TaskDescriptor* task = TaskScheduler::getNextScheduledTask()) {
     TaskScheduler::activateTask(*task);
   } else {
@@ -76,4 +105,5 @@ void placeholderEntry(int group, int entry) {
   char buf[64];
   kit::formatString(buf, "hit placeholder in vectors: %d, %d\r\n", group, entry);
   logError(buf);
+}
 }

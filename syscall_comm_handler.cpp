@@ -32,26 +32,26 @@ int Send(int tid, const char* message, int messageSize, char* replyBuffer, int r
   currTask->messageControlBlock.receiveBuffer = replyBuffer;
   currTask->messageControlBlock.receiveBufferSize = replyBufferSize;
 
-  if (receiver->runState == RunState::RECEIVE_WAIT) {
+  if (receiver->runState == RunState::RECEIVE_BLOCKED) {
     // Copy the data to the receiver.
     int transferSize = kit::min(messageSize, receiver->messageControlBlock.receiveBufferSize);
     memcpy(receiver->messageControlBlock.receiveBuffer, message, size_t(transferSize));
     *(receiver->messageControlBlock.senderTid) = currTask->tid.raw();
 
     // Move sender from ready to reply wait.
-    TaskScheduler::removeTask(*currTask);
-    currTask->runState = RunState::REPLY_WAIT;
+    TaskScheduler::removeReadyTask(*currTask);
+    currTask->runState = RunState::REPLY_BLOCKED;
 
     // Move receiver from receive wait to ready.
-    TaskScheduler::enqueTask(*receiver);
+    TaskScheduler::enqueReadyTask(*receiver);
     receiver->runState = RunState::READY;
     receiver->setRetValue(transferSize);
 
   } else {
     // Move sender from ready to send wait.
-    TaskScheduler::removeTask(*currTask);
+    TaskScheduler::removeReadyTask(*currTask);
     receiver->sendWaitQueue.enque(*currTask);
-    currTask->runState = RunState::SEND_WAIT;
+    currTask->runState = RunState::SEND_BLOCKED;
   }
 
   return RET_PLACEHOLDER;
@@ -79,12 +79,12 @@ int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
   TaskDescriptor* sender = currTask->sendWaitQueue.pop();
   if (!sender) {
     // No messages in the queue, block the task.
-    TaskScheduler::removeTask(*currTask);
-    currTask->runState = RunState::RECEIVE_WAIT;
+    TaskScheduler::removeReadyTask(*currTask);
+    currTask->runState = RunState::RECEIVE_BLOCKED;
     return RET_PLACEHOLDER;
   }
 
-  if (sender->runState != RunState::SEND_WAIT) {
+  if (sender->runState != RunState::SEND_BLOCKED) {
     logError("sender not in SEND_WAIT state");
   }
 
@@ -94,7 +94,7 @@ int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
   memcpy(receiveBuffer, sender->messageControlBlock.message, size_t(transferSize));
 
   // Move the sender to replyWait.
-  sender->runState = RunState::REPLY_WAIT;
+  sender->runState = RunState::REPLY_BLOCKED;
   return transferSize;
 }
 
@@ -118,7 +118,7 @@ int Reply(int tid, const char* reply, int replySize) {
   }
 
   // Task not in reply-wait.
-  if (sender->runState != RunState::REPLY_WAIT) {
+  if (sender->runState != RunState::REPLY_BLOCKED) {
     return -2;
   }
 
@@ -127,7 +127,7 @@ int Reply(int tid, const char* reply, int replySize) {
   memcpy(sender->messageControlBlock.receiveBuffer, reply, size_t(transferSize));
 
   // Move sender to readyQueue.
-  TaskScheduler::enqueTask(*sender);
+  TaskScheduler::enqueReadyTask(*sender);
   sender->runState = RunState::READY;
   sender->setRetValue(transferSize);
 

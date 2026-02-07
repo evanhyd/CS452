@@ -1,9 +1,10 @@
-.global svcEntry
+.global preSyscallEntry
+.global preIrqEntry
 .global switchTask
 .global vectors
 
 .extern syscallEntry
-.extern interruptEntry
+.extern irqEntry
 .extern placeholderEntry
 .extern _start
 
@@ -42,15 +43,15 @@
     mov sp, x1
 .endm
 
-svcEntry:
+preSyscallEntry:
     PREP_KERNEL_ENTRY
 
     b syscallEntry
 
-irqEntry:
+preIrqEntry:
     PREP_KERNEL_ENTRY
 
-    b interruptEntry
+    b irqEntry
 
 switchTask:
     // Set user SP to task's SP, and switch to user mode.
@@ -120,9 +121,9 @@ vectors:
 
     // Group 3 (Lower EL 64)
     .align 7
-    b svcEntry
+    b preSyscallEntry
     .align 7
-    b irqEntry
+    b preIrqEntry
     .align 7
     mov x0, #3
     mov x1, #2

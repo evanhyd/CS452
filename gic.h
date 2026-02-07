@@ -5,7 +5,7 @@
 
 namespace gic {
 
-enum class InterruptId : uint32_t {
+enum class InterruptEventId : uint32_t {
   TIMER1 = 97,
   TIMER3 = 99,
 };
@@ -64,7 +64,7 @@ public:
   void init() const { regs().GICD_CTLR = 1; }
 
   // Route the interrupt to CPU's IRQ handler.
-  void routeInterupt(InterruptId interruptId, uint32_t cpuId) const {
+  void routeInterupt(InterruptEventId interruptId, uint32_t cpuId) const {
     static constexpr uint32_t interruptPerRegister = 4;
     uint32_t id = static_cast<uint32_t>(interruptId);
     uint32_t registerIndex = id / interruptPerRegister;
@@ -73,7 +73,7 @@ public:
   }
 
   // Enable the interrupt.
-  void enableInterrupt(InterruptId interruptId) const {
+  void enableInterrupt(InterruptEventId interruptId) const {
     uint32_t id = static_cast<uint32_t>(interruptId);
     uint32_t registerIndex = id / 32;
     uint32_t bitIndex = id % 32;
@@ -81,7 +81,7 @@ public:
   }
 
   // Disable the interrupt.
-  void diableInterrupt(InterruptId interruptId) const {
+  void diableInterrupt(InterruptEventId interruptId) const {
     uint32_t id = static_cast<uint32_t>(interruptId);
     uint32_t registerIndex = id / 32;
     uint32_t bitIndex = id % 32;
@@ -143,10 +143,12 @@ public:
 
   // Sets interrupt state to Active in GIC
   // Returns interruptID.
-  InterruptId readAndActivateInterruptId() const { return static_cast<InterruptId>(regs().GICC_IAR); }
+  InterruptEventId readAndActivateInterruptId() const { return static_cast<InterruptEventId>(regs().GICC_IAR); }
 
   // Marks interrupt as not active in GIC.
-  void deactivateInterrupt(InterruptId interruptId) const { regs().GICC_EOIR = static_cast<uint32_t>(interruptId); }
+  void deactivateInterrupt(InterruptEventId interruptId) const {
+    regs().GICC_EOIR = static_cast<uint32_t>(interruptId);
+  }
 
 } gicc_manager;
 

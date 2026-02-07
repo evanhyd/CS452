@@ -1,4 +1,4 @@
-#include "syscall_handler.h"
+#include "syscall_task_handler.h"
 #include "syscalls.h"
 #include "task_manager.h"
 #include <cstdint>
@@ -42,7 +42,7 @@ int Create(int priority, void (*function)()) {
                        .runState = RunState::READY,
                        .messageControlBlock = {},
                        .sendWaitQueue = {}};
-  TaskScheduler::enqueTask(*td);
+  TaskScheduler::enqueReadyTask(*td);
   return tid.raw();
 }
 
@@ -56,13 +56,13 @@ int MyParentTid() { return TaskScheduler::getCurrentTask()->parentTid.raw(); }
 
 // Causes a task to pause executing.
 // The task is moved to the end of its priority queue, and will resume executing when next scheduled.
-void Yield() { TaskScheduler::moveTaskToEnd(*TaskScheduler::getCurrentTask()); }
+void Yield() { TaskScheduler::moveReadyTaskToEnd(*TaskScheduler::getCurrentTask()); }
 
 // Causes a task to cease execution permanently. It is removed from all priority queues, send queues, receive queues and
 // event queues. Resources owned by the task, primarily its memory and task descriptor, may be reclaimed.
 void Exit() {
   auto currTask = TaskScheduler::getCurrentTask();
-  TaskScheduler::removeTask(*currTask);
+  TaskScheduler::removeReadyTask(*currTask);
   tidAllocator.deallocate(currTask->tid);
 }
 

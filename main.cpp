@@ -1,5 +1,5 @@
 #include "gic.h"
-#include "syscall_handler.h"
+#include "syscall_task_handler.h"
 #include "task_manager.h"
 #include "task_queue.h"
 #include "timer.h"
@@ -43,9 +43,9 @@ extern "C" void kmain() {
   // Route the interrupts to CPU 0.
   gic::gicd_manager.init();
   gic::gicc_manager.init();
-  gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER1, 0);
-  gic::gicd_manager.routeInterupt(gic::InterruptId::TIMER3, 0);
-  gic::gicd_manager.enableInterrupt(gic::InterruptId::TIMER1);
+  gic::gicd_manager.routeInterupt(gic::InterruptEventId::TIMER1, 0);
+  gic::gicd_manager.routeInterupt(gic::InterruptEventId::TIMER3, 0);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::TIMER1);
 
   // Main entry.
   using namespace timer::literals;
