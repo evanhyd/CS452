@@ -159,3 +159,5 @@ struct TaskScheduler {
   // Context switch to the task denoted by its task descriptor.
   static void activateTask [[noreturn]] (TaskDescriptor& td);
 };
+
+void createIdleTask();

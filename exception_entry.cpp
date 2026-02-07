@@ -72,9 +72,9 @@ void irqEntry(StackContext* userStack) {
 
   // Check the interrupt type.
   auto interruptId = gic::gicc_manager.readAndActivateInterruptId();
-  char buf[64];
-  kit::formatString(buf, "Interrupt ID: %u", static_cast<uint32_t>(interruptId));
-  logDebug(buf);
+  // char buf[64];
+  // kit::formatString(buf, "Interrupt ID: %u", static_cast<uint32_t>(interruptId));
+  // logDebug(buf);
 
   switch (interruptId) {
   case gic::InterruptEventId::TIMER1:

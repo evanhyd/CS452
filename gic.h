@@ -3,12 +3,20 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "syscalls.h"
+
 namespace gic {
 
 enum class InterruptEventId : uint32_t {
   TIMER1 = 97,
   TIMER3 = 99,
 };
+#define CHECK(x)                                                                                                       \
+  static_assert(static_cast<uint32_t>(InterruptEventId::x) == ::EventId::x,                                            \
+                "InterruptEventId::" #x " should be the same as ::EventId::" #x)
+CHECK(TIMER1);
+CHECK(TIMER3);
+#undef CHECK
 
 inline constexpr class GicdManager {
   struct Registers {

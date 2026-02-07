@@ -12,6 +12,8 @@ class Time {
   constexpr explicit Time(uint32_t microseconds) : microseconds_{microseconds} {}
 
 public:
+  constexpr Time() : microseconds_{0} {}
+
   constexpr static Time fromMicros(uint32_t micros) { return Time{micros}; }
   constexpr static Time fromMillis(uint32_t millis) { return Time{millis * 1000}; }
   constexpr static Time fromSecs(uint32_t seconds) { return Time{seconds * 1'000'000}; }
@@ -27,6 +29,9 @@ public:
   constexpr friend Time operator-(const Time& a, const Time& b) {
     return Time::fromMicros(a.microseconds_ - b.microseconds_);
   }
+
+  constexpr Time& operator+=(const Time& other) { return *this = *this + other; }
+  constexpr Time& operator-=(const Time& other) { return *this = *this - other; }
 
 private:
   uint32_t microseconds_;

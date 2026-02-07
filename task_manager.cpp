@@ -1,6 +1,7 @@
 #include "task_manager.h"
 #include "debug.h"
 #include "gic.h"
+#include "syscall_task_handler.h"
 
 namespace {
 
@@ -10,6 +11,9 @@ TaskStack taskStacks[MAX_TASK_COUNT];
 MultiLevelQueue readyQueue{};
 RoundRobinQueue eventBlockedQueue[2]{};
 TaskDescriptor* currentTask = nullptr;
+
+// idle task stuff
+Tid idleTid;
 
 size_t interruptIdToIndex(gic::InterruptEventId interruptId) {
   switch (interruptId) {
@@ -85,4 +89,16 @@ extern "C" [[noreturn]] void switchTask(void* sp);
 void TaskScheduler::activateTask(TaskDescriptor& td) {
   currentTask = &td;
   switchTask(td.stackPointer);
+}
+
+void createIdleTask() {
+  int tid = syscall_handler::Create(Priority::LOWEST, []() {
+    while (true) {
+      asm("wfi");
+    }
+  });
+  if (tid < 0) {
+    logError("failed to create idle task");
+  }
+  idleTid = Tid::fromRaw(tid);
 }

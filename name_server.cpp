@@ -93,6 +93,36 @@ void nameServerTask() {
   }
 }
 
+[[maybe_unused]] void testTask() {
+  char buffer[64];
+  const char* testName = "TestTask";
+  Uart::syncPrint(Uart::CONSOLE, "Trying RegisterAs\r\n");
+  int regResult = RegisterAs(testName);
+  if (regResult < 0) {
+    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
+    return;
+  }
+
+  // Register twice, should override without error.
+  regResult = RegisterAs(testName);
+  if (regResult < 0) {
+    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
+    return;
+  }
+
+  Uart::syncPrint(Uart::CONSOLE, "Trying WhoIs\r\n");
+  int whoIsResult = WhoIs(testName);
+  if (whoIsResult != ::MyTid()) {
+    kit::formatString(buffer, "WhoIs returned %d\r\n", whoIsResult);
+    Uart::syncPrint(Uart::CONSOLE, buffer);
+    return;
+  }
+
+  Uart::syncPrint(Uart::CONSOLE, "TestTask passed\r\n");
+}
+
 } // namespace
 
 extern "C" {
@@ -130,33 +160,4 @@ int createNameServerTask(int priority) {
   return nameServerTid.raw();
 }
 
-void testTask() {
-  char buffer[64];
-  const char* testName = "TestTask";
-  Uart::syncPrint(Uart::CONSOLE, "Trying RegisterAs\r\n");
-  int regResult = RegisterAs(testName);
-  if (regResult < 0) {
-    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
-    return;
-  }
-
-  // Register twice, should override without error.
-  regResult = RegisterAs(testName);
-  if (regResult < 0) {
-    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
-    return;
-  }
-
-  Uart::syncPrint(Uart::CONSOLE, "Trying WhoIs\r\n");
-  int whoIsResult = WhoIs(testName);
-  if (whoIsResult != ::MyTid()) {
-    kit::formatString(buffer, "WhoIs returned %d\r\n", whoIsResult);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
-    return;
-  }
-
-  Uart::syncPrint(Uart::CONSOLE, "TestTask passed\r\n");
-}
 } // namespace name_server

@@ -1,6 +1,7 @@
 #pragma once
 
 enum Priority : int { HIGHEST, HIGH, MEDIUM, LOW, LOWEST, COUNT };
+enum EventId : int { TIMER1 = 97, TIMER3 = 99 };
 
 extern "C" {
 int Create(int priority, void (*function)());

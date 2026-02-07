@@ -1,5 +1,7 @@
 #include "gic.h"
+#include "k3_tasks.h"
 #include "syscall_task_handler.h"
+#include "syscalls.h"
 #include "task_manager.h"
 #include "task_queue.h"
 #include "timer.h"
@@ -51,11 +53,8 @@ extern "C" void kmain() {
   using namespace timer::literals;
   timer::system_timer.setChannel1After(timer::TICK_DURATION);
 
-  [[maybe_unused]] int idleTid = syscall_handler::Create(Priority::LOWEST, []() {
-    while (true) {
-      asm("wfi");
-    }
-  });
+  createIdleTask();
+  syscall_handler::Create(Priority::MEDIUM, k3::FirstUserTask);
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
 }
