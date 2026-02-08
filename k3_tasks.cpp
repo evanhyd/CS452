@@ -38,12 +38,11 @@ void clientTask() {
 void k3::FirstUserTask() {
   name_server::createNameServerTask(1);
   ::Create(1, clock_server::clockServerTask);
-  // TODO: priorities
   int clients[] = {
       ::Create(3, clientTask),
-      ::Create(2, clientTask),
-      ::Create(1, clientTask),
-      ::Create(0, clientTask),
+      ::Create(4, clientTask),
+      ::Create(5, clientTask),
+      ::Create(6, clientTask),
   };
   ReplyMessage replies[] = {
       {10, 20},

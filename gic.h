@@ -72,7 +72,7 @@ public:
   void init() const { regs().GICD_CTLR = 1; }
 
   // Route the interrupt to CPU's IRQ handler.
-  void routeInterupt(InterruptEventId interruptId, uint32_t cpuId) const {
+  void routeInterrupt(InterruptEventId interruptId, uint32_t cpuId) const {
     static constexpr uint32_t interruptPerRegister = 4;
     uint32_t id = static_cast<uint32_t>(interruptId);
     uint32_t registerIndex = id / interruptPerRegister;

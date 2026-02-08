@@ -3,6 +3,7 @@
 #include "fmt.h"
 #include "gic.h"
 #include "syscall_task_handler.h"
+#include "syscalls.h"
 #include "timer.h"
 #include "uart.h"
 
@@ -138,7 +139,7 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
 }
 
 void createIdleTask() {
-  int tid = syscall_handler::Create(4, []() {
+  int tid = syscall_handler::Create(MAX_PRIORITY_LEVEL, []() {
     while (true) {
       asm("wfi");
     }

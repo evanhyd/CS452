@@ -1,7 +1,6 @@
 #include "gic.h"
 #include "k3_tasks.h"
 #include "syscall_task_handler.h"
-#include "syscalls.h"
 #include "task_manager.h"
 #include "task_queue.h"
 #include "timer.h"
@@ -45,8 +44,8 @@ extern "C" void kmain() {
   // Route the interrupts to CPU 0.
   gic::gicd_manager.init();
   gic::gicc_manager.init();
-  gic::gicd_manager.routeInterupt(gic::InterruptEventId::TIMER1, 0);
-  gic::gicd_manager.routeInterupt(gic::InterruptEventId::TIMER3, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::TIMER1, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::TIMER3, 0);
   gic::gicd_manager.enableInterrupt(gic::InterruptEventId::TIMER1);
 
   // Main entry.

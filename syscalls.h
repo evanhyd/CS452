@@ -1,7 +1,6 @@
 #pragma once
 
 inline constexpr int MAX_PRIORITY_LEVEL = 10;
-enum Priority : int { HIGHEST, HIGH, MEDIUM, LOW, LOWEST, COUNT };
 enum EventId : int { TIMER1 = 97, TIMER3 = 99 };
 
 extern "C" {
