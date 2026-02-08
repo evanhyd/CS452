@@ -7,7 +7,7 @@
 // A priority queue with fixed size allocated on stack.
 template <typename T, size_t capacity, typename Compare = std::less<T>> class StaticPriorityQueue {
   T data[capacity];
-  size_t m_size = 0;
+  size_t size_ = 0;
   [[no_unique_address]]
   Compare comp;
 
@@ -31,10 +31,10 @@ template <typename T, size_t capacity, typename Compare = std::less<T>> class St
       size_t left = leftChild(i);
       size_t right = rightChild(i);
       size_t x = i;
-      if (left < m_size && comp(data[left], data[x])) {
+      if (left < size_ && comp(data[left], data[x])) {
         x = left;
       }
-      if (right < m_size && comp(data[right], data[x])) {
+      if (right < size_ && comp(data[right], data[x])) {
         x = right;
       }
       if (x == i) {
@@ -48,25 +48,25 @@ template <typename T, size_t capacity, typename Compare = std::less<T>> class St
 public:
   explicit StaticPriorityQueue(const Compare& comparator = Compare{}) : comp{comparator} {}
 
-  bool empty() const { return m_size == 0; }
-  bool full() const { return m_size == capacity; }
-  size_t size() const { return m_size; }
+  bool empty() const { return size_ == 0; }
+  bool full() const { return size_ == capacity; }
+  size_t size() const { return size_; }
   static constexpr size_t max_size() { return capacity; }
-  void clear() { m_size = 0; }
+  void clear() { size_ = 0; }
 
   // precondition: !empty()
   const T& top() const { return data[0]; }
 
   // precondition: !full()
   void push(const T& value) {
-    data[m_size++] = value;
-    siftUp(m_size - 1);
+    data[size_++] = value;
+    siftUp(size_ - 1);
   }
 
   // precondition: !empty()
   void pop() {
-    if (--m_size > 0) {
-      data[0] = data[m_size];
+    if (--size_ > 0) {
+      data[0] = data[size_];
       siftDown(0);
     }
   }

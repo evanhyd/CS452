@@ -28,7 +28,7 @@ void clientTask() {
     if (::Delay(clockServerTid, reply.delayTicks) < 0) {
       logError("client task failed to delay");
     }
-    char buf[64];
+    char buf[80];
     kit::formatString(buf, "tid: %d, delay interval: %d, delays completed: %d\r\n", myTid, reply.delayTicks, i + 1);
     Uart::syncPrint(Uart::CONSOLE, buf);
   }
