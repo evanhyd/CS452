@@ -21,9 +21,13 @@ int AwaitEvent(int eventId) {
     logError("task is not ready");
   }
 
+  if (!gic::isValidInterruptEventId(eventId)) {
+    return -1;
+  }
+
   currTask->runState = RunState::EVENT_BLOCKED;
   TaskScheduler::removeReadyTask(*currTask);
-  TaskScheduler::enqueEventBlockedTask(gic::InterruptEventId(eventId), *currTask);
+  TaskScheduler::enqueEventBlockedTask(static_cast<gic::InterruptEventId>(eventId), *currTask);
 
   return RET_PLACEHOLDER;
 }

@@ -18,6 +18,16 @@ CHECK(TIMER1);
 CHECK(TIMER3);
 #undef CHECK
 
+constexpr bool isValidInterruptEventId(int eventId) {
+  switch (static_cast<InterruptEventId>(eventId)) {
+  case InterruptEventId::TIMER1:
+  case InterruptEventId::TIMER3:
+    return true;
+  default:
+    return false;
+  }
+}
+
 inline constexpr class GicdManager {
   struct Registers {
     volatile uint32_t GICD_CTLR;
