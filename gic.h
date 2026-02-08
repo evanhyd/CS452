@@ -28,6 +28,7 @@ constexpr bool isValidInterruptEventId(int eventId) {
   }
 }
 
+// GICD Manager is a singleton class that provides interface to access the GICD router settings.
 inline constexpr class GicdManager {
   struct Registers {
     volatile uint32_t GICD_CTLR;
@@ -108,7 +109,8 @@ public:
 
 } gicd_manager;
 
-inline constexpr class GicdcManager {
+// GICC Manager is a singleton class that provides interface to access the GICC settings.
+inline constexpr class GiccManager {
   struct Registers {
     volatile uint32_t GICC_CTLR;   // RW 0x00000000 CPU Interface Control Register
     volatile uint32_t GICC_PMR;    // RW 0x00000000 Interrupt Priority Mask Register
