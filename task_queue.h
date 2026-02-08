@@ -23,7 +23,7 @@ public:
 
 // Multi level round robin queues that support different priorities.
 class MultiLevelQueue {
-  RoundRobinQueue queues[Priority::COUNT] = {};
+  RoundRobinQueue queues[MAX_PRIORITY_LEVEL + 1] = {};
 
 public:
   bool empty() const;

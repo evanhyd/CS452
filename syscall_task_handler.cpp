@@ -12,7 +12,7 @@ namespace syscall_handler {
 int Create(int priority, void (*function)()) {
 
   // Check priority.
-  if (priority >= Priority::COUNT) {
+  if (priority > MAX_PRIORITY_LEVEL) {
     return -1;
   }
 

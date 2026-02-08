@@ -54,7 +54,7 @@ extern "C" void kmain() {
   timer::system_timer.setChannel1After(timer::TICK_DURATION);
 
   createIdleTask();
-  syscall_handler::Create(Priority::MEDIUM, k3::FirstUserTask);
+  syscall_handler::Create(2, k3::FirstUserTask);
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
 }

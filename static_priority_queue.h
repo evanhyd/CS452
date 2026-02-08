@@ -4,6 +4,7 @@
 #include <functional>
 #include <utility>
 
+// A priority queue with fixed size allocated on stack.
 template <typename T, size_t capacity, typename Compare = std::less<T>> class StaticPriorityQueue {
   T data[capacity];
   size_t m_size = 0;

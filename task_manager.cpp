@@ -138,7 +138,7 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
 }
 
 void createIdleTask() {
-  int tid = syscall_handler::Create(Priority::LOWEST, []() {
+  int tid = syscall_handler::Create(4, []() {
     while (true) {
       asm("wfi");
     }

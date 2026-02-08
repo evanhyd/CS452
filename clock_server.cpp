@@ -57,7 +57,7 @@ void clock_server::clockServerTask() {
 
   int ticks = 0;
   StaticPriorityQueue<DelayRequest, 128> delayQueue;
-  [[maybe_unused]] int notifierTid = ::Create(Priority::HIGHEST, clockNotifierTask);
+  [[maybe_unused]] int notifierTid = ::Create(0, clockNotifierTask);
 
   for (;;) {
     int tid;
