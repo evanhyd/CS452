@@ -50,7 +50,7 @@ consteval Time operator""_s(unsigned long long seconds) { return Time::fromSecs(
 
 } // namespace literals
 
-inline constexpr class SystemTimer {
+inline class SystemTimer {
   static constexpr uintptr_t TIMER_BASE = 0xFE003000;
 
   struct Registers {
@@ -75,12 +75,22 @@ inline constexpr class SystemTimer {
 public:
   Time now() const { return Time::fromMicros(regs().CLO); }
   Time since(Time timestamp) const { return now() - timestamp; }
-  void setChannel1(Time timestamp) const { regs().C1 = timestamp.micros(); }
-  void setChannel1After(Time delay) const { setChannel1(now() + delay); }
-  void setChannel3(Time timestamp) const { regs().C3 = timestamp.micros(); }
-  void setChannel3After(Time delay) const { setChannel3(now() + delay); }
+  void setChannel1(Time timestamp) {
+    regs().C1 = timestamp.micros();
+    lastChannel1SetTime = timestamp;
+  }
+  void setChannel1After(Time delay) { setChannel1(lastChannel1SetTime + delay); }
+  void setChannel3(Time timestamp) {
+    regs().C3 = timestamp.micros();
+    lastChannel3SetTime = timestamp;
+  }
+  void setChannel3After(Time delay) { setChannel3(lastChannel3SetTime + delay); }
   void clearChannel1() const { regs().CS = 1 << 1; }
   void clearChannel3() const { regs().CS = 1 << 3; }
+
+private:
+  Time lastChannel1SetTime;
+  Time lastChannel3SetTime;
 } system_timer;
 
 } // namespace timer

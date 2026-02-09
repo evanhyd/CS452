@@ -50,7 +50,7 @@ extern "C" void kmain() {
 
   // Main entry.
   using namespace timer::literals;
-  timer::system_timer.setChannel1After(timer::TICK_DURATION);
+  timer::system_timer.setChannel1(timer::system_timer.now() + timer::TICK_DURATION);
 
   createIdleTask();
   syscall_handler::Create(2, k3::FirstUserTask);
