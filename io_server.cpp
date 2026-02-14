@@ -67,8 +67,8 @@ void io_server::ioServerTask() {
     logError("io server failed to register itself to name server");
   }
 
-  [[maybe_unused]] int getcNotifierTid = ::Create(0, getcNotifierTask);
-  [[maybe_unused]] int putcNotifierTid = ::Create(0, putcNotifierTask);
+  int getcNotifierTid = ::Create(0, getcNotifierTask);
+  int putcNotifierTid = ::Create(0, putcNotifierTask);
 
   RingBuffer<int, 1024> getcWaitingQueue;
   RingBuffer<GetcNotify, 1024> getcBuffer;
