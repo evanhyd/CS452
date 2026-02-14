@@ -51,11 +51,13 @@ void begin_transaction() {
 
 uint8_t transfer_one(uint8_t tx_byte) {
   while (!(spi0_reg(CS) & CS_TXD))
-    ;                       // Wait for space in TX FIFO
+    ; // Wait for space in TX FIFO
+
   spi0_reg(FIFO) = tx_byte; // Write byte to TX FIFO
   while (!(spi0_reg(CS) & CS_RXD))
-    ;                    // Wait for data in RX FIFO
-  return spi0_reg(FIFO); // Read byte from RX FIFO
+    ; // Wait for data in RX FIFO
+
+  return static_cast<uint8_t>(spi0_reg(FIFO)); // Read byte from RX FIFO
 }
 
 void end_transaction() {

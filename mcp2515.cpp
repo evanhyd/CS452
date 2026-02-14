@@ -189,9 +189,8 @@ void read_message(RxBuffer buffer, MMessage& msg) {
   }
 }
 
-} // namespace
-
 void send_message(const MMessage& msg) {
+  // All this logic should be moved to user task
   // if (tx_buffer.empty() && last_command_acked() && !(read_status() & STATUS_TX0)) {
   //   transmit_message(msg);
   //   push_history(msg);
@@ -201,7 +200,7 @@ void send_message(const MMessage& msg) {
   transmit_message(msg);
 }
 
-namespace cmd {
+} // namespace
 
 #define UN32(x)                                                                                                        \
   static_cast<uint8_t>((x) >> 24), static_cast<uint8_t>((x) >> 16), static_cast<uint8_t>((x) >> 8),                    \
@@ -209,48 +208,46 @@ namespace cmd {
 
 #define UN16(x) static_cast<uint8_t>((x) >> 8), static_cast<uint8_t>(x)
 
-void control(Control c) { send_message({.uid = HASH, .dlc = 5, .data = {UN32(0), static_cast<uint8_t>(c)}}); }
+MMessage MMessage::control(Control c) { return {.uid = HASH, .dlc = 5, .data = {UN32(0), static_cast<uint8_t>(c)}}; }
 
-void set_speed(uint32_t train_no, uint8_t step) {
-  uint16_t level = step > 0 ? 1 + (step - 1) * 77 : 0;
-  send_message({.uid = 0x04 << 17 | HASH,
-                .dlc = 6,
-                .data = {
-                    UN32(train_no),
-                    UN16(level),
-                }});
+MMessage MMessage::set_speed(uint32_t train_no, uint8_t step) {
+  uint16_t level = static_cast<uint16_t>(step > 0 ? 1 + (step - 1) * 77 : 0);
+  return {.uid = 0x04 << 17 | HASH,
+          .dlc = 6,
+          .data = {
+              UN32(train_no),
+              UN16(level),
+          }};
 }
 
-void set_direction(uint32_t train_no, Direction dir) {
-  send_message({.uid = 0x05 << 17 | HASH,
-                .dlc = 5,
-                .data = {
-                    UN32(train_no),
-                    static_cast<uint8_t>(dir),
-                }});
+MMessage MMessage::set_direction(uint32_t train_no, Direction dir) {
+  return {.uid = 0x05 << 17 | HASH,
+          .dlc = 5,
+          .data = {
+              UN32(train_no),
+              static_cast<uint8_t>(dir),
+          }};
 }
 
-void set_light(uint32_t train_no, bool on) {
-  send_message({.uid = 0x06 << 17 | HASH,
-                .dlc = 6,
-                .data = {
-                    UN32(train_no),
-                    0x00,
-                    static_cast<uint8_t>(on),
-                }});
+MMessage MMessage::set_light(uint32_t train_no, bool on) {
+  return {.uid = 0x06 << 17 | HASH,
+          .dlc = 6,
+          .data = {
+              UN32(train_no),
+              0x00,
+              static_cast<uint8_t>(on),
+          }};
 }
 
-void set_switch(uint32_t switch_no, SwitchState state) {
+MMessage MMessage::set_switch(uint32_t switch_no, SwitchState state) {
   switch_no += 0x3000 - 1;
-  send_message({.uid = 0x0B << 17 | HASH,
-                .dlc = 6,
-                .data = {
-                    UN32(switch_no),
-                    static_cast<uint8_t>(state),
-                    0x01,
-                }});
+  return {.uid = 0x0B << 17 | HASH,
+          .dlc = 6,
+          .data = {
+              UN32(switch_no),
+              static_cast<uint8_t>(state),
+              0x01,
+          }};
 }
-
-} // namespace cmd
 
 } // namespace mcp2515
