@@ -121,8 +121,10 @@ extern "C" int Delay(int tid, int ticks) {
   }
   ClockServerMessage msg{.type = ClockServerMessageType::DELAY, .delayMessage = DelayMessage{ticks}};
   int value;
-  ::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
-         sizeof(value));
+  if (::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
+             sizeof(int)) < 0) {
+    return -1;
+  }
   return value;
 }
 
@@ -135,7 +137,9 @@ extern "C" int Delay(int tid, int ticks) {
 extern "C" int DelayUntil(int tid, int ticks) {
   ClockServerMessage msg{.type = ClockServerMessageType::DELAY_UNTIL, .delayUntilMessage = DelayUntilMessage{ticks}};
   int value;
-  ::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
-         sizeof(value));
+  if (::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
+             sizeof(int)) < 0) {
+    return -1;
+  }
   return value;
 }

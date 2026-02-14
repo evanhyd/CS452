@@ -90,7 +90,7 @@ struct Lobby {
 void rpsServerTask() {
   // Register to the name server.
   if (RegisterAs(RPS_SERVER_NAME) < 0) {
-    Uart::syncPrint(Uart::CONSOLE, "[SERVER] failed to register to name server\r\n");
+    Uart::syncPrint("[SERVER] failed to register to name server\r\n");
     return;
   }
 
@@ -98,7 +98,7 @@ void rpsServerTask() {
     if (int ret = ::Reply(tid, reinterpret_cast<const char*>(&msg), sizeof(RPSMessage)); ret < 0) {
       static char buffer[128];
       kit::formatString(buffer, "[SERVER] failed to reply to client %d (code %d)\r\n", tid, ret);
-      Uart::syncPrint(Uart::CONSOLE, buffer);
+      Uart::syncPrint(buffer);
     }
   };
 
@@ -206,10 +206,10 @@ template <bool Interactive> void rpsClientTask() {
     } else {
       kit::formatString(lBuf, "Client[%d] Lobby[%d] ", tid, lobbyId);
     }
-    Uart::syncPrint(Uart::CONSOLE, lBuf);
-    Uart::syncPrint(Uart::CONSOLE, msg);
+    Uart::syncPrint(lBuf);
+    Uart::syncPrint(msg);
     if (newline) {
-      Uart::syncPrint(Uart::CONSOLE, "\r\n");
+      Uart::syncPrint("\r\n");
     }
   };
 
@@ -250,7 +250,7 @@ template <bool Interactive> void rpsClientTask() {
     play = [&buffer]() {
       char c = Uart::syncRead(Uart::CONSOLE);
       kit::formatString(buffer, "%c\r\n", c);
-      Uart::syncPrint(Uart::CONSOLE, buffer);
+      Uart::syncPrint(buffer);
 
       if (c == 'r' || c == 'R')
         return PlayType::ROCK;
@@ -347,23 +347,23 @@ void FirstUserTask() {
 
   // Creates the Rock/Paper/Scissors clients.
 
-  Uart::syncPrint(Uart::CONSOLE, "Test 1: Interactive clients... press any key to start...");
+  Uart::syncPrint("Test 1: Interactive clients... press any key to start...");
   Uart::syncRead(Uart::CONSOLE);
-  Uart::syncPrint(Uart::CONSOLE, "\r\n");
+  Uart::syncPrint("\r\n");
   ::Create(Priority::MEDIUM, TestInteractive);
 
   Uart::syncPrint(
       Uart::CONSOLE,
       "Test 2: Medium (lower than server) priority clients with automatic random play... press any key to start...");
   Uart::syncRead(Uart::CONSOLE);
-  Uart::syncPrint(Uart::CONSOLE, "\r\n");
+  Uart::syncPrint("\r\n");
   ::Create(Priority::MEDIUM, TestNonInteractive<Priority::MEDIUM>);
 
   Uart::syncPrint(
       Uart::CONSOLE,
       "Test 3: High (same as server) priority clients with automatic random play... press any key to start...");
   Uart::syncRead(Uart::CONSOLE);
-  Uart::syncPrint(Uart::CONSOLE, "\r\n");
+  Uart::syncPrint("\r\n");
   ::Create(Priority::MEDIUM, TestNonInteractive<Priority::HIGH>);
 }
 } // namespace k2

@@ -30,7 +30,7 @@ void clientTask() {
     }
     char buf[80];
     kit::formatString(buf, "tid: %d, delay interval: %d, delays completed: %d\r\n", myTid, reply.delayTicks, i + 1);
-    Uart::syncPrint(Uart::CONSOLE, buf);
+    Uart::syncPrint(buf);
   }
 }
 } // namespace

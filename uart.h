@@ -33,7 +33,20 @@ class Uart {
 public:
   static inline constexpr size_t CONSOLE = 0;
 
-  static void configAndEnable(size_t line);
-  static void syncPrint(size_t line, const char* cstring);
-  static char syncRead(size_t line);
+  static void configAndEnable();
+  static void syncPrint(const char* cstring);
+  static char syncRead();
+
+  static bool tryPutc(unsigned char c);
+  static bool tryGetc(unsigned char& ch);
+
+  static void enableRxInterrupt();
+  static void disableRxInterrupt();
+  static void clearRxInterrupt();
+  static bool hasRxInterrupt();
+
+  static void enableTxInterrupt();
+  static void disableTxInterrupt();
+  static void clearTxInterrupt();
+  static bool hasTxInterrupt();
 };

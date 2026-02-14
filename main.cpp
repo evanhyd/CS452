@@ -1,5 +1,5 @@
 #include "gic.h"
-#include "k3_tasks.h"
+#include "k4_tasks.h"
 #include "syscall_task_handler.h"
 #include "task_manager.h"
 #include "task_queue.h"
@@ -38,22 +38,23 @@ extern "C" void kmain() {
   }
 
   // Set up UART.
-  Uart::configAndEnable(Uart::CONSOLE);
-  Uart::syncPrint(Uart::CONSOLE, "Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
+  Uart::configAndEnable();
+  Uart::syncPrint("Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
 
   // Route the interrupts to CPU 0.
   gic::gicd_manager.init();
   gic::gicc_manager.init();
   gic::gicd_manager.routeInterrupt(gic::InterruptEventId::TIMER1, 0);
-  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::TIMER3, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::UART_IO, 0);
   gic::gicd_manager.enableInterrupt(gic::InterruptEventId::TIMER1);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::UART_IO);
 
   // Main entry.
   using namespace timer::literals;
   timer::system_timer.setChannel1(timer::system_timer.now() + timer::TICK_DURATION);
 
   createIdleTask();
-  syscall_handler::Create(2, k3::FirstUserTask);
+  syscall_handler::Create(2, k4::FirstUserTask);
   TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
   TaskScheduler::activateTask(*task);
 }

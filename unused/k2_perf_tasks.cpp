@@ -53,7 +53,7 @@ template <int MessageSize, bool ReceiveFirst> void testPair() {
   char buffer[128];
   kit::formatString(buffer, "MessageSize=%u, %c first, avg %U ns\r\n", MessageSize, ReceiveFirst ? 'R' : 'S',
                     (uint64_t)elapsed * 1000 / REPETITIONS);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 }
 
 template <int... MessageSize> void doTest() { ((testPair<MessageSize, true>(), testPair<MessageSize, false>()), ...); }

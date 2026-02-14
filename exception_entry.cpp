@@ -6,6 +6,7 @@
 #include "syscall_comm_handler.h"
 #include "syscall_interrupt_handler.h"
 #include "syscall_task_handler.h"
+#include "syscalls.h"
 #include "task_manager.h"
 #include "timer.h"
 #include "uart.h"
@@ -59,8 +60,8 @@ void syscallEntry(StackContext* userStack) {
   if (TaskDescriptor* task = TaskScheduler::getNextScheduledTask()) {
     TaskScheduler::activateTask(*task);
   } else {
-    Uart::syncPrint(Uart::CONSOLE, "All tasks exited. Press any key to reboot...\r\n");
-    Uart::syncRead(Uart::CONSOLE);
+    Uart::syncPrint("All tasks exited. Press any key to reboot...\r\n");
+    Uart::syncRead();
     _reboot();
   }
 }
@@ -78,15 +79,26 @@ void irqEntry(StackContext* userStack) {
 
   switch (interruptId) {
   case gic::InterruptEventId::TIMER1:
-    TaskScheduler::notifyAllEventBlockedTasks(gic::InterruptEventId::TIMER1, int(timer::system_timer.now().ticks()));
+    TaskScheduler::notifyAllEventBlockedTasks(::EventId::TIMER1, int(timer::system_timer.now().ticks()));
     timer::system_timer.clearChannel1();
     timer::system_timer.setChannel1After(timer::TICK_DURATION);
     break;
   case gic::InterruptEventId::TIMER3:
-    TaskScheduler::notifyAllEventBlockedTasks(gic::InterruptEventId::TIMER3, int(timer::system_timer.now().ticks()));
+    TaskScheduler::notifyAllEventBlockedTasks(::EventId::TIMER3, int(timer::system_timer.now().ticks()));
     timer::system_timer.clearChannel3();
     timer::system_timer.setChannel3After(timer::TICK_DURATION);
     break;
+  case gic::InterruptEventId::UART_IO:
+    if (Uart::hasRxInterrupt()) {
+      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UART_RX, 0);
+      Uart::disableRxInterrupt();
+      Uart::clearRxInterrupt();
+    }
+    if (Uart::hasTxInterrupt()) {
+      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UART_TX, 0);
+      Uart::disableTxInterrupt();
+      Uart::clearTxInterrupt();
+    }
   default:
     break;
   }

@@ -3,6 +3,7 @@
 #include "gic.h"
 #include "task_manager.h"
 #include "task_queue.h"
+#include "uart.h"
 
 namespace syscall_handler {
 
@@ -21,13 +22,25 @@ int AwaitEvent(int eventId) {
     logError("task is not ready");
   }
 
-  if (!gic::isValidInterruptEventId(eventId)) {
+  if (!gic::isValidEventId(eventId)) {
     return -1;
+  }
+
+  ::EventId event = static_cast<::EventId>(eventId);
+  switch (event) {
+  case ::EventId::UART_RX:
+    Uart::enableRxInterrupt();
+    break;
+  case ::EventId::UART_TX:
+    Uart::enableTxInterrupt();
+    break;
+  default:
+    break;
   }
 
   currTask->runState = RunState::EVENT_BLOCKED;
   TaskScheduler::removeReadyTask(*currTask);
-  TaskScheduler::enqueEventBlockedTask(static_cast<gic::InterruptEventId>(eventId), *currTask);
+  TaskScheduler::enqueEventBlockedTask(event, *currTask);
 
   return RET_PLACEHOLDER;
 }

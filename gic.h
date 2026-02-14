@@ -10,23 +10,10 @@ namespace gic {
 enum class InterruptEventId : uint32_t {
   TIMER1 = 97,
   TIMER3 = 99,
+  UART_IO = 153,
 };
-#define CHECK(x)                                                                                                       \
-  static_assert(static_cast<uint32_t>(InterruptEventId::x) == ::EventId::x,                                            \
-                "InterruptEventId::" #x " should be the same as ::EventId::" #x)
-CHECK(TIMER1);
-CHECK(TIMER3);
-#undef CHECK
 
-constexpr bool isValidInterruptEventId(int eventId) {
-  switch (static_cast<InterruptEventId>(eventId)) {
-  case InterruptEventId::TIMER1:
-  case InterruptEventId::TIMER3:
-    return true;
-  default:
-    return false;
-  }
-}
+constexpr bool isValidEventId(int eventId) { return 0 <= eventId && eventId <= ::EventId::UART_TX; }
 
 // GICD Manager is a singleton class that provides interface to access the GICD router settings.
 inline constexpr class GicdManager {

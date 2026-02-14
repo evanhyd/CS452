@@ -13,7 +13,7 @@ TaskDescriptor taskDescriptors[MAX_TASK_COUNT];
 TaskStack taskStacks[MAX_TASK_COUNT];
 
 MultiLevelQueue readyQueue{};
-RoundRobinQueue eventBlockedQueue[2]{};
+RoundRobinQueue eventBlockedQueue[4]{};
 TaskDescriptor* currentTask = nullptr;
 
 // idle task stuff
@@ -22,15 +22,11 @@ timer::Time intervalStart;
 timer::Time idlePart;
 timer::Time lastSwitchTime;
 
-size_t interruptIdToIndex(gic::InterruptEventId interruptId) {
-  switch (interruptId) {
-  case gic::InterruptEventId::TIMER1:
-    return 0;
-  case gic::InterruptEventId::TIMER3:
-    return 1;
-  default:
-    logError("unknown event type");
+size_t eventIdToIndex(::EventId eventId) {
+  if (!gic::isValidEventId(eventId)) {
+    logError("invalid event id");
   }
+  return eventId;
 }
 
 } // namespace
@@ -73,13 +69,13 @@ void TaskScheduler::moveReadyTaskToEnd(TaskDescriptor& td) { readyQueue.moveToEn
 
 void TaskScheduler::removeReadyTask(TaskDescriptor& td) { readyQueue.remove(td); }
 
-void TaskScheduler::enqueEventBlockedTask(gic::InterruptEventId eventId, TaskDescriptor& td) {
-  size_t index = interruptIdToIndex(eventId);
+void TaskScheduler::enqueEventBlockedTask(::EventId eventId, TaskDescriptor& td) {
+  size_t index = eventIdToIndex(eventId);
   eventBlockedQueue[index].enque(td);
 }
 
-void TaskScheduler::notifyAllEventBlockedTasks(gic::InterruptEventId eventId, int eventValue) {
-  size_t index = interruptIdToIndex(eventId);
+void TaskScheduler::notifyAllEventBlockedTasks(::EventId eventId, int eventValue) {
+  size_t index = eventIdToIndex(eventId);
   while (!eventBlockedQueue[index].empty()) {
     TaskDescriptor* task = eventBlockedQueue[index].pop();
     if (!task) {
@@ -127,7 +123,7 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
       end = kit::strAppend(end, static_cast<char>('0' + idleFraction));
     }
     end = kit::strAppend(end, "%\r\n");
-    Uart::syncPrint(Uart::CONSOLE, buf);
+    Uart::syncPrint(buf);
 
     intervalStart = now;
     idlePart = 0_us;

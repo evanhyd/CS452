@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gic.h"
+#include "syscalls.h"
 #include "task_queue.h"
 #include <bit>
 #include <cstddef>
@@ -151,10 +152,10 @@ struct TaskScheduler {
   static void removeReadyTask(TaskDescriptor& td);
 
   // Enque the task to the event blocked queue partitioned by eventId.
-  static void enqueEventBlockedTask(gic::InterruptEventId eventId, TaskDescriptor& td);
+  static void enqueEventBlockedTask(::EventId eventId, TaskDescriptor& td);
 
   // Notify the event blocked tasks, and move all to the ready queue.
-  static void notifyAllEventBlockedTasks(gic::InterruptEventId eventId, int eventValue);
+  static void notifyAllEventBlockedTasks(::EventId eventId, int eventValue);
 
   // Context switch to the task denoted by its task descriptor.
   static void activateTask [[noreturn]] (TaskDescriptor& td);

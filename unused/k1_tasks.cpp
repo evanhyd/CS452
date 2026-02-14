@@ -7,9 +7,9 @@
 static void otherTask() {
   char buffer[64];
   kit::formatString(buffer, "MyTid: %d, MyParentTid: %d\r\n", ::MyTid(), ::MyParentTid());
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
   ::Yield();
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 }
 
 namespace k1 {
@@ -18,20 +18,20 @@ void firstTask() {
 
   int t1 = ::Create(Priority::LOW, otherTask);
   kit::formatString(buffer, "Created: %d\r\n", t1);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 
   int t2 = ::Create(Priority::LOW, otherTask);
   kit::formatString(buffer, "Created: %d\r\n", t2);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 
   int t3 = ::Create(Priority::HIGH, otherTask);
   kit::formatString(buffer, "Created: %d\r\n", t3);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 
   int t4 = ::Create(Priority::HIGH, otherTask);
   kit::formatString(buffer, "Created: %d\r\n", t4);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 
-  Uart::syncPrint(Uart::CONSOLE, "FirstUserTask: exiting\r\n");
+  Uart::syncPrint("FirstUserTask: exiting\r\n");
 }
 } // namespace k1

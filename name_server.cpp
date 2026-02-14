@@ -88,7 +88,7 @@ void nameServerTask() {
 
     if (int res = ::Reply(senderTid, reinterpret_cast<const char*>(&response), sizeof(response)); res < 0) {
       kit::formatString(buffer, "NameServer: Reply to %d failed with code %d\r\n", senderTid, res);
-      Uart::syncPrint(Uart::CONSOLE, buffer);
+      Uart::syncPrint(buffer);
     }
   }
 }
@@ -96,11 +96,11 @@ void nameServerTask() {
 [[maybe_unused]] void testTask() {
   char buffer[64];
   const char* testName = "TestTask";
-  Uart::syncPrint(Uart::CONSOLE, "Trying RegisterAs\r\n");
+  Uart::syncPrint("Trying RegisterAs\r\n");
   int regResult = RegisterAs(testName);
   if (regResult < 0) {
     kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
+    Uart::syncPrint(buffer);
     return;
   }
 
@@ -108,19 +108,19 @@ void nameServerTask() {
   regResult = RegisterAs(testName);
   if (regResult < 0) {
     kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
+    Uart::syncPrint(buffer);
     return;
   }
 
-  Uart::syncPrint(Uart::CONSOLE, "Trying WhoIs\r\n");
+  Uart::syncPrint("Trying WhoIs\r\n");
   int whoIsResult = WhoIs(testName);
   if (whoIsResult != ::MyTid()) {
     kit::formatString(buffer, "WhoIs returned %d\r\n", whoIsResult);
-    Uart::syncPrint(Uart::CONSOLE, buffer);
+    Uart::syncPrint(buffer);
     return;
   }
 
-  Uart::syncPrint(Uart::CONSOLE, "TestTask passed\r\n");
+  Uart::syncPrint("TestTask passed\r\n");
 }
 
 } // namespace

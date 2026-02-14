@@ -16,14 +16,14 @@ void logDebug(const char* cstring, std::source_location loc) {
   char buffer[256] = {};
   kit::formatString(buffer, "DEBUG %s[%u] - %s: %s\r\n", loc.file_name(), uint32_t(loc.line()), loc.function_name(),
                     cstring);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
 }
 
 void logError(const char* cstring, std::source_location loc) {
   char buffer[256] = {};
   kit::formatString(buffer, "ERROR %s[%u] - %s: %s\r\n", loc.file_name(), uint32_t(loc.line()), loc.function_name(),
                     cstring);
-  Uart::syncPrint(Uart::CONSOLE, buffer);
+  Uart::syncPrint(buffer);
   for (;;) {
   }
 }
