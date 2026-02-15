@@ -51,6 +51,7 @@ constexpr uint8_t CANSTAT_OPMOD = 0xE0;
 constexpr uint8_t CANCTRL_REQOP = 0xE0;
 
 // flags register
+constexpr uint8_t CANINTE = 0x2B;
 constexpr uint8_t CANINTF = 0x2C;
 
 constexpr uint16_t HASH = 0xC300;
@@ -136,29 +137,6 @@ void rts_tx0() {
   spi::end_transaction();
 }
 
-} // namespace
-
-void init() {
-  // No need to reset MCP2515 here as a hardware reset is done during boot.
-  // MCP2515 automatically enters config mode after hardware reset.
-
-  // Set the bitrate configuration registers
-  write_reg(CNF1, MCP_16MHz_250kbPS_CFG1);
-  write_reg(CNF2, MCP_16MHz_250kbPS_CFG2);
-  write_reg(CNF3, MCP_16MHz_250kbPS_CFG3);
-
-  // do not filter messages. Allow rollover of RXB0 to RXB1.
-  write_reg(RXBnCTRL0, 0x64);
-  write_reg(RXBnCTRL1, 0x60);
-
-  // start MCP2515 by setting operation mode to normal
-  modify_reg(CANCTRL, CANCTRL_REQOP, OPMODE_NORMAL);
-  while ((read_reg(CANSTAT) & CANSTAT_OPMOD) != OPMODE_NORMAL)
-    ; // wait until mode is set
-}
-
-namespace {
-
 // precondition: tx buffer is free
 void transmit_message(const MMessage& msg) {
   uint8_t tx[13];
@@ -201,6 +179,35 @@ void send_message(const MMessage& msg) {
 }
 
 } // namespace
+
+void init() {
+  // No need to reset MCP2515 here as a hardware reset is done during boot.
+  // MCP2515 automatically enters config mode after hardware reset.
+
+  // Set the bitrate configuration registers
+  write_reg(CNF1, MCP_16MHz_250kbPS_CFG1);
+  write_reg(CNF2, MCP_16MHz_250kbPS_CFG2);
+  write_reg(CNF3, MCP_16MHz_250kbPS_CFG3);
+
+  // do not filter messages. Allow rollover of RXB0 to RXB1.
+  write_reg(RXBnCTRL0, 0x64);
+  write_reg(RXBnCTRL1, 0x60);
+
+  // start MCP2515 by setting operation mode to normal
+  modify_reg(CANCTRL, CANCTRL_REQOP, OPMODE_NORMAL);
+  while ((read_reg(CANSTAT) & CANSTAT_OPMOD) != OPMODE_NORMAL)
+    ; // wait until mode is set
+}
+
+void setInterruptEnabled(CanInterruptType interruptType, bool isEnabled) {
+  modify_reg(CANINTE, static_cast<uint8_t>(interruptType), (isEnabled ? 0xff : 0));
+}
+
+uint8_t getInterruptStatus() { return read_status(); }
+
+void clearActiveInterrupt(CanInterruptType interruptType) {
+  modify_reg(CANINTF, static_cast<uint8_t>(interruptType), 0);
+}
 
 #define UN32(x)                                                                                                        \
   static_cast<uint8_t>((x) >> 24), static_cast<uint8_t>((x) >> 16), static_cast<uint8_t>((x) >> 8),                    \
@@ -249,5 +256,4 @@ MMessage MMessage::set_switch(uint32_t switch_no, SwitchState state) {
               0x01,
           }};
 }
-
 } // namespace mcp2515
