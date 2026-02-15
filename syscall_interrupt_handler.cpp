@@ -34,6 +34,12 @@ int AwaitEvent(int eventId) {
   case ::EventId::UART_TX:
     Uart::enableTxInterrupt();
     break;
+  case ::EventId::CAN_RX:
+    // TODO
+    break;
+  case ::EventId::CAN_TX:
+    // TODO
+    break;
   default:
     break;
   }

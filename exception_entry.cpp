@@ -99,6 +99,10 @@ void irqEntry(StackContext* userStack) {
       Uart::disableTxInterrupt();
       Uart::clearTxInterrupt();
     }
+    break;
+  case gic::InterruptEventId::CAN_IO:
+    // TODO
+    break;
   default:
     break;
   }

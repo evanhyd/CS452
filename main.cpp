@@ -1,5 +1,8 @@
 #include "gic.h"
+#include "gpio.h"
 #include "k4_tasks.h"
+#include "mcp2515.h"
+#include "spi.h"
 #include "syscall_task_handler.h"
 #include "task_manager.h"
 #include "task_queue.h"
@@ -48,6 +51,10 @@ extern "C" void kmain() {
   gic::gicd_manager.routeInterrupt(gic::InterruptEventId::UART_IO, 0);
   gic::gicd_manager.enableInterrupt(gic::InterruptEventId::TIMER1);
   gic::gicd_manager.enableInterrupt(gic::InterruptEventId::UART_IO);
+
+  spi::init();
+  gpio::init();
+  mcp2515::init();
 
   // Main entry.
   using namespace timer::literals;
