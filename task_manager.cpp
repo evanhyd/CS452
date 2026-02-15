@@ -13,7 +13,7 @@ TaskDescriptor taskDescriptors[MAX_TASK_COUNT];
 TaskStack taskStacks[MAX_TASK_COUNT];
 
 MultiLevelQueue readyQueue{};
-RoundRobinQueue eventBlockedQueue[::EventId::CAN_TX + 1]{};
+RoundRobinQueue eventBlockedQueue[::EventId::CAN_IO + 1]{};
 TaskDescriptor* currentTask = nullptr;
 
 // idle task stuff

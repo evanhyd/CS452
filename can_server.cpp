@@ -6,7 +6,7 @@
 
 namespace {
 
-enum class CanServerMessageType : int { READ_REQUEST, TRANSMIT_REQUEST, READ_NOTIFY, TRANSMIT_NOTIFY };
+enum class CanServerMessageType : int { READ_REQUEST, TRANSMIT_REQUEST, NOTIFY };
 
 struct ReadRequest {};
 
@@ -14,49 +14,24 @@ struct TransmitRequest {
   mcp2515::MMessage msg;
 };
 
-struct ReadNotify {
-  mcp2515::MMessage msg;
-};
-
-struct TransmitNotify {};
+struct Notify {};
 
 struct CanServerMessage {
   CanServerMessageType type;
   union {
     ReadRequest readRequest;
     TransmitRequest transmitRequest;
-    ReadNotify readNotify;
-    TransmitNotify transmitNotify;
+    Notify notify;
   };
 };
 
-void readNotifierTask() {
+void notifierTask() {
   int serverTid = ::MyParentTid();
   for (;;) {
-    // unsigned char ch;
-    // while (!Uart::tryGetc(ch)) {
-    //   ::AwaitEvent(::EventId::UART_RX);
-    // }
-    // IoServerMessage msg{.type = IoServerMessageType::GETC_NOTIFY, .getcNotify = GetcNotify{ch}};
-    // char devnull;
-    // ::Send(serverTid, reinterpret_cast<const char*>(&msg), sizeof(IoServerMessage), &devnull, 0);
-  }
-}
-
-struct TransmitReply {
-  mcp2515::MMessage msg;
-};
-
-void transmitNotifierTask() {
-  int serverTid = ::MyParentTid();
-  for (;;) {
-    CanServerMessage msg{.type = CanServerMessageType::TRANSMIT_NOTIFY, .transmitNotify{}};
-    TransmitReply reply;
-    ::Send(serverTid, reinterpret_cast<const char*>(&msg), sizeof(CanServerMessage), reinterpret_cast<char*>(&reply),
-           sizeof(TransmitReply));
-    // while (!Uart::tryPutc(reply.ch)) {
-    //   ::AwaitEvent(::EventId::UART_TX);
-    // }
+    ::AwaitEvent(::EventId::CAN_IO);
+    CanServerMessage msg{.type = CanServerMessageType::NOTIFY, .notify{}};
+    char dummy;
+    ::Send(serverTid, reinterpret_cast<const char*>(&msg), sizeof(CanServerMessage), &dummy, 0);
   }
 }
 
@@ -67,14 +42,11 @@ void can_server::canServerTask() {
     logError("can server failed to register itself to name server");
   }
 
-  int getcNotifierTid = ::Create(0, readNotifierTask);
-  int putcNotifierTid = ::Create(0, transmitNotifierTask);
+  int notifierTid = ::Create(0, notifierTask);
 
   RingBuffer<int, 1024> readWaitingQueue;
-  RingBuffer<ReadNotify, 1024> readBuffer;
-  RingBuffer<TransmitReply, 1024> toTransmitBuffer;
-
-  bool transmitReady = false;
+  RingBuffer<mcp2515::MMessage, 1024> readBuffer;
+  RingBuffer<mcp2515::MMessage, 1024> toTransmitBuffer;
 
   for (;;) {
     int tid;
@@ -86,9 +58,7 @@ void can_server::canServerTask() {
       break;
     case CanServerMessageType::TRANSMIT_REQUEST:
       break;
-    case CanServerMessageType::READ_NOTIFY:
-      break;
-    case CanServerMessageType::TRANSMIT_NOTIFY:
+    case CanServerMessageType::NOTIFY:
       break;
     default:
       break;

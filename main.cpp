@@ -49,8 +49,10 @@ extern "C" void kmain() {
   gic::gicc_manager.init();
   gic::gicd_manager.routeInterrupt(gic::InterruptEventId::TIMER1, 0);
   gic::gicd_manager.routeInterrupt(gic::InterruptEventId::UART_IO, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::CAN_IO, 0);
   gic::gicd_manager.enableInterrupt(gic::InterruptEventId::TIMER1);
   gic::gicd_manager.enableInterrupt(gic::InterruptEventId::UART_IO);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::CAN_IO);
 
   spi::init();
   gpio::init();
