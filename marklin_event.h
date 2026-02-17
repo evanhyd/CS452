@@ -5,11 +5,11 @@
 
 namespace marklin {
 
-template <typename EventType> struct CS2Event {
+template <typename EventType> struct MarklinEvent {
   void toString(char* buffer) const { static_cast<const EventType&>(*this).toString(buffer); }
 };
 
-struct SensorTriggeredEvent : CS2Event<SensorTriggeredEvent> {
+struct SensorTriggeredEvent : MarklinEvent<SensorTriggeredEvent> {
   uint8_t id;
   SensorState state;
 
@@ -20,7 +20,7 @@ struct SensorTriggeredEvent : CS2Event<SensorTriggeredEvent> {
   }
 };
 
-struct TrainSpeedEvent : CS2Event<TrainSpeedEvent> {
+struct TrainSpeedEvent : MarklinEvent<TrainSpeedEvent> {
   uint8_t id;
   uint16_t speed;
 
@@ -32,7 +32,7 @@ struct TrainSpeedEvent : CS2Event<TrainSpeedEvent> {
   }
 };
 
-struct TrainDirectionEvent : CS2Event<TrainDirectionEvent> {
+struct TrainDirectionEvent : MarklinEvent<TrainDirectionEvent> {
   uint8_t id;
   TrainDirection direction;
 
@@ -43,7 +43,7 @@ struct TrainDirectionEvent : CS2Event<TrainDirectionEvent> {
   }
 };
 
-struct TrainFunctionEvent : CS2Event<TrainFunctionEvent> {
+struct TrainFunctionEvent : MarklinEvent<TrainFunctionEvent> {
   uint8_t id;
   TrainFunction function;
   uint8_t value;
@@ -57,7 +57,7 @@ struct TrainFunctionEvent : CS2Event<TrainFunctionEvent> {
   }
 };
 
-struct SwitchDirectionEvent : CS2Event<SwitchDirectionEvent> {
+struct SwitchDirectionEvent : MarklinEvent<SwitchDirectionEvent> {
   uint8_t id;
   SwitchState state;
   bool isSolenoidActivee;
