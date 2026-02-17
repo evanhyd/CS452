@@ -54,8 +54,6 @@ constexpr uint8_t CANCTRL_REQOP = 0xE0;
 constexpr uint8_t CANINTE = 0x2B;
 constexpr uint8_t CANINTF = 0x2C;
 
-constexpr uint16_t HASH = 0xC300;
-
 /** Read n consecutive registers starting from the specified one. */
 void read_regs(uint8_t reg, uint8_t values[], const uint8_t n) {
   spi::begin_transaction();
@@ -209,51 +207,4 @@ void clearActiveInterrupt(CanInterruptType interruptType) {
   modify_reg(CANINTF, static_cast<uint8_t>(interruptType), 0);
 }
 
-#define UN32(x)                                                                                                        \
-  static_cast<uint8_t>((x) >> 24), static_cast<uint8_t>((x) >> 16), static_cast<uint8_t>((x) >> 8),                    \
-      static_cast<uint8_t>(x)
-
-#define UN16(x) static_cast<uint8_t>((x) >> 8), static_cast<uint8_t>(x)
-
-MMessage MMessage::control(Control c) { return {.uid = HASH, .dlc = 5, .data = {UN32(0), static_cast<uint8_t>(c)}}; }
-
-MMessage MMessage::set_speed(uint32_t train_no, uint8_t step) {
-  uint16_t level = static_cast<uint16_t>(step > 0 ? 1 + (step - 1) * 77 : 0);
-  return {.uid = 0x04 << 17 | HASH,
-          .dlc = 6,
-          .data = {
-              UN32(train_no),
-              UN16(level),
-          }};
-}
-
-MMessage MMessage::set_direction(uint32_t train_no, Direction dir) {
-  return {.uid = 0x05 << 17 | HASH,
-          .dlc = 5,
-          .data = {
-              UN32(train_no),
-              static_cast<uint8_t>(dir),
-          }};
-}
-
-MMessage MMessage::set_light(uint32_t train_no, bool on) {
-  return {.uid = 0x06 << 17 | HASH,
-          .dlc = 6,
-          .data = {
-              UN32(train_no),
-              0x00,
-              static_cast<uint8_t>(on),
-          }};
-}
-
-MMessage MMessage::set_switch(uint32_t switch_no, SwitchState state) {
-  switch_no += 0x3000 - 1;
-  return {.uid = 0x0B << 17 | HASH,
-          .dlc = 6,
-          .data = {
-              UN32(switch_no),
-              static_cast<uint8_t>(state),
-              0x01,
-          }};
-}
 } // namespace mcp2515

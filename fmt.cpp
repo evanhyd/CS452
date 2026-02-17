@@ -248,6 +248,16 @@ void tickToTime(uint64_t tick, char* buffer) {
 
 // Format string to the buffer. Return the one pass the end of the buffer.
 // Null terminated.
+// %u: uint32.
+// %U: uint64.
+// %d: int32.
+// %D: int64.
+// %x: uint32 hex.
+// %X: uint64 hex.
+// %s: cstring.
+// %c: char.
+// %t: uint64 to HH:MM:SS.a timestamp.
+// %m: (size_t, size_t) to cursor move.
 char* formatString(char* buffer, const char* fmt, ...) {
   va_list va;
   char ch = '\0';

@@ -12,4 +12,7 @@ uint32_t get_event_detect_status(uint32_t pin);
 // Clear event detect status for GPIO pin.
 void clr_event_detect_status(uint32_t pin);
 
+// Enable or disable the GPIO pin.
+void set_pin_low_detect(uint32_t pin, int enable);
+
 } // namespace gpio

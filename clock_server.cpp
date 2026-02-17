@@ -5,7 +5,7 @@
 
 namespace {
 
-enum class ClockServerMessageType : int { TIME, DELAY, DELAY_UNTIL, NOTIFIER_UPDATE };
+enum class ClockServerMessageType : int { Time, Delay, DelayUntil, NotifierUpdate };
 
 struct TimeMessage {};
 
@@ -40,8 +40,8 @@ struct DelayRequest {
 void clockNotifierTask() {
   int serverTid = ::MyParentTid();
   for (;;) {
-    int ticks = ::AwaitEvent(::EventId::TIMER1);
-    ClockServerMessage msg = {.type = ClockServerMessageType::NOTIFIER_UPDATE,
+    int ticks = ::AwaitEvent(::EventId::Timer1);
+    ClockServerMessage msg = {.type = ClockServerMessageType::NotifierUpdate,
                               .notifierUpdateMessage = NotifierUpdateMessage{ticks}};
     char devnull;
     ::Send(serverTid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), &devnull, 0);
@@ -66,22 +66,22 @@ void clock_server::clockServerTask() {
 
     // Process the query.
     switch (msg.type) {
-    case ClockServerMessageType::TIME:
+    case ClockServerMessageType::Time:
       ::Reply(tid, reinterpret_cast<const char*>(&ticks), sizeof(ticks));
       break;
-    case ClockServerMessageType::DELAY:
+    case ClockServerMessageType::Delay:
       if (delayQueue.full()) {
         logError("clock server delay queue is full?!");
       }
       delayQueue.push(DelayRequest{.wakeTime = ticks + msg.delayMessage.ticks, .tid = tid});
       break;
-    case ClockServerMessageType::DELAY_UNTIL:
+    case ClockServerMessageType::DelayUntil:
       if (delayQueue.full()) {
         logError("clock server delay queue is full?!");
       }
       delayQueue.push(DelayRequest{.wakeTime = msg.delayUntilMessage.ticks, .tid = tid});
       break;
-    case ClockServerMessageType::NOTIFIER_UPDATE:
+    case ClockServerMessageType::NotifierUpdate:
       ++ticks;
       while (!delayQueue.empty() && delayQueue.top().wakeTime <= ticks) {
         ::Reply(delayQueue.top().tid, reinterpret_cast<const char*>(&ticks), sizeof(ticks));
@@ -103,7 +103,7 @@ void clock_server::clockServerTask() {
 // >=0	time in ticks since the clock server initialized.
 // -1	tid is not a valid clock server task.
 extern "C" int Time(int tid) {
-  ClockServerMessage msg{.type = ClockServerMessageType::TIME, .timeMessage = TimeMessage{}};
+  ClockServerMessage msg{.type = ClockServerMessageType::Time, .timeMessage = TimeMessage{}};
   int value;
   ::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
          sizeof(value));
@@ -119,7 +119,7 @@ extern "C" int Delay(int tid, int ticks) {
   if (ticks < 0) {
     return -2;
   }
-  ClockServerMessage msg{.type = ClockServerMessageType::DELAY, .delayMessage = DelayMessage{ticks}};
+  ClockServerMessage msg{.type = ClockServerMessageType::Delay, .delayMessage = DelayMessage{ticks}};
   int value;
   if (::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
              sizeof(int)) < 0) {
@@ -135,7 +135,7 @@ extern "C" int Delay(int tid, int ticks) {
 // -1	tid is not reachable or is not a time server
 // -2	negative delay.
 extern "C" int DelayUntil(int tid, int ticks) {
-  ClockServerMessage msg{.type = ClockServerMessageType::DELAY_UNTIL, .delayUntilMessage = DelayUntilMessage{ticks}};
+  ClockServerMessage msg{.type = ClockServerMessageType::DelayUntil, .delayUntilMessage = DelayUntilMessage{ticks}};
   int value;
   if (::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(ClockServerMessage), reinterpret_cast<char*>(&value),
              sizeof(int)) < 0) {

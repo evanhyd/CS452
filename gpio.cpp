@@ -47,20 +47,6 @@ void setup(uint32_t pin, Function setting, Resistor resistor) {
   GPIO_PUP_PDN_CNTRL_REG(reg) = status;                 // write back
 }
 
-void set_pin_low_detect(uint32_t pin, int enable) {
-  uint32_t reg = pin / 32;
-  uint32_t shift = pin % 32;
-  if (enable)
-    GPLEN_REG(reg) |= (1 << shift); // enable pin low detect
-  else
-    GPLEN_REG(reg) &= ~(1 << shift); // disable pin low detect
-}
-
-void init_interrupt() {
-  setup(17, Function::Input, Resistor::None); // configure MCP2515_INT pin
-  set_pin_low_detect(17, 1);                  // enable low detect on MCP2515_INT pin
-}
-
 } // namespace
 
 // GPIO pins 14 & 15 already configured by boot loader, but redo for clarity.
@@ -73,7 +59,8 @@ void init() {
   setup(14, Function::AltFn0, Resistor::None); // UART TXD0
   setup(15, Function::AltFn0, Resistor::None); // UART
 
-  init_interrupt();
+  setup(17, Function::Input, Resistor::None); // configure MCP2515_INT pin
+  set_pin_low_detect(17, 1);                  // enable low detect on MCP2515_INT pin
 }
 
 uint32_t get_event_detect_status(uint32_t pin) {
@@ -86,6 +73,15 @@ void clr_event_detect_status(uint32_t pin) {
   uint32_t reg = pin / 32;
   uint32_t shift = pin % 32;
   GPEDS_REG(reg) = (1 << shift); // clear the event detect status for the pin
+}
+
+void set_pin_low_detect(uint32_t pin, int enable) {
+  uint32_t reg = pin / 32;
+  uint32_t shift = pin % 32;
+  if (enable)
+    GPLEN_REG(reg) |= (1 << shift); // enable pin low detect
+  else
+    GPLEN_REG(reg) &= ~(1 << shift); // disable pin low detect
 }
 
 } // namespace gpio

@@ -1,7 +1,7 @@
 #pragma once
 
 inline constexpr int MAX_PRIORITY_LEVEL = 10;
-enum EventId : int { TIMER1, TIMER3, UART_RX, UART_TX, CAN_IO };
+enum EventId : int { Timer1, Timer3, UartRx, UartTx, CanIO };
 
 extern "C" {
 int Create(int priority, void (*function)());

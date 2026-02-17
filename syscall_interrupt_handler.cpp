@@ -1,6 +1,7 @@
 #include "syscall_interrupt_handler.h"
 #include "debug.h"
 #include "gic.h"
+#include "mcp2515.h"
 #include "task_manager.h"
 #include "task_queue.h"
 #include "uart.h"
@@ -35,7 +36,7 @@ int AwaitEvent(int eventId) {
     Uart::enableTxInterrupt();
     break;
   case ::EventId::CAN_IO:
-    // TODO
+    mcp2515::setInterruptEnabled(mcp2515::CanInterruptType::SEND_RECEIVE, true);
     break;
   default:
     break;

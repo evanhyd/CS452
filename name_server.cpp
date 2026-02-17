@@ -13,7 +13,7 @@ constexpr size_t MAX_NAME_LENGTH = 64;
 constinit Tid nameServerTid = Tid::invalid();
 
 struct Message {
-  enum class Type : uint8_t { REGISTER_AS, WHO_IS } type;
+  enum class Type : uint8_t { RegisterAs, WhoIs } type;
   char name[MAX_NAME_LENGTH];
 };
 
@@ -78,10 +78,10 @@ void nameServerTask() {
     int response;
 
     switch (msg.type) {
-    case Message::Type::REGISTER_AS:
+    case Message::Type::RegisterAs:
       response = registerHandler(msg, senderTid);
       break;
-    case Message::Type::WHO_IS:
+    case Message::Type::WhoIs:
       response = whoIsHandler(msg, senderTid);
       break;
     }
@@ -135,7 +135,7 @@ int RegisterAs(const char* name) {
   if (nameServerTid == Tid::invalid()) {
     return -1;
   }
-  return send(Message::Type::REGISTER_AS, name);
+  return send(Message::Type::RegisterAs, name);
 }
 
 // Asks the name server for the task id of the task that is registered under the given name.
@@ -147,7 +147,7 @@ int WhoIs(const char* name) {
   if (nameServerTid == Tid::invalid()) {
     return -1;
   }
-  return send(Message::Type::WHO_IS, name);
+  return send(Message::Type::WhoIs, name);
 }
 }
 

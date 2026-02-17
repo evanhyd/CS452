@@ -3,6 +3,8 @@
 #include "debug.h"
 #include "fmt.h"
 #include "gic.h"
+#include "gpio.h"
+#include "mcp2515.h"
 #include "syscall_comm_handler.h"
 #include "syscall_interrupt_handler.h"
 #include "syscall_task_handler.h"
@@ -101,7 +103,11 @@ void irqEntry(StackContext* userStack) {
     }
     break;
   case gic::InterruptEventId::CAN_IO:
-    // TODO
+    if (gpio::get_event_detect_status(17)) {
+      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UART_TX, 0);
+      gpio::set_pin_low_detect(17, false);
+      gpio::clr_event_detect_status(17);
+    }
     break;
   default:
     break;

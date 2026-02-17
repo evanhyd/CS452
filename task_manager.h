@@ -80,11 +80,11 @@ struct MessageControlBlock {
 };
 
 enum class RunState : int {
-  READY,
-  SEND_BLOCKED,
-  RECEIVE_BLOCKED,
-  REPLY_BLOCKED,
-  EVENT_BLOCKED,
+  Ready,
+  SendBlocked,
+  ReceiveBlocked,
+  ReplyBlocked,
+  EventBlocked,
 };
 
 // The handle to an allocated task. Contains all the meta data.

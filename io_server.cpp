@@ -6,7 +6,7 @@
 
 namespace {
 
-enum class IoServerMessageType : int { GETC_REQUEST, PUTC_REQUEST, GETC_NOTIFY, PUTC_NOTIFY };
+enum class IoServerMessageType : int { GetcRequest, PutcRequest, GetcNotify, PutcNotify };
 
 struct GetcRequest {};
 
@@ -35,9 +35,9 @@ void getcNotifierTask() {
   for (;;) {
     unsigned char ch;
     while (!Uart::tryGetc(ch)) {
-      ::AwaitEvent(::EventId::UART_RX);
+      ::AwaitEvent(::EventId::UartRx);
     }
-    IoServerMessage msg{.type = IoServerMessageType::GETC_NOTIFY, .getcNotify = GetcNotify{ch}};
+    IoServerMessage msg{.type = IoServerMessageType::GetcNotify, .getcNotify = GetcNotify{ch}};
     char devnull;
     ::Send(serverTid, reinterpret_cast<const char*>(&msg), sizeof(IoServerMessage), &devnull, 0);
   }
@@ -50,12 +50,12 @@ struct PutcReply {
 void putcNotifierTask() {
   int serverTid = ::MyParentTid();
   for (;;) {
-    IoServerMessage msg{.type = IoServerMessageType::PUTC_NOTIFY, .putcNotify = PutcNotify{}};
+    IoServerMessage msg{.type = IoServerMessageType::PutcNotify, .putcNotify = PutcNotify{}};
     PutcReply reply;
     ::Send(serverTid, reinterpret_cast<const char*>(&msg), sizeof(IoServerMessage), reinterpret_cast<char*>(&reply),
            sizeof(PutcReply));
     while (!Uart::tryPutc(reply.ch)) {
-      ::AwaitEvent(::EventId::UART_TX);
+      ::AwaitEvent(::EventId::UartTx);
     }
   }
 }
@@ -82,7 +82,7 @@ void io_server::ioServerTask() {
     ::Receive(&tid, reinterpret_cast<char*>(&msg), sizeof(IoServerMessage));
 
     switch (msg.type) {
-    case IoServerMessageType::GETC_REQUEST:
+    case IoServerMessageType::GetcRequest:
       // Read from the getc data buffer is not empty.
       // Otherwise wait in the getc tid queue.
       if (!getcBuffer.empty()) {
@@ -95,7 +95,7 @@ void io_server::ioServerTask() {
         getcWaitingQueue.push(tid);
       }
       break;
-    case IoServerMessageType::PUTC_REQUEST:
+    case IoServerMessageType::PutcRequest:
       // If putcNotifier is ready (waiting for reply), then reply.
       // Otherwise put data in the putc data queue.
       if (putcReady) {
@@ -112,7 +112,7 @@ void io_server::ioServerTask() {
         ::Reply(tid, reinterpret_cast<const char*>(&success), sizeof(int));
       }
       break;
-    case IoServerMessageType::GETC_NOTIFY:
+    case IoServerMessageType::GetcNotify:
       if (tid != getcNotifierTid) {
         logError("received getc notify from unexpected tid");
       }
@@ -132,7 +132,7 @@ void io_server::ioServerTask() {
         ::Reply(getcNotifierTid, &dummy, 0); // reply to getcNotifier
       }
       break;
-    case IoServerMessageType::PUTC_NOTIFY:
+    case IoServerMessageType::PutcNotify:
       if (tid != putcNotifierTid) {
         logError("received putc notify from unexpected tid");
       }
@@ -157,7 +157,7 @@ void io_server::ioServerTask() {
 // >=0	new character from the terminal.
 // -1	tid is not a valid terminal server task.
 extern "C" int Getc(int tid) {
-  IoServerMessage msg{.type = IoServerMessageType::GETC_REQUEST, .getcRequest = GetcRequest{}};
+  IoServerMessage msg{.type = IoServerMessageType::GetcRequest, .getcRequest = GetcRequest{}};
   int value;
   if (::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(IoServerMessage), reinterpret_cast<char*>(&value),
              sizeof(int)) < 0) {
@@ -172,7 +172,7 @@ extern "C" int Getc(int tid) {
 // 0	success.
 // -1	tid is not a valid terminal server task.
 extern "C" int Putc(int tid, unsigned char ch) {
-  IoServerMessage msg{.type = IoServerMessageType::PUTC_REQUEST, .putcRequest = PutcRequest{ch}};
+  IoServerMessage msg{.type = IoServerMessageType::PutcRequest, .putcRequest = PutcRequest{ch}};
   int value;
   if (::Send(tid, reinterpret_cast<const char*>(&msg), sizeof(IoServerMessage), reinterpret_cast<char*>(&value),
              sizeof(int)) < 0) {

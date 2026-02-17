@@ -8,13 +8,13 @@
 namespace gic {
 
 enum class InterruptEventId : uint32_t {
-  TIMER1 = 97,
-  TIMER3 = 99,
-  UART_IO = 153,
-  CAN_IO = 145,
+  Timer1 = 97,
+  Timer3 = 99,
+  UartIO = 153,
+  CanIO = 145,
 };
 
-constexpr bool isValidEventId(int eventId) { return 0 <= eventId && eventId <= ::EventId::CAN_IO; }
+constexpr bool isValidEventId(int eventId) { return 0 <= eventId && eventId <= ::EventId::CanIO; }
 
 // GICD Manager is a singleton class that provides interface to access the GICD router settings.
 inline constexpr class GicdManager {
