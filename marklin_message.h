@@ -41,13 +41,6 @@ enum class SystemSub : uint8_t {
   Reset = 0x80,                     // DLC 6
 };
 
-struct SensorEvent {
-  char bank;
-  uint8_t number;
-  bool old_occupied;
-  bool new_occupied;
-};
-
 struct MMessage {
   uint8_t priority; // 4 bits
   Command command;  // 8 bits
