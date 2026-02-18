@@ -52,7 +52,7 @@ void can_server::canServerTask() {
   RingBuffer<int, BUFFER_SIZE> readWaitingQueue;
   RingBuffer<marklin::MMessage, BUFFER_SIZE> receiveBuffer;
   RingBuffer<marklin::MMessage, BUFFER_SIZE> transmitBuffer;
-  bool isTX0Ready = false;
+  bool isTX0Ready = true;
 
   for (;;) {
     int tid;
@@ -69,9 +69,6 @@ void can_server::canServerTask() {
       }
 
       // No message in the buffer, block and wait.
-      if (readWaitingQueue.full()) {
-        logError("CAN server read waiting queue is full");
-      }
       readWaitingQueue.push(tid);
       break;
     }
@@ -82,33 +79,59 @@ void can_server::canServerTask() {
         mcp2515::sendMessage(msg.transmitRequest.message);
       } else {
         // TX0 is not ready, append to the buffer.
-        if (transmitBuffer.full()) {
-          logError("transmit buffer is full");
-        }
         transmitBuffer.push(msg.transmitRequest.message);
       }
 
       ::Reply(tid, "", 0);
-      mcp2515::clearInterrupt(mcp2515::CanInterruptMask::TX0IE);
       break;
     }
     case CanServerMessageType::ReadyNotify: {
+      if (tid != notifierTid) {
+        logError("the notify message is not from the CAN notifier task");
+      }
+
       uint8_t interruptFlag = mcp2515::getInterruptFlags();
 
       // Receive Buffer 0 Full
       if (interruptFlag & mcp2515::CanInterruptMask::RX0IE) {
+        marklin::MMessage message = mcp2515::receiveMessage(mcp2515::RxBuffer::Rx0);
+        if (!readWaitingQueue.empty()) {
+          int waitingTask = readWaitingQueue.pop();
+          ::Reply(waitingTask, reinterpret_cast<const char*>(&message), sizeof(marklin::MMessage));
+        } else {
+          receiveBuffer.push(message);
+        }
+        mcp2515::clearInterrupt(mcp2515::CanInterruptMask::RX0IE);
       }
 
       // Receive Buffer 1 Full
       if (interruptFlag & mcp2515::CanInterruptMask::RX1IE) {
+        marklin::MMessage message = mcp2515::receiveMessage(mcp2515::RxBuffer::Rx1);
+        if (!readWaitingQueue.empty()) {
+          int waitingTask = readWaitingQueue.pop();
+          ::Reply(waitingTask, reinterpret_cast<const char*>(&message), sizeof(marklin::MMessage));
+        } else {
+          receiveBuffer.push(message);
+        }
+        mcp2515::clearInterrupt(mcp2515::CanInterruptMask::RX1IE);
       }
 
       // Transmit Buffer 0 Empty
       if (interruptFlag & mcp2515::CanInterruptMask::TX0IE) {
+        if (!transmitBuffer.empty()) {
+          marklin::MMessage message = transmitBuffer.pop();
+          mcp2515::sendMessage(message);
+        } else {
+          isTX0Ready = true;
+        }
+        mcp2515::clearInterrupt(mcp2515::CanInterruptMask::TX0IE);
       }
+
+      ::Reply(notifierTid, "", 0);
       break;
     }
     default:
+      logError("invalid request type");
       break;
     }
   }

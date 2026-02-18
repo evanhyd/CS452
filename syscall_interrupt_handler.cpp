@@ -1,9 +1,9 @@
 #include "syscall_interrupt_handler.h"
 #include "debug.h"
 #include "gic.h"
+#include "gpio.h"
 #include "mcp2515.h"
 #include "task_manager.h"
-#include "task_queue.h"
 #include "uart.h"
 
 namespace syscall_handler {
@@ -19,7 +19,7 @@ int AwaitEvent(int eventId) {
   if (!currTask) {
     logError("dereference null task");
   }
-  if (currTask->runState != RunState::READY) {
+  if (currTask->runState != RunState::Ready) {
     logError("task is not ready");
   }
 
@@ -29,20 +29,20 @@ int AwaitEvent(int eventId) {
 
   ::EventId event = static_cast<::EventId>(eventId);
   switch (event) {
-  case ::EventId::UART_RX:
+  case ::EventId::UartRx:
     Uart::enableRxInterrupt();
     break;
-  case ::EventId::UART_TX:
+  case ::EventId::UartTx:
     Uart::enableTxInterrupt();
     break;
-  case ::EventId::CAN_IO:
-    mcp2515::setInterruptEnabled(mcp2515::CanInterruptType::SEND_RECEIVE, true);
+  case ::EventId::CanIO:
+    gpio::set_pin_low_detect(17, true);
     break;
   default:
     break;
   }
 
-  currTask->runState = RunState::EVENT_BLOCKED;
+  currTask->runState = RunState::EventBlocked;
   TaskScheduler::removeReadyTask(*currTask);
   TaskScheduler::enqueEventBlockedTask(event, *currTask);
 

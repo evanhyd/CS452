@@ -13,7 +13,7 @@ TaskDescriptor taskDescriptors[MAX_TASK_COUNT];
 TaskStack taskStacks[MAX_TASK_COUNT];
 
 MultiLevelQueue readyQueue{};
-RoundRobinQueue eventBlockedQueue[::EventId::CAN_IO + 1]{};
+RoundRobinQueue eventBlockedQueue[COUNT]{};
 TaskDescriptor* currentTask = nullptr;
 
 // idle task stuff
@@ -82,7 +82,7 @@ void TaskScheduler::notifyAllEventBlockedTasks(::EventId eventId, int eventValue
       logError("detected null task in the event queue");
     }
     task->setRetValue(eventValue);
-    task->runState = RunState::READY;
+    task->runState = RunState::Ready;
     enqueReadyTask(*task);
   }
 }

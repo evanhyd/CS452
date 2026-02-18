@@ -80,31 +80,31 @@ void irqEntry(StackContext* userStack) {
   // logDebug(buf);
 
   switch (interruptId) {
-  case gic::InterruptEventId::TIMER1:
-    TaskScheduler::notifyAllEventBlockedTasks(::EventId::TIMER1, int(timer::system_timer.now().ticks()));
+  case gic::InterruptEventId::Timer1:
+    TaskScheduler::notifyAllEventBlockedTasks(::EventId::Timer1, int(timer::system_timer.now().ticks()));
     timer::system_timer.clearChannel1();
     timer::system_timer.setChannel1After(timer::TICK_DURATION);
     break;
-  case gic::InterruptEventId::TIMER3:
-    TaskScheduler::notifyAllEventBlockedTasks(::EventId::TIMER3, int(timer::system_timer.now().ticks()));
+  case gic::InterruptEventId::Timer3:
+    TaskScheduler::notifyAllEventBlockedTasks(::EventId::Timer3, int(timer::system_timer.now().ticks()));
     timer::system_timer.clearChannel3();
     timer::system_timer.setChannel3After(timer::TICK_DURATION);
     break;
-  case gic::InterruptEventId::UART_IO:
+  case gic::InterruptEventId::UartIO:
     if (Uart::hasRxInterrupt()) {
-      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UART_RX, 0);
+      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UartRx, 0);
       Uart::disableRxInterrupt();
       Uart::clearRxInterrupt();
     }
     if (Uart::hasTxInterrupt()) {
-      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UART_TX, 0);
+      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UartTx, 0);
       Uart::disableTxInterrupt();
       Uart::clearTxInterrupt();
     }
     break;
-  case gic::InterruptEventId::CAN_IO:
+  case gic::InterruptEventId::CanIO:
     if (gpio::get_event_detect_status(17)) {
-      TaskScheduler::notifyAllEventBlockedTasks(::EventId::UART_TX, 0);
+      TaskScheduler::notifyAllEventBlockedTasks(::EventId::CanIO, 0);
       gpio::set_pin_low_detect(17, false);
       gpio::clr_event_detect_status(17);
     }

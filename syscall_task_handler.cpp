@@ -39,7 +39,7 @@ int Create(int priority, void (*function)()) {
                        .stackMemory = ts,
                        .next = nullptr,
                        .stackPointer = context,
-                       .runState = RunState::READY,
+                       .runState = RunState::Ready,
                        .messageControlBlock = {},
                        .sendWaitQueue = {}};
   TaskScheduler::enqueReadyTask(*td);

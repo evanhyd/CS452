@@ -82,37 +82,31 @@ void io_server::ioServerTask() {
     ::Receive(&tid, reinterpret_cast<char*>(&msg), sizeof(IoServerMessage));
 
     switch (msg.type) {
-    case IoServerMessageType::GetcRequest:
+    case IoServerMessageType::GetcRequest: {
       // Read from the getc data buffer is not empty.
       // Otherwise wait in the getc tid queue.
       if (!getcBuffer.empty()) {
         int ch = static_cast<int>(getcBuffer.pop().ch);
         ::Reply(tid, reinterpret_cast<const char*>(&ch), sizeof(ch));
       } else {
-        if (getcWaitingQueue.full()) {
-          logError("io server getc waiting queue is full");
-        }
         getcWaitingQueue.push(tid);
       }
       break;
-    case IoServerMessageType::PutcRequest:
+    }
+    case IoServerMessageType::PutcRequest: {
       // If putcNotifier is ready (waiting for reply), then reply.
       // Otherwise put data in the putc data queue.
       if (putcReady) {
         putcReady = false;
         ::Reply(putcNotifierTid, reinterpret_cast<const char*>(&msg.putcRequest.ch), sizeof(msg.putcRequest.ch));
       } else {
-        if (toPutcBuffer.full()) {
-          logError("io server putc buffer is full");
-        }
         toPutcBuffer.push(PutcReply{msg.putcRequest.ch});
       }
-      {
-        int success = 0;
-        ::Reply(tid, reinterpret_cast<const char*>(&success), sizeof(int));
-      }
+      int success = 0;
+      ::Reply(tid, reinterpret_cast<const char*>(&success), sizeof(int));
       break;
-    case IoServerMessageType::GetcNotify:
+    }
+    case IoServerMessageType::GetcNotify: {
       if (tid != getcNotifierTid) {
         logError("received getc notify from unexpected tid");
       }
@@ -122,14 +116,12 @@ void io_server::ioServerTask() {
         int waitingTid = getcWaitingQueue.pop();
         ::Reply(waitingTid, reinterpret_cast<const char*>(&msg.getcNotify.ch), sizeof(msg.getcNotify.ch));
       } else {
-        if (getcBuffer.full()) {
-          logError("io server getc buffer is full");
-        }
         getcBuffer.push(msg.getcNotify);
       }
       ::Reply(getcNotifierTid, "", 0); // reply to getcNotifier
       break;
-    case IoServerMessageType::PutcNotify:
+    }
+    case IoServerMessageType::PutcNotify: {
       if (tid != putcNotifierTid) {
         logError("received putc notify from unexpected tid");
       }
@@ -142,7 +134,9 @@ void io_server::ioServerTask() {
         putcReady = true;
       }
       break;
+    }
     default:
+      logError("invalid request type");
       break;
     }
   }

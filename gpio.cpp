@@ -78,10 +78,11 @@ void clr_event_detect_status(uint32_t pin) {
 void set_pin_low_detect(uint32_t pin, int enable) {
   uint32_t reg = pin / 32;
   uint32_t shift = pin % 32;
-  if (enable)
-    GPLEN_REG(reg) |= (1 << shift); // enable pin low detect
-  else
-    GPLEN_REG(reg) &= ~(1 << shift); // disable pin low detect
+  if (enable) {
+    GPLEN_REG(reg) |= (1u << shift); // enable pin low detect
+  } else {
+    GPLEN_REG(reg) &= ~(1u << shift); // disable pin low detect
+  }
 }
 
 } // namespace gpio
