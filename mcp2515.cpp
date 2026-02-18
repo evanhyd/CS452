@@ -5,55 +5,6 @@
 
 namespace {
 /**
- * Transmit Buffer (3)
- * MCP2515-Family-Data-Sheet-DS20001801K page 15
- */
-// Registers
-constexpr uint8_t TXBnCTRL = 0x30; // control register
-constexpr uint8_t TXBnSIDH = 0x31; // standard identifier reigster high
-constexpr uint8_t TXBnSIDL = 0x32; // standard identifier reigster low
-constexpr uint8_t TXBnEIDH = 0x33; // extended identifier reigster high
-constexpr uint8_t TXBnEIDL = 0x34; // extended identifier reigster low
-constexpr uint8_t TXBnDLC = 0x35;  // data length code register
-constexpr uint8_t TXBnDm = 0x36;   // data byte register (8 bytes buffer)
-
-// Masks
-constexpr uint8_t TXP = 0b11;       // control register: priority (00 lowest)
-constexpr uint8_t TXREQ = 1 << 3;   // control register: message transmit request
-constexpr uint8_t TXERR = 1 << 4;   // control register: message transmit error detected
-constexpr uint8_t MLOA = 1 << 5;    // control register: message lost arbitration
-constexpr uint8_t ABTF = 1 << 6;    // control register: message aborted flag
-constexpr uint8_t SID_10_3 = 0xff;  // standard identifier register high: identifier
-constexpr uint8_t SID_2_0 = 7 << 5; // standard identifier register low: identifier
-constexpr uint8_t EXIDE = 1 << 3;   // standard identifier register low: extended identifier enable
-constexpr uint8_t EID_17_16 = 0b11; // standard identifier register low: extended identifier
-constexpr uint8_t EID_15_8 = 0xff;  // extended identifier register high: extended identifier
-constexpr uint8_t EID_7_0 = 0xff;   // extended identifier register low: extended identifier
-constexpr uint8_t RTR =
-    1 << 6; // data length code register: remote transmission request (1. remote transmit request | 0. data frame)
-constexpr uint8_t DLC = 0xf; // data length code register: data length code
-
-/**
- * Receive Buffer (2)
- * MCP2515-Family-Data-Sheet-DS20001801K page 23
- */
-// Registers
-constexpr uint8_t RXBnCTRL0 = 0x60; // control register 0
-constexpr uint8_t RXBnSIDH0 = 0x61; // standard identifer register high 0
-constexpr uint8_t RXBnSIDL0 = 0x62; // standard identifer register low 0
-constexpr uint8_t RXBnEIDH0 = 0x63; // extended identifer register high 0
-constexpr uint8_t RXBnEIDL0 = 0x64; // extended identifer register low 0
-constexpr uint8_t RXBnDLC0 = 0x65;  // data length code register 0
-constexpr uint8_t RXBnDm0 = 0x66;   // data byte register 0 (8 bytes)
-constexpr uint8_t RXBnCTRL1 = 0x70; // control register 1
-constexpr uint8_t RXBnSIDH1 = 0x71; // standard identifer register high 1
-constexpr uint8_t RXBnSIDL1 = 0x72; // standard identifer register low 1
-constexpr uint8_t RXBnEIDH1 = 0x73; // extended identifer register high 1
-constexpr uint8_t RXBnEIDL1 = 0x74; // extended identifer register low 1
-constexpr uint8_t RXBnDLC1 = 0x75;  // data length code register 1
-constexpr uint8_t RXBnDm1 = 0x76;   // data byte register 1 (8 bytes)
-
-/**
  * SPI Instruction Set
  * MCP2515-Family-Data-Sheet-DS20001801K page 67
  */
@@ -70,28 +21,51 @@ enum Instruction : uint8_t {
   BitModify = 0x05,      // Allows the user to set or clear individual bits in a particular register.
 };
 
-// Masks
-constexpr uint8_t READ_RX_BUFFER_RXB0SIDH = 0b00 << 1; // Receive Buffer 0, Start at RXB0SIDH
-constexpr uint8_t READ_RX_BUFFER_RXB0D0 = 0b01 << 1;   // Receive Buffer 0, Start at RXB0D0
-constexpr uint8_t READ_RX_BUFFER_RXB1SIDH = 0b10 << 1; // Receive Buffer 1, Start at RXB1SIDH
-constexpr uint8_t READ_RX_BUFFER_RXB1D0 = 0b11;        // Receive Buffer 1, Start at RXB1D0
-constexpr uint8_t LOAD_TX_BUFFER_TXB0SIDH = 0b000;     // TX Buffer 0, Start at TXB0SIDH
-constexpr uint8_t LOAD_TX_BUFFER_TXB0D0 = 0b001;       // TX Buffer 0, Start at TXB0D0
-constexpr uint8_t RTS_TXB0 = 0b001;                    // Send TX Buffer 0
-constexpr uint8_t RTS_TXB1 = 0b010;                    // Send TX Buffer 1
-constexpr uint8_t RTS_TXB2 = 0b100;                    // Send TX Buffer 2
-constexpr uint8_t READ_STATUS_RX0IF = 1 << 0;          // Receive buffer 0 contains a message
-constexpr uint8_t READ_STATUS_RX1IF = 1 << 1;          // Receive buffer 1 contains a message
-constexpr uint8_t READ_STATUS_TX0REQ = 1 << 2;         // Transmit buffer 0 is pending transmission
-constexpr uint8_t READ_STATUS_TX0IF = 1 << 3;          // Transmit buffer 0 is empty (interrupt flag)
-constexpr uint8_t READ_STATUS_TX1REQ = 1 << 4;         // Transmit buffer 1 is pending transmission
-constexpr uint8_t READ_STATUS_TX1IF = 1 << 5;          // Transmit buffer 1 is empty (interrupt flag)
-constexpr uint8_t READ_STATUS_TX2REQ = 1 << 6;         // Transmit buffer 2 is pending transmission
-constexpr uint8_t READ_STATUS_TX2IF = 1 << 7;          // Transmit buffer 2 is empty (interrupt flag)
+/**
+ * SPI Register Set
+ * MCP2515-Family-Data-Sheet-DS20001801K
+ */
+enum Register : uint8_t {
+  CANSTAT = 0x0E, // Control and status registers
+  CANCTRL = 0x0F,
+  CNF3 = 0x28, // Configuration registers
+  CNF2 = 0x29,
+  CNF1 = 0x2A,
+  CANINTE = 0x2B, // CAN INTERRUPT ENABLE REGISTER
+  CANINTF = 0x2C, // CAN INTERRUPT FLAG REGISTER
 
-// Interrupt registers
-constexpr uint8_t CANINTE = 0x2B;
-constexpr uint8_t CANINTF = 0x2C;
+  /**
+   * Transmit Buffer (3)
+   * MCP2515-Family-Data-Sheet-DS20001801K page 15
+   */
+  TXBnCTRL = 0x30, // control register
+  TXBnSIDH = 0x31, // standard identifier reigster high
+  TXBnSIDL = 0x32, // standard identifier reigster low
+  TXBnEIDH = 0x33, // extended identifier reigster high
+  TXBnEIDL = 0x34, // extended identifier reigster low
+  TXBnDLC = 0x35,  // data length code register
+  TXBnDm = 0x36,   // data byte register (8 bytes buffer)
+
+  /**
+   * Receive Buffer (2)
+   * MCP2515-Family-Data-Sheet-DS20001801K page 23
+   */
+  RXBnCTRL0 = 0x60, // control register 0
+  RXBnSIDH0 = 0x61, // standard identifer register high 0
+  RXBnSIDL0 = 0x62, // standard identifer register low 0
+  RXBnEIDH0 = 0x63, // extended identifer register high 0
+  RXBnEIDL0 = 0x64, // extended identifer register low 0
+  RXBnDLC0 = 0x65,  // data length code register 0
+  RXBnDm0 = 0x66,   // data byte register 0 (8 bytes)
+  RXBnCTRL1 = 0x70, // control register 1
+  RXBnSIDH1 = 0x71, // standard identifer register high 1
+  RXBnSIDL1 = 0x72, // standard identifer register low 1
+  RXBnEIDH1 = 0x73, // extended identifer register high 1
+  RXBnEIDL1 = 0x74, // extended identifer register low 1
+  RXBnDLC1 = 0x75,  // data length code register 1
+  RXBnDm1 = 0x76,   // data byte register 1 (8 bytes)
+
+};
 
 // Read n consecutive registers starting from the specified one.
 void readRegs(uint8_t reg, uint8_t values[], uint8_t n) {
@@ -148,8 +122,8 @@ void modifyReg(uint8_t reg, uint8_t mask, const uint8_t data) {
 // Serialize MMessage to the buffer.
 void serializeMessage(const marklin::MMessage& message, uint8_t buffer[13]) {
   buffer[0] = (message.priority << 4) | (uint8_t(message.command) >> 4);
-  buffer[1] =
-      ((uint8_t(message.command) << 4) & 0b11100000) | EXIDE | ((uint8_t(message.command) & 1) << 1) | message.response;
+  buffer[1] = ((uint8_t(message.command) << 4) & 0b11100000) | (1 << 3) | ((uint8_t(message.command) & 1) << 1) |
+              message.response;
   buffer[2] = uint8_t(message.hash >> 8);
   buffer[3] = uint8_t(message.hash & 0xff);
   buffer[4] = message.dlc;
@@ -187,21 +161,12 @@ namespace mcp2515 {
 // No need to reset MCP2515 here as a hardware reset is done during boot.
 // MCP2515 automatically enters config mode after hardware reset.
 void init() {
-  // configuration registers
-  constexpr uint8_t CNF3 = 0x28;
-  constexpr uint8_t CNF2 = 0x29;
-  constexpr uint8_t CNF1 = 0x2A;
-
   // MCP2515 configuration for 16 MHz clock and 250 kbit/s bitrate
   // Chapter 5.0 Bit Timing in MCP2515 datasheet
   // and/or https://kvaser.com/support/calculators/bit-timing-calculator/.
   constexpr uint8_t MCP_16MHz_250kbPS_CFG1 = 0x41;
   constexpr uint8_t MCP_16MHz_250kbPS_CFG2 = 0xF1;
   constexpr uint8_t MCP_16MHz_250kbPS_CFG3 = 0x85;
-
-  // Control and status registers
-  constexpr uint8_t CANSTAT = 0x0E;
-  constexpr uint8_t CANCTRL = 0x0F;
 
   // OPMOD mask for CANSTAT register
   constexpr uint8_t CANSTAT_OPMOD = 0xE0;
@@ -227,15 +192,13 @@ void init() {
     ;
 }
 
-void setInterruptEnabled(CanInterruptType interruptType, bool isEnabled) {
+void setInterruptEnabled(CanInterruptMask interruptType, bool isEnabled) {
   modifyReg(CANINTE, static_cast<uint8_t>(interruptType), (isEnabled ? 0xff : 0));
 }
 
-uint8_t getInterruptStatus() { return readStatus(); }
+uint8_t getInterruptFlags() { return readReg(CANINTF); }
 
-void clearActiveInterrupt(CanInterruptType interruptType) {
-  modifyReg(CANINTF, static_cast<uint8_t>(interruptType), 0);
-}
+void clearInterrupt(CanInterruptMask interruptType) { modifyReg(CANINTF, static_cast<uint8_t>(interruptType), 0); }
 
 void sendMessage(const marklin::MMessage& message) {
   // Prepare data.

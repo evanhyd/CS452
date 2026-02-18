@@ -87,10 +87,7 @@ void clock_server::clockServerTask() {
         ::Reply(delayQueue.top().tid, reinterpret_cast<const char*>(&ticks), sizeof(ticks));
         delayQueue.pop();
       }
-      {
-        const char dummy{};
-        ::Reply(tid, &dummy, 0);
-      }
+      ::Reply(tid, "", 0);
       break;
     default:
       break;

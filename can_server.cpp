@@ -1,6 +1,7 @@
 #include "can_server.h"
 #include "debug.h"
 #include "kit_algorithm.h"
+#include "marklin_message.h"
 #include "mcp2515.h"
 #include "ring_buffer.h"
 #include "syscalls.h"
@@ -9,31 +10,21 @@ namespace {
 
 enum class CanServerMessageType : int {
   ReadRequest,
-  ReadResponse,
   TransmitRequest,
-  TransmitResponse,
   ReadyNotify,
 };
 
 struct ReadRequest {};
-struct ReadResponse {
-  mcp2515::MMessage message;
-};
-
 struct TransmitRequest {
-  mcp2515::MMessage msg;
+  marklin::MMessage message;
 };
-struct TransmitResponse {};
-
 struct ReadyNotify {};
 
 struct CanServerMessage {
   CanServerMessageType type;
   union {
     ReadRequest readRequest;
-    ReadResponse readResponse;
     TransmitRequest transmitRequest;
-    TransmitResponse transmitResponse;
     ReadyNotify readyNotify;
   };
 };
@@ -59,8 +50,9 @@ void can_server::canServerTask() {
 
   constexpr size_t BUFFER_SIZE = 1024;
   RingBuffer<int, BUFFER_SIZE> readWaitingQueue;
-  RingBuffer<mcp2515::MMessage, BUFFER_SIZE> receiveBuffer;
-  RingBuffer<mcp2515::MMessage, BUFFER_SIZE> transmitBuffer;
+  RingBuffer<marklin::MMessage, BUFFER_SIZE> receiveBuffer;
+  RingBuffer<marklin::MMessage, BUFFER_SIZE> transmitBuffer;
+  bool isTX0Ready = false;
 
   for (;;) {
     int tid;
@@ -68,47 +60,70 @@ void can_server::canServerTask() {
     ::Receive(&tid, reinterpret_cast<char*>(&msg), sizeof(CanServerMessage));
 
     switch (msg.type) {
-    case CanServerMessageType::ReadRequest:
-      // Already received a full message.
-      if (receiveBuffer.size() >= SERIALIZED_CAN_MESSAGE_SIZE) {
-        // TODO: deserialize the message
-        // TODO: reply to the waiting task
+    case CanServerMessageType::ReadRequest: {
+      // Already received a message.
+      if (!receiveBuffer.empty()) {
+        marklin::MMessage message = receiveBuffer.pop();
+        ::Reply(tid, reinterpret_cast<const char*>(&message), sizeof(marklin::MMessage));
         break;
       }
 
-      // Not enough received data, add to the waiting queue.
+      // No message in the buffer, block and wait.
       if (readWaitingQueue.full()) {
-        logError("can server read waiting queue is full");
+        logError("CAN server read waiting queue is full");
       }
       readWaitingQueue.push(tid);
       break;
-    case CanServerMessageType::TransmitRequest:
-      if (BUFFER_SIZE - transmitBuffer.size() < SERIALIZED_CAN_MESSAGE_SIZE) {
-        logError("transmit buffer is full");
+    }
+    case CanServerMessageType::TransmitRequest: {
+      if (isTX0Ready) {
+        // TX0 is ready, transmit immediately.
+        isTX0Ready = false;
+        mcp2515::sendMessage(msg.transmitRequest.message);
+      } else {
+        // TX0 is not ready, append to the buffer.
+        if (transmitBuffer.full()) {
+          logError("transmit buffer is full");
+        }
+        transmitBuffer.push(msg.transmitRequest.message);
       }
 
-      // TODO: serialize the message and add to the transmit buffer
-      // TODO: if ready to transmit, transmit one byte, and reply to the notifier.
-      // TODO: reply to the sender anyway
+      ::Reply(tid, "", 0);
+      mcp2515::clearInterrupt(mcp2515::CanInterruptMask::TX0IE);
       break;
-    case CanServerMessageType::ReadyNotify:
+    }
+    case CanServerMessageType::ReadyNotify: {
+      uint8_t interruptFlag = mcp2515::getInterruptFlags();
+
+      // Receive Buffer 0 Full
+      if (interruptFlag & mcp2515::CanInterruptMask::RX0IE) {
+      }
+
+      // Receive Buffer 1 Full
+      if (interruptFlag & mcp2515::CanInterruptMask::RX1IE) {
+      }
+
+      // Transmit Buffer 0 Empty
+      if (interruptFlag & mcp2515::CanInterruptMask::TX0IE) {
+      }
       break;
+    }
     default:
       break;
     }
   }
 }
 
-extern "C" int ReadCAN(int tid, mcp2515::MMessage* msg) {
+extern "C" int ReadCAN(int tid, marklin::MMessage* msg) {
   CanServerMessage request{.type = CanServerMessageType::ReadRequest, .readRequest{}};
   if (::Send(tid, reinterpret_cast<const char*>(&request), sizeof(CanServerMessage), reinterpret_cast<char*>(msg),
-             sizeof(mcp2515::MMessage)) < 0) {
+             sizeof(marklin::MMessage)) < 0) {
     return -1;
   }
   return 0;
 }
 
-extern "C" int TransmitCAN(int tid, const mcp2515::MMessage* msg) {
+extern "C" int TransmitCAN(int tid, const marklin::MMessage* msg) {
   CanServerMessage request{.type = CanServerMessageType::TransmitRequest, .transmitRequest{*msg}};
   int value;
   if (::Send(tid, reinterpret_cast<const char*>(&request), sizeof(CanServerMessage), reinterpret_cast<char*>(&value),

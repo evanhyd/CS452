@@ -47,12 +47,12 @@ extern "C" void kmain() {
   // Route the interrupts to CPU 0.
   gic::gicd_manager.init();
   gic::gicc_manager.init();
-  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::TIMER1, 0);
-  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::UART_IO, 0);
-  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::CAN_IO, 0);
-  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::TIMER1);
-  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::UART_IO);
-  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::CAN_IO);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::Timer1, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::UartIO, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::CanIO, 0);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::Timer1);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::UartIO);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::CanIO);
 
   spi::init();
   gpio::init();

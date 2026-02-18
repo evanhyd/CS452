@@ -64,7 +64,7 @@ void putcNotifierTask() {
 
 void io_server::ioServerTask() {
   if (::RegisterAs(IO_SERVER_NAME) < 0) {
-    logError("io server failed to register itself to name server");
+    logError("IO server failed to register itself to name server");
   }
 
   int getcNotifierTid = ::Create(0, getcNotifierTask);
@@ -127,10 +127,7 @@ void io_server::ioServerTask() {
         }
         getcBuffer.push(msg.getcNotify);
       }
-      {
-        const char dummy{};
-        ::Reply(getcNotifierTid, &dummy, 0); // reply to getcNotifier
-      }
+      ::Reply(getcNotifierTid, "", 0); // reply to getcNotifier
       break;
     case IoServerMessageType::PutcNotify:
       if (tid != putcNotifierTid) {
