@@ -1,7 +1,17 @@
 #pragma once
+#include "marklin_message.h"
 #include <cstdint>
 
+/**
+MCP 2515 controller
+    A wrapper around the CAN bus protocol, responsible for translating the signals.
+ */
 namespace mcp2515 {
+
+enum class RxBuffer : uint8_t {
+  Rx0 = 0,
+  Rx1 = 1,
+};
 
 enum class CanInterruptType : uint8_t {
   RX0IE = 1 << 0,
@@ -26,5 +36,13 @@ uint8_t getInterruptStatus();
 
 // Acknowledge the interrupt and clears it.
 void clearActiveInterrupt(CanInterruptType interruptType);
+
+// Send a marklin message to the CAN bus via TX0 buffer.
+// Precondition: The transmit buffer is ready.
+void sendMessage(const marklin::MMessage& message);
+
+// Read a marklin message from the buffer.
+// Precondition: The receive buffer is non empty.
+marklin::MMessage receiveMessage(RxBuffer buffer);
 
 } // namespace mcp2515
