@@ -57,6 +57,7 @@ extern "C" void kmain() {
   spi::init();
   gpio::init();
   mcp2515::init();
+  mcp2515::setInterruptEnabled(mcp2515::CanInterruptMask::ReceiveAndTransmit, true);
 
   // Main entry.
   using namespace timer::literals;

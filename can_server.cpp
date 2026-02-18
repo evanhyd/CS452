@@ -1,6 +1,5 @@
 #include "can_server.h"
 #include "debug.h"
-#include "kit_algorithm.h"
 #include "marklin_message.h"
 #include "mcp2515.h"
 #include "ring_buffer.h"
