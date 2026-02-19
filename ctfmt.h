@@ -28,6 +28,8 @@ public:
   }
 
   void put(char c) { invoke(storage, c); }
+
+  template <typename T> T& get() { return *reinterpret_cast<T*>(storage); }
 };
 
 namespace internal {
@@ -223,7 +225,7 @@ inline void doFormat(Sink& sink, const char* fmt, const internal::Arg* args) {
 
 template <typename... Args> using FormatSpec = std::type_identity_t<internal::FormatSpec<Args...>>;
 
-template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec, const Args&... args) {
+template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec, Args... args) {
   if constexpr (sizeof...(Args) > 0) {
     internal::Arg argArr[] = {internal::makeArg(args)...};
     doFormat(sink, spec.get(), argArr);
@@ -232,22 +234,22 @@ template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec
   }
 }
 
-template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> spec, const Args&... args) {
-  struct {
+template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> spec, Args... args) {
+  struct S {
     char* buf;
     void operator()(char c) { *buf++ = c; }
-  } s{buffer};
-  auto sink = Sink::make(s);
+  };
+  auto sink = Sink::make(S{buffer});
   formatSink(sink, spec, args...);
-  *s.buf = '\0';
+  *sink.template get<S>().buf = '\0';
 }
 
-template <typename... Args> void printf(int tid, FormatSpec<Args...> spec, const Args&... args) {
+template <typename... Args> void printf(int tid, FormatSpec<Args...> spec, Args... args) {
   auto sink = Sink::make([tid](char c) { ::Putc(tid, c); });
   formatSink(sink, spec, args...);
 }
 
-template <typename... Args> void syncPrintf(FormatSpec<Args...> spec, const Args&... args) {
+template <typename... Args> void syncPrintf(FormatSpec<Args...> spec, Args... args) {
   auto sink = Sink::make(Uart::syncPutc);
   formatSink(sink, spec, args...);
 }
