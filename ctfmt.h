@@ -131,7 +131,7 @@ inline void formatChar(Sink& sink, const void* ptr, FormatContext ctx) {
 template <typename T> Arg makeArg(const T& val) {
   static constexpr ArgType type = getArgType<T>();
   if constexpr (type == ArgType::Integer) {
-    return Arg{&val, formatInt<T>};
+    return Arg{&val, formatInt<std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>>};
   } else if constexpr (type == ArgType::String) {
     return Arg{&val, formatStr};
   } else if constexpr (type == ArgType::Char) {
