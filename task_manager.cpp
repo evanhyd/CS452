@@ -102,7 +102,9 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
   }
 
   auto delta = now - intervalStart;
-  if (delta >= 500_ms) {
+
+  // TODO: re-enable this later.
+  if (delta >= 500_ms && false) {
     auto idlePerMille = static_cast<uint64_t>(idlePart.micros()) * 1000 / delta.micros();
     auto idlePercent = idlePerMille / 10;
     auto idleFraction = idlePerMille % 10;

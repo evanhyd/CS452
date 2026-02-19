@@ -1,12 +1,11 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace kit {
 // String meta info.
 bool isPrintable(char c);
-size_t strLen(const char* cstring);
-bool strCmpInRange(const char* cstring1, size_t len1, const char* cstring2);
 char* strAppend(char* bufferEnd, const char* cstring);
 char* strAppend(char* bufferEnd, char c);
 
@@ -20,4 +19,12 @@ void u64ToStr(uint64_t num, char* buffer);
 void u64ToStrRightAlign(uint64_t number, char* buffer, size_t len);
 void tickToTime(uint64_t tick, char* buffer);
 char* formatString_old(char* buffer, const char* fmt, ...);
+
+// String parsing.
+bool extractStr(const char** begin, const char** end, char delimiter);
+bool extractU8(const char** begin, const char** end, char delimiter, uint8_t* num);
+bool extractU16(const char** begin, const char** end, char delimiter, uint16_t* num);
+bool extractU32(const char** begin, const char** end, char delimiter, uint32_t* num);
+bool extractU64(const char** begin, const char** end, char delimiter, uint64_t* num);
+
 } // namespace kit

@@ -83,7 +83,7 @@ void io_server::ioServerTask() {
 
     switch (msg.type) {
     case IoServerMessageType::GetcRequest: {
-      // Read from the getc data buffer is not empty.
+      // If the getc data buffer is not empty, then read from the buffer.
       // Otherwise wait in the getc tid queue.
       if (!getcBuffer.empty()) {
         int ch = static_cast<int>(getcBuffer.pop().ch);

@@ -40,4 +40,13 @@ char* strncpy(char* dest, const char* src, size_t n) {
   }
   return dest;
 }
+
+// Count the size of the cstring excluding the null terminator.
+size_t strlen(const char* start) {
+  const char* end = start;
+  while (*end != '\0') {
+    ++end;
+  }
+  return size_t(end - start);
+}
 }

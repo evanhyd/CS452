@@ -14,7 +14,5 @@ void canServerTask();
 
 } // namespace can_server
 
-extern "C" {
-int ReadCAN(int tid, marklin::MMessage* msg);
-int TransmitCAN(int tid, const marklin::MMessage* msg);
-}
+int ReceiveCAN(int tid, marklin::MMessage& msg);
+int TransmitCAN(int tid, const marklin::MMessage& msg);

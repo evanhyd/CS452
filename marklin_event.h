@@ -56,12 +56,12 @@ struct TrainFunctionEvent : MarklinEvent<TrainFunctionEvent> {
   }
 };
 
-struct SwitchDirectionEvent : MarklinEvent<SwitchDirectionEvent> {
+struct SwitchStateEvent : MarklinEvent<SwitchStateEvent> {
   uint8_t id;
   SwitchState state;
   bool isSolenoidActivee;
 
-  SwitchDirectionEvent(const MMessage& message)
+  SwitchStateEvent(const MMessage& message)
       : id(message.data[3] + 1), state(SwitchState(message.data[4])), isSolenoidActivee(message.data[5]) {}
 
   void toString(char* buffer) const {

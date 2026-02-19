@@ -1,4 +1,5 @@
 #include "fmt.h"
+#include "kit_algorithm.h"
 #include <cstdarg>
 
 namespace {
@@ -109,25 +110,6 @@ bool isPrintable(char c) {
   default:
     return false;
   }
-}
-
-// Get the size of the string excluding the null terminator.
-size_t strLen(const char* cstring) {
-  size_t count = 0;
-  while (*cstring++) {
-    ++count;
-  }
-  return count;
-}
-
-// Compare the first len1 characters in cstring1 to the first len1 characters in cstring2.
-bool strCmpInRange(const char* cstring1, size_t len1, const char* cstring2) {
-  for (size_t i = 0; i < len1; ++i) {
-    if (cstring1[i] != cstring2[i]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 // Append a cstring to the end of the buffer.
@@ -319,10 +301,10 @@ char* formatString_old(char* buffer, const char* fmt, ...) {
         localBuffer[0] = '\033';
         localBuffer[1] = '[';
         u64ToStr(position.row, localBuffer + 2);
-        size_t lastPos = strLen(localBuffer);
+        size_t lastPos = strlen(localBuffer);
         localBuffer[lastPos] = ';';
         u64ToStr(position.col, localBuffer + lastPos + 1);
-        lastPos = strLen(localBuffer);
+        lastPos = strlen(localBuffer);
         localBuffer[lastPos] = 'H';
         localBuffer[lastPos + 1] = '\0';
         buffer = strAppend(buffer, localBuffer);
@@ -340,4 +322,85 @@ char* formatString_old(char* buffer, const char* fmt, ...) {
   va_end(va);
   return buffer;
 }
+
+// Extract the first token after end, and output the range to begin and end.
+// Return true if a token is extracted, false if no more token to extract.
+bool extractStr(const char** begin, const char** end, char delimiter) {
+  const char* string = *end;
+  if (string == NULL || *string == '\0') {
+    return false;
+  }
+
+  *begin = NULL;
+  *end = NULL;
+
+  for (;; ++string) {
+    if (*string == delimiter) {
+      // Leading delimiter, discard it.
+      if (*begin == NULL) {
+        continue;
+      }
+
+      // Trailing delimiter, we found the token.
+      *end = string;
+      return true;
+    } else {
+      // First char in the token.
+      if (*begin == NULL) {
+        *begin = string;
+      }
+
+      // Reach the end, must extract the token.
+      if (*string == '\0') {
+        *end = string;
+        return true;
+      }
+    }
+  }
+}
+
+// Extract the first uint8 token after end, and output the range to begin and end.
+// Return true if a token is extracted, false if no more token to extract.
+// Warning: This does not check if the extracted number is well formed.
+bool extractU8(const char** begin, const char** end, char delimiter, uint8_t* num) {
+  if (!extractStr(begin, end, delimiter)) {
+    return false;
+  }
+  *num = (uint8_t)strToU64(*begin, *end);
+  return true;
+}
+
+// Extract the first uint16 token after end, and output the range to begin and end.
+// Return true if a token is extracted, false if no more token to extract.
+// Warning: This does not check if the extracted number is well formed.
+bool extractU16(const char** begin, const char** end, char delimiter, uint16_t* num) {
+  if (!extractStr(begin, end, delimiter)) {
+    return false;
+  }
+  *num = (uint16_t)strToU64(*begin, *end);
+  return true;
+}
+
+// Extract the first uint32 token after end, and output the range to begin and end.
+// Return true if a token is extracted, false if no more token to extract.
+// Warning: This does not check if the extracted number is well formed.
+bool extractU32(const char** begin, const char** end, char delimiter, uint32_t* num) {
+  if (!extractStr(begin, end, delimiter)) {
+    return false;
+  }
+  *num = (uint32_t)strToU64(*begin, *end);
+  return true;
+}
+
+// Extract the first uint64 token after end, and output the range to begin and end.
+// Return true if a token is extracted, false if no more token to extract.
+// Warning: This does not check if the extracted number is well formed.
+bool extractU64(const char** begin, const char** end, char delimiter, uint64_t* num) {
+  if (!extractStr(begin, end, delimiter)) {
+    return false;
+  }
+  *num = strToU64(*begin, *end);
+  return true;
+}
+
 } // namespace kit
