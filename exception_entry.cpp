@@ -1,7 +1,7 @@
 #include "exception_entry.h"
 
+#include "ctfmt.h"
 #include "debug.h"
-#include "fmt.h"
 #include "gic.h"
 #include "gpio.h"
 #include "mcp2515.h"

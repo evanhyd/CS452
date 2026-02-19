@@ -1,9 +1,11 @@
 #include "k4_tasks.h"
 #include "can_server.h"
+#include "ctfmt.h"
 #include "debug.h"
 #include "io_server.h"
 #include "name_server.h"
 #include "syscalls.h"
+#include <cstdio>
 
 void k4::FirstUserTask() {
   if (name_server::createNameServerTask(1) < 0) {
@@ -17,4 +19,6 @@ void k4::FirstUserTask() {
   if (canServerTid < 0) {
     logError("Failed to create canServerTask");
   }
+
+  kit::syncPrintf("FirstUserTask: ioServerTid=%d, canServerTid=%d", ioServerTid, canServerTid);
 }

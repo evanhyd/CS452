@@ -96,11 +96,15 @@ void Uart::configAndEnable() {
   uartInstance.CR = cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE;
 }
 
+void Uart::syncPutc(char c) {
+  while (uartInstances[CONSOLE].FR & UART_FR_TXFF) {
+  }
+  uartInstances[CONSOLE].DR = c;
+}
+
 void Uart::syncPrint(const char* cstring) {
   for (; *cstring; ++cstring) {
-    while (uartInstances[CONSOLE].FR & UART_FR_TXFF) {
-    }
-    uartInstances[CONSOLE].DR = *cstring;
+    syncPutc(*cstring);
   }
 }
 

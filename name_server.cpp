@@ -1,5 +1,5 @@
 #include "name_server.h"
-#include "fmt.h"
+#include "ctfmt.h"
 #include "kit_algorithm.h" // strncpy, strncmp
 #include "static_stack.h"
 #include "syscalls.h"
@@ -39,7 +39,6 @@ int send(Message::Type type, const char* name) {
 void nameServerTask() {
   static constexpr size_t MAX_ENTRIES = 128;
   StaticStack<NameEntry, MAX_ENTRIES> nameTable;
-  char buffer[64];
 
   // Register the server name.
   const auto registerHandler = [&](const Message& msg, int senderTid) {
@@ -87,36 +86,31 @@ void nameServerTask() {
     }
 
     if (int res = ::Reply(senderTid, reinterpret_cast<const char*>(&response), sizeof(response)); res < 0) {
-      kit::formatString(buffer, "NameServer: Reply to %d failed with code %d\r\n", senderTid, res);
-      Uart::syncPrint(buffer);
+      kit::syncPrintf("NameServer: Reply to %d failed with code %d\r\n", senderTid, res);
     }
   }
 }
 
 [[maybe_unused]] void testTask() {
-  char buffer[64];
   const char* testName = "TestTask";
   Uart::syncPrint("Trying RegisterAs\r\n");
   int regResult = RegisterAs(testName);
   if (regResult < 0) {
-    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
-    Uart::syncPrint(buffer);
+    kit::syncPrintf("RegisterAs returned %d\r\n", regResult);
     return;
   }
 
   // Register twice, should override without error.
   regResult = RegisterAs(testName);
   if (regResult < 0) {
-    kit::formatString(buffer, "RegisterAs returned %d\r\n", regResult);
-    Uart::syncPrint(buffer);
+    kit::syncPrintf("RegisterAs returned %d\r\n", regResult);
     return;
   }
 
   Uart::syncPrint("Trying WhoIs\r\n");
   int whoIsResult = WhoIs(testName);
   if (whoIsResult != ::MyTid()) {
-    kit::formatString(buffer, "WhoIs returned %d\r\n", whoIsResult);
-    Uart::syncPrint(buffer);
+    kit::syncPrintf("WhoIs returned %d\r\n", whoIsResult);
     return;
   }
 

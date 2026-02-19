@@ -9,21 +9,14 @@ void logError(const char* cstring, std::source_location loc) { std::unreachable(
 
 #else
 
-#include "fmt.h"
-#include "uart.h"
+#include "ctfmt.h"
 
 void logDebug(const char* cstring, std::source_location loc) {
-  char buffer[256] = {};
-  kit::formatString(buffer, "DEBUG %s[%u] - %s: %s\r\n", loc.file_name(), uint32_t(loc.line()), loc.function_name(),
-                    cstring);
-  Uart::syncPrint(buffer);
+  kit::syncPrintf("DEBUG %s[%u] - %s: %s\r\n", loc.file_name(), uint32_t(loc.line()), loc.function_name(), cstring);
 }
 
 void logError(const char* cstring, std::source_location loc) {
-  char buffer[256] = {};
-  kit::formatString(buffer, "ERROR %s[%u] - %s: %s\r\n", loc.file_name(), uint32_t(loc.line()), loc.function_name(),
-                    cstring);
-  Uart::syncPrint(buffer);
+  kit::syncPrintf("ERROR %s[%u] - %s: %s\r\n", loc.file_name(), uint32_t(loc.line()), loc.function_name(), cstring);
   for (;;) {
   }
 }

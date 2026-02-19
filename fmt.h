@@ -19,5 +19,5 @@ void u32ToStr(uint32_t num, char* buffer);
 void u64ToStr(uint64_t num, char* buffer);
 void u64ToStrRightAlign(uint64_t number, char* buffer, size_t len);
 void tickToTime(uint64_t tick, char* buffer);
-char* formatString(char* buffer, const char* fmt, ...);
+char* formatString_old(char* buffer, const char* fmt, ...);
 } // namespace kit

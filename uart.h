@@ -34,6 +34,7 @@ public:
   static inline constexpr size_t CONSOLE = 0;
 
   static void configAndEnable();
+  static void syncPutc(char c);
   static void syncPrint(const char* cstring);
   static char syncRead();
 

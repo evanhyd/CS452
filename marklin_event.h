@@ -1,7 +1,8 @@
 #pragma once
-#include "fmt.h"
+#include "ctfmt.h"
 #include "marklin_message.h"
 #include "marklin_train_track.h"
+#include <utility>
 
 namespace marklin {
 
@@ -16,7 +17,7 @@ struct SensorTriggeredEvent : MarklinEvent<SensorTriggeredEvent> {
   SensorTriggeredEvent(const MMessage& message) : id(message.data[3]), state(SensorState(message.data[5])) {}
 
   void toString(char* buffer) const {
-    kit::formatString(buffer, "SensorTriggerEvent - id: %u, state: %u", uint32_t(id), uint32_t(state));
+    kit::formatString(buffer, "SensorTriggerEvent - id: %u, state: %u", id, std::to_underlying(state));
   }
 };
 
@@ -27,9 +28,7 @@ struct TrainSpeedEvent : MarklinEvent<TrainSpeedEvent> {
   TrainSpeedEvent(const MMessage& message)
       : id(message.data[3]), speed(uint16_t(message.data[4]) << 8 | uint16_t(message.data[5])) {}
 
-  void toString(char* buffer) const {
-    kit::formatString(buffer, "TrainSpeedEvent - id: %u, speed: %u", uint32_t(id), uint32_t(speed));
-  }
+  void toString(char* buffer) const { kit::formatString(buffer, "TrainSpeedEvent - id: %u, speed: %u", id, speed); }
 };
 
 struct TrainDirectionEvent : MarklinEvent<TrainDirectionEvent> {
@@ -39,7 +38,7 @@ struct TrainDirectionEvent : MarklinEvent<TrainDirectionEvent> {
   TrainDirectionEvent(const MMessage& message) : id(message.data[3]), direction(TrainDirection(message.data[4])) {}
 
   void toString(char* buffer) const {
-    kit::formatString(buffer, "TrainDirectionEvent - id: %u, direction: %u", uint32_t(id), uint32_t(direction));
+    kit::formatString(buffer, "TrainDirectionEvent - id: %u, direction: %u", id, std::to_underlying(direction));
   }
 };
 
@@ -52,8 +51,8 @@ struct TrainFunctionEvent : MarklinEvent<TrainFunctionEvent> {
       : id(message.data[3]), function(TrainFunction(message.data[4])), value(message.data[5]) {}
 
   void toString(char* buffer) const {
-    kit::formatString(buffer, "TrainFunctionEvent - id: %u, function: %u, value: %u", uint32_t(id), uint32_t(function),
-                      uint32_t(value));
+    kit::formatString(buffer, "TrainFunctionEvent - id: %u, function: %u, value: %u", id, std::to_underlying(function),
+                      value);
   }
 };
 
@@ -66,8 +65,8 @@ struct SwitchDirectionEvent : MarklinEvent<SwitchDirectionEvent> {
       : id(message.data[3] + 1), state(SwitchState(message.data[4])), isSolenoidActivee(message.data[5]) {}
 
   void toString(char* buffer) const {
-    kit::formatString(buffer, "SwitchDirectionEvent - id: %u, direction: %c, solenoid: %u", uint32_t(id),
-                      (state == SwitchState::Curved ? 'Y' : 'I'), uint32_t(isSolenoidActivee));
+    kit::formatString(buffer, "SwitchDirectionEvent - id: %u, direction: %c, solenoid: %u", id,
+                      (state == SwitchState::Curved ? 'Y' : 'I'), isSolenoidActivee);
   }
 };
 

@@ -258,7 +258,7 @@ void tickToTime(uint64_t tick, char* buffer) {
 // %c: char.
 // %t: uint64 to HH:MM:SS.a timestamp.
 // %m: (size_t, size_t) to cursor move.
-char* formatString(char* buffer, const char* fmt, ...) {
+char* formatString_old(char* buffer, const char* fmt, ...) {
   va_list va;
   char ch = '\0';
   char localBuffer[32] = {};
