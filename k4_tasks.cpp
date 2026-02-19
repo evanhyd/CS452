@@ -1,5 +1,7 @@
 #include "k4_tasks.h"
 #include "can_server.h"
+#include "clock_server.h"
+#include "console.h"
 #include "ctfmt.h"
 #include "debug.h"
 #include "fmt.h"
@@ -211,21 +213,99 @@ void terminalInput() {
     }
   }
 }
+
+constexpr const char* UI_SERVER_NAME = "ui_server";
+
+enum class UiMessageType : int {
+  Timer,
+};
+
+struct TimerUpdate {
+  unsigned deciseconds;
+};
+
+struct UiMessage {
+  UiMessageType type;
+  union {
+    TimerUpdate timerUpdate;
+  };
+};
+
+void uiServerTask() {
+  if (::RegisterAs(UI_SERVER_NAME) < 0) {
+    logError("failed to register itself to name server");
+  }
+  int ioServerTid = ::WhoIs(io_server::IO_SERVER_NAME);
+  if (ioServerTid < 0) {
+    logError("failed to find IO server");
+  }
+  Console console{ioServerTid};
+  console.clearScreen();
+  console.hideCursor();
+  UiMessage msg;
+  for (;;) {
+    int senderTid;
+    ::Receive(&senderTid, reinterpret_cast<char*>(&msg), sizeof(msg));
+    ::Reply(senderTid, "", 0);
+    switch (msg.type) {
+    case UiMessageType::Timer: {
+      console.moveCursor(1, 1);
+      unsigned mins = msg.timerUpdate.deciseconds / 600;
+      unsigned secs = msg.timerUpdate.deciseconds / 10 % 60;
+      unsigned tenths = msg.timerUpdate.deciseconds % 10;
+      console.printf("%02u:%02u.%u", mins, secs, tenths);
+      break;
+    }
+    default:
+      logError("Received unknown message type");
+    }
+  }
+}
+
+void clockTask() {
+  int clockServerTid = ::WhoIs(clock_server::CLOCK_SERVER_NAME);
+  if (clockServerTid < 0) {
+    logError("failed to find clock server");
+  }
+  int uiServerTid = ::WhoIs(UI_SERVER_NAME);
+  if (uiServerTid < 0) {
+    logError("failed to find UI server");
+  }
+  for (;;) {
+    int ticks = ::Delay(clockServerTid, 10); // 10 ticks = 100 ms
+    if (ticks < 0) {
+      logError("Delay failed");
+    }
+    unsigned deciseconds = static_cast<unsigned>(ticks) / 10;
+    UiMessage msg{.type = UiMessageType::Timer, .timerUpdate{deciseconds}};
+    char devnull;
+    if (::Send(uiServerTid, reinterpret_cast<const char*>(&msg), sizeof(msg), &devnull, 0) < 0) {
+      logError("failed to send timer update to UI server");
+    }
+  }
+}
+
 } // namespace
 
 void k4::FirstUserTask() {
   if (name_server::createNameServerTask(1) < 0) {
-    logError("Failed to create name server task");
+    logError("failed to create name server task");
   }
   int ioServerTid = ::Create(1, io_server::ioServerTask);
   if (ioServerTid < 0) {
-    logError("Failed to create ioServerTask");
+    logError("failed to create ioServerTask");
   }
   int canServerTid = ::Create(1, can_server::canServerTask);
   if (canServerTid < 0) {
-    logError("Failed to create canServerTask");
+    logError("failed to create canServerTask");
+  }
+  int clockServerTid = ::Create(1, clock_server::clockServerTask);
+  if (clockServerTid < 0) {
+    logError("failed to create clockServerTask");
   }
 
-  ::Create(2, eventListener);
-  ::Create(2, terminalInput);
+  // ::Create(2, eventListener);
+  // ::Create(2, terminalInput);
+  ::Create(2, uiServerTask);
+  ::Create(8, clockTask);
 }

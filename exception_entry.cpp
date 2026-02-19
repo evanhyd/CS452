@@ -4,7 +4,6 @@
 #include "debug.h"
 #include "gic.h"
 #include "gpio.h"
-#include "mcp2515.h"
 #include "syscall_comm_handler.h"
 #include "syscall_interrupt_handler.h"
 #include "syscall_task_handler.h"

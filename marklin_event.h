@@ -60,14 +60,14 @@ struct TrainFunctionEvent : MarklinEvent<TrainFunctionEvent> {
 struct SwitchStateEvent : MarklinEvent<SwitchStateEvent> {
   uint8_t id;
   SwitchState state;
-  bool isSolenoidActivee;
+  bool isSolenoidActive;
 
   SwitchStateEvent(const MMessage& message)
-      : id(message.data[3] + 1), state(SwitchState(message.data[4])), isSolenoidActivee(message.data[5]) {}
+      : id(message.data[3] + 1), state(SwitchState(message.data[4])), isSolenoidActive(message.data[5]) {}
 
   void toString(char* buffer) const {
     kit::formatString(buffer, "SwitchDirectionEvent - id: %u, direction: %c, solenoid: %u", id,
-                      (state == SwitchState::Curved ? 'Y' : 'I'), isSolenoidActivee);
+                      (state == SwitchState::Curved ? 'Y' : 'I'), isSolenoidActive);
   }
 };
 
