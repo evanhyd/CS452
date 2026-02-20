@@ -6,6 +6,9 @@ CXX:=$(XBINDIR)/$(TRIPLE)-g++
 OBJCOPY:=$(XBINDIR)/$(TRIPLE)-objcopy
 OBJDUMP:=$(XBINDIR)/$(TRIPLE)-objdump
 
+SRCDIR:=src
+OBJDIR:=build
+
 MMU?=on
 OPT?=-O3
 
@@ -26,8 +29,7 @@ else ifeq ($(CACHE),d)
 MMUFLAGS+= -DENABLE_DCACHE
 endif
 
-# Include Paths
-INCDIRS = -I.
+INCDIRS:=-I$(SRCDIR)
 
 # Flags
 WARNINGS:=-Wall -Wextra -Wpedantic -Wno-unused-const-variable -Werror=shadow -Wconversion \
@@ -40,20 +42,20 @@ CXXFLAGS:= -std=c++23 -g -pipe -static -ffreestanding -fno-exceptions -fno-rtti 
 LDFLAGS :=-Wl,-nmagic -Wl,-Tlinker.ld -Wl,--no-warn-rwx-segments -nostartfiles
 
 # Source files and include dirs
-SOURCES := $(wildcard *.S) $(wildcard *.cpp)
+SOURCES := $(shell find $(SRCDIR) -name '*.cpp' -o -name '*.S')
 # Create .o and .d files for every .cpp and .S (hand-written assembly) file
-OBJECTS := $(patsubst %.S, %.o, $(patsubst %.cpp, %.o, $(SOURCES)))
-DEPENDS := $(patsubst %.S, %.d, $(patsubst %.cpp, %.d, $(SOURCES)))
+OBJECTS := $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(patsubst $(SRCDIR)/%.S, $(OBJDIR)/%.o, $(SOURCES)))
+DEPENDS := $(OBJECTS:.o=.d)
 
 .PHONY: all clean binary k2_perf_test
 
 all: $(FILENAME).img
 
 clean:
-	rm -f $(OBJECTS) $(DEPENDS) $(FILENAME).elf $(FILENAME).img
+	rm -rf $(OBJDIR) $(FILENAME).elf $(FILENAME).img
 
 binary: all
-	rm -f $(OBJECTS) $(DEPENDS) $(FILENAME).elf
+	rm -rf $(OBJDIR) $(FILENAME).elf
 
 k2_perf_test: CXXFLAGS += -DK2_PERF_TEST
 k2_perf_test: binary
@@ -67,10 +69,12 @@ ifneq ($(MMU),on)
 	@$(OBJDUMP) -d $@ | grep -Fq q0 && printf "\n***** WARNING: SIMD DETECTED! *****\n\n" || true
 endif
 
-%.o: %.S Makefile
+$(OBJDIR)/%.o: $(SRCDIR)/%.S Makefile
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
-%.o: %.cpp Makefile
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp Makefile
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 -include $(DEPENDS)

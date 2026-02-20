@@ -1,10 +1,10 @@
 #include "k3_tasks.h"
-#include "clock_server.h"
-#include "ctfmt.h"
-#include "debug.h"
-#include "name_server.h"
-#include "syscalls.h"
-#include "uart.h"
+#include "server_tasks/clock_server.h"
+#include "util/ctfmt.h"
+#include "util/debug.h"
+#include "server_tasks/name_server.h"
+#include "kernel/syscalls.h"
+#include "kernel/devices/uart.h"
 
 namespace {
 

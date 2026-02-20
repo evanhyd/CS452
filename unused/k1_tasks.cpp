@@ -1,8 +1,8 @@
 #include "k1_tasks.h"
-#include "ctfmt.h"
-#include "syscalls.h"
-#include "task_queue.h"
-#include "uart.h"
+#include "util/ctfmt.h"
+#include "kernel/syscalls.h"
+#include "kernel/task_queue.h"
+#include "kernel/devices/uart.h"
 
 static void otherTask() {
   char buffer[64];

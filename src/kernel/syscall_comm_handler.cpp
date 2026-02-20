@@ -1,0 +1,139 @@
+#include "syscall_comm_handler.h"
+
+#include "task_manager.h"
+#include "util/debug.h"
+#include "util/kit_algorithm.h" // memcpy
+
+namespace syscall_handler {
+
+static constexpr int RET_PLACEHOLDER = -67;
+
+// Sends a message to another task and receives a reply.
+// Return Value
+// >=0  the size of the message returned by the replying task. The actual reply is less than or equal to the size of the
+// reply buffer provided for it. Longer replies are truncated.
+// -1	tid is not the task id of an existing task.
+// -2   send-receive-reply transaction could not be completed.
+// -9 invalid arguments: messaage/replyBuffer is nullptr or messageSize/replyBufferSize is negative.
+int Send(int tid, const char* message, int messageSize, char* replyBuffer, int replyBufferSize) {
+
+  if (!message || messageSize < 0 || !replyBuffer || replyBufferSize < 0) {
+    return -9;
+  }
+
+  TaskDescriptor* receiver = tidAllocator.getTaskDescriptor(tid);
+  if (!receiver) {
+    return -1;
+  }
+
+  auto currTask = TaskScheduler::getCurrentTask();
+
+  // Set up the message control block.
+  currTask->messageControlBlock.message = message;
+  currTask->messageControlBlock.messageSize = messageSize;
+  currTask->messageControlBlock.receiveBuffer = replyBuffer;
+  currTask->messageControlBlock.receiveBufferSize = replyBufferSize;
+
+  if (receiver->runState == RunState::ReceiveBlocked) {
+    // Copy the data to the receiver.
+    int transferSize = kit::min(messageSize, receiver->messageControlBlock.receiveBufferSize);
+    memcpy(receiver->messageControlBlock.receiveBuffer, message, size_t(transferSize));
+    *(receiver->messageControlBlock.senderTid) = currTask->tid.raw();
+
+    // Move sender from ready to reply wait.
+    TaskScheduler::removeReadyTask(*currTask);
+    currTask->runState = RunState::ReplyBlocked;
+
+    // Move receiver from receive wait to ready.
+    TaskScheduler::enqueReadyTask(*receiver);
+    receiver->runState = RunState::Ready;
+    receiver->setRetValue(transferSize);
+
+  } else {
+    // Move sender from ready to send wait.
+    TaskScheduler::removeReadyTask(*currTask);
+    receiver->sendWaitQueue.enque(*currTask);
+    currTask->runState = RunState::SendBlocked;
+  }
+
+  return RET_PLACEHOLDER;
+}
+
+// Returns with the sent message in its message buffer and tid set to the task id of the task that sent the
+// message.
+// Return Value
+// >= 0 the size of the message sent by the sender(stored in tid).The actual message is less than
+// or equal to the size of the message buffer supplied. Longer messages are truncated.
+// -9 receiveBuffer is nullptr or receiveBufferSize is negative
+int Receive(int* tid, char* receiveBuffer, int receiveBufferSize) {
+
+  if (!receiveBuffer || receiveBufferSize < 0) {
+    return -9;
+  }
+
+  auto currTask = TaskScheduler::getCurrentTask();
+
+  // Set up the message control block.
+  currTask->messageControlBlock.receiveBuffer = receiveBuffer;
+  currTask->messageControlBlock.receiveBufferSize = receiveBufferSize;
+  currTask->messageControlBlock.senderTid = tid;
+
+  TaskDescriptor* sender = currTask->sendWaitQueue.pop();
+  if (!sender) {
+    // No messages in the queue, block the task.
+    TaskScheduler::removeReadyTask(*currTask);
+    currTask->runState = RunState::ReceiveBlocked;
+    return RET_PLACEHOLDER;
+  }
+
+  if (sender->runState != RunState::SendBlocked) {
+    logError("sender not in SEND_WAIT state");
+  }
+
+  // Copy sender's message.
+  *tid = sender->tid.raw();
+  int transferSize = kit::min(receiveBufferSize, sender->messageControlBlock.messageSize);
+  memcpy(receiveBuffer, sender->messageControlBlock.message, size_t(transferSize));
+
+  // Move the sender to replyWait.
+  sender->runState = RunState::ReplyBlocked;
+  return transferSize;
+}
+
+// Sends a reply to a task that previously sent a message.
+// Return Value
+// >= 0 the size of the reply message transmitted to the original sender task. If this is less than the size of the
+// reply message, the message has been truncated.
+// -1 tid is not the task id of an existing task.
+// -2 tid is not the task id of a reply-blocked task.
+// -9 reply is nullptr or replySize is negative.
+int Reply(int tid, const char* reply, int replySize) {
+
+  if (!reply || replySize < 0) {
+    return -9;
+  }
+
+  TaskDescriptor* sender = tidAllocator.getTaskDescriptor(tid);
+  // Invalid task.
+  if (!sender) {
+    return -1;
+  }
+
+  // Task not in reply-wait.
+  if (sender->runState != RunState::ReplyBlocked) {
+    return -2;
+  }
+
+  // Copy the reply message.
+  int transferSize = kit::min(replySize, sender->messageControlBlock.receiveBufferSize);
+  memcpy(sender->messageControlBlock.receiveBuffer, reply, size_t(transferSize));
+
+  // Move sender to readyQueue.
+  TaskScheduler::enqueReadyTask(*sender);
+  sender->runState = RunState::Ready;
+  sender->setRetValue(transferSize);
+
+  return transferSize;
+}
+
+} // namespace syscall_handler

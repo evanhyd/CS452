@@ -1,6 +1,6 @@
 #pragma once
-#include "debug.h"
-#include "kit_algorithm.h"
+#include "util/debug.h"
+#include "util/kit_algorithm.h"
 #include <cstddef>
 #include <cstdint>
 #include <new>

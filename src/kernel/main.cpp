@@ -1,0 +1,70 @@
+#include "kernel/devices/gic.h"
+#include "kernel/devices/gpio.h"
+#include "k4_tasks/k4_tasks.h"
+#include "kernel/devices/mcp2515.h"
+#include "kernel/devices/spi.h"
+#include "kernel/syscall_task_handler.h"
+#include "kernel/task_manager.h"
+#include "kernel/task_queue.h"
+#include "kernel/devices/timer.h"
+#include "kernel/devices/uart.h"
+
+#ifdef __OPTIMIZE__
+#define OPT "opt"
+#else
+#define OPT "noopt"
+#endif
+
+#if defined(ENABLE_ICACHE) && defined(ENABLE_DCACHE)
+#define CACHE "bcache"
+#elif defined(ENABLE_ICACHE)
+#define CACHE "icache"
+#elif defined(ENABLE_DCACHE)
+#define CACHE "dcache"
+#else
+#define CACHE "nocache"
+#endif
+
+// Set up linkers, BSS sections, and constructors.
+extern "C" void setup_mmu(); // in mmu.S
+using ConstructorType = void (*)();
+extern ConstructorType __init_array_start, __init_array_end; // defined in linker script
+extern char* rodata;
+
+extern "C" void kmain() {
+#if defined(MMU)
+  setup_mmu();
+#endif
+  // Set up C++ constructors.
+  for (ConstructorType* ctr = &__init_array_start; ctr < &__init_array_end; ++ctr) {
+    (*ctr)();
+  }
+
+  // Set up UART.
+  Uart::configAndEnable();
+  Uart::syncPrint("Kitty kernel version: " __DATE__ " / " __TIME__ ", " OPT ", " CACHE "\r\n");
+
+  // Route the interrupts to CPU 0.
+  gic::gicd_manager.init();
+  gic::gicc_manager.init();
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::Timer1, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::UartIO, 0);
+  gic::gicd_manager.routeInterrupt(gic::InterruptEventId::CanIO, 0);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::Timer1);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::UartIO);
+  gic::gicd_manager.enableInterrupt(gic::InterruptEventId::CanIO);
+
+  spi::init();
+  gpio::init();
+  mcp2515::init();
+  mcp2515::setInterruptEnabled(mcp2515::CanInterruptMask::ReceiveAndTransmit, true);
+
+  // Main entry.
+  using namespace timer::literals;
+  timer::system_timer.setChannel1(timer::system_timer.now() + timer::TICK_DURATION);
+
+  createIdleTask();
+  syscall_handler::Create(2, k4::FirstUserTask);
+  TaskDescriptor* task = TaskScheduler::getNextScheduledTask();
+  TaskScheduler::activateTask(*task);
+}

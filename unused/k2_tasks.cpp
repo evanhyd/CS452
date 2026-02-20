@@ -1,13 +1,13 @@
 #include "k2_tasks.h"
-#include "ctfmt.h"
-#include "debug.h"
-#include "kit_algorithm.h"
-#include "name_server.h"
-#include "ring_buffer.h"
-#include "syscalls.h"
-#include "task_queue.h"
-#include "timer.h"
-#include "uart.h"
+#include "util/ctfmt.h"
+#include "util/debug.h"
+#include "util/kit_algorithm.h"
+#include "server_tasks/name_server.h"
+#include "util/ring_buffer.h"
+#include "kernel/syscalls.h"
+#include "kernel/task_queue.h"
+#include "kernel/devices/timer.h"
+#include "kernel/devices/uart.h"
 #include <cstdint>
 #include <iterator>
 

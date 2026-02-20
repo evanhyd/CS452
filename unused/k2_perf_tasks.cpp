@@ -1,9 +1,9 @@
 #include "k2_perf_tasks.h"
-#include "ctfmt.h"
-#include "syscalls.h"
-#include "task_queue.h"
-#include "timer.h"
-#include "uart.h"
+#include "util/ctfmt.h"
+#include "kernel/syscalls.h"
+#include "kernel/task_queue.h"
+#include "kernel/devices/timer.h"
+#include "kernel/devices/uart.h"
 
 namespace {
 
