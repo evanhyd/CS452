@@ -1,60 +1,8 @@
 #include "command.h"
 
-#include "helper_tasks.h"
-#include "main_server.h"
-
-#include "kernel/syscalls.h"
-#include "marklin/marklin_message.h"
-#include "marklin/marklin_train_track.h"
-#include "server_tasks/can_server.h"
-
 namespace cmd {
 
-void Command::process(k4::ServerState& state) const { state.status.set("Invalid command."); }
-
-namespace detail {
-
-void detail::SetTrainSpeedCommand::process(k4::ServerState& state) const {
-  if (speed_ > 14) {
-    state.status.set("Invalid speed %u. Must be between 0 and 14.", speed_);
-    return;
-  }
-  if (trainNo_ == 0 || trainNo_ > k4::MAX_TRAINS) {
-    state.status.set("Invalid train number %u. Must be between 1 and %u.", trainNo_, k4::MAX_TRAINS);
-    return;
-  }
-  uint8_t trainNo = static_cast<uint8_t>(trainNo_);
-  state.status.set("Set train %u to speed %u.", trainNo, speed_);
-  state.initTrain(trainNo);
-  state.trains[trainNo].speed = static_cast<uint8_t>(speed_);
-  state.sendCAN(marklin::MMessage::setTrainSpeed(trainNo, convSpeed(speed_)));
-}
-
-void detail::ReverseTrainCommand::process(k4::ServerState& state) const {
-  if (trainNo_ == 0 || trainNo_ > k4::MAX_TRAINS) {
-    state.status.set("Invalid train number %u. Must be between 1 and %u.", trainNo_, k4::MAX_TRAINS);
-    return;
-  }
-  uint8_t trainNo = static_cast<uint8_t>(trainNo_);
-  // TODO: handle reverse while another reverse is in progress
-  state.status.set("Reversing train %u.", trainNo);
-  state.initTrain(trainNo);
-  state.sendCAN(marklin::MMessage::setTrainSpeed(trainNo, 0));
-  state.toReverse.push(trainNo);
-  ::Create(4, k4::reverseWorkerTask);
-}
-
-void detail::ThrowSwitchCommand::process(k4::ServerState& state) const {
-  state.status.set("Thrown switch %u to %c.", switchNo_, direction_ ? 'S' : 'C');
-  auto sw = direction_ ? marklin::SwitchState::Straight : marklin::SwitchState::Curved;
-  state.setSwitchState(switchNo_, sw);
-}
-
-extern "C" [[noreturn]] void _reboot();
-
-void detail::QuitCommand::process(k4::ServerState&) const { _reboot(); }
-
-void InvalidCommand::process(k4::ServerState& state) const { state.status.set("Usage: %s", usage_); }
+namespace {
 
 const char* a2ui(const char* start, const char* end, unsigned& out) {
   for (out = 0; start < end; ++start) {
@@ -66,13 +14,16 @@ const char* a2ui(const char* start, const char* end, unsigned& out) {
   return start;
 }
 
-} // namespace detail
+constexpr const char* USAGE_TR = "tr <train number> <train speed> - Set train speed";
+constexpr const char* USAGE_RV = "rv <train number> - Reverse train direction";
+constexpr const char* USAGE_SW = "sw <switch number> <switch direction> - Throw switch to straight (S) or curved (C)";
+constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
-const Command* CommandBuffer::parse_impl() {
-  using namespace detail;
+} // namespace
 
+ParsedCommand CommandBuffer::parse_impl() {
   if (length_ == 0) {
-    return nullptr;
+    return {.tag = CmdTag::None, .empty{}};
   }
   const char *ptr = buffer_, *next;
   auto skip_ws = [&] {
@@ -87,20 +38,20 @@ const Command* CommandBuffer::parse_impl() {
     unsigned train_no, speed;
     next = a2ui(ptr, end(), train_no);
     if (next == ptr) {
-      return invalid<SetTrainSpeedCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_TR}};
     }
     ptr = next;
     skip_ws();
     next = a2ui(ptr, end(), speed);
     if (next == ptr) {
-      return invalid<SetTrainSpeedCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_TR}};
     }
     ptr = next;
     skip_ws();
     if (ptr != end()) {
-      return invalid<SetTrainSpeedCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_TR}};
     }
-    return new (curr_cmd_) SetTrainSpeedCommand{train_no, speed};
+    return {.tag = CmdTag::SetSpeed, .setSpeed{train_no, speed}};
   }
   if (length_ >= 2 && ptr[0] == 'r' && ptr[1] == 'v') {
     ptr += 2;
@@ -108,14 +59,14 @@ const Command* CommandBuffer::parse_impl() {
     unsigned train_no;
     next = a2ui(ptr, end(), train_no);
     if (next == ptr) {
-      return invalid<ReverseTrainCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
     }
     ptr = next;
     skip_ws();
     if (ptr != end()) {
-      return invalid<ReverseTrainCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
     }
-    return new (curr_cmd_) ReverseTrainCommand{train_no};
+    return {.tag = CmdTag::Reverse, .reverse{train_no}};
   }
   if (length_ >= 2 && ptr[0] == 's' && ptr[1] == 'w') {
     ptr += 2;
@@ -123,12 +74,12 @@ const Command* CommandBuffer::parse_impl() {
     unsigned switch_no;
     next = a2ui(ptr, end(), switch_no);
     if (next == ptr) {
-      return invalid<ThrowSwitchCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
     ptr = next;
     skip_ws();
     if (ptr == end()) {
-      return invalid<ThrowSwitchCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
     bool direction;
     if (ptr[0] == 'S' || ptr[0] == 's') {
@@ -136,24 +87,24 @@ const Command* CommandBuffer::parse_impl() {
     } else if (ptr[0] == 'C' || ptr[0] == 'c') {
       direction = false;
     } else {
-      return invalid<ThrowSwitchCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
     ptr += 1;
     skip_ws();
     if (ptr != end()) {
-      return invalid<ThrowSwitchCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
-    return new (curr_cmd_) ThrowSwitchCommand{switch_no, direction};
+    return {.tag = CmdTag::ThrowSwitch, .throwSwitch{switch_no, direction}};
   }
   if (length_ >= 1 && ptr[0] == 'q') {
     ptr += 1;
     skip_ws();
     if (ptr != end()) {
-      return invalid<QuitCommand>();
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_Q}};
     }
-    return new (curr_cmd_) QuitCommand{};
+    return {.tag = CmdTag::Quit, .empty{}};
   }
-  return new (curr_cmd_) Command{};
+  return {.tag = CmdTag::Invalid, .invalid{"Unknown command."}};
 }
 
 } // namespace cmd

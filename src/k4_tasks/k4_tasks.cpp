@@ -1,7 +1,11 @@
 #include "k4_tasks.h"
 
+#include "command_router.h"
+#include "dispatcher_server.h"
 #include "helper_tasks.h"
-#include "main_server.h"
+#include "track_server.h"
+#include "train_server.h"
+#include "ui_server.h"
 
 #include "kernel/syscalls.h"
 #include "server_tasks/can_server.h"
@@ -24,8 +28,12 @@ void k4::FirstUserTask() {
     logError("failed to create clock server task");
   }
 
-  ::Create(2, k4::mainServerTask);
+  ::Create(2, k4::uiServerTask);
+  ::Create(2, k4::dispatcherServerTask);
+  ::Create(2, k4::trainServerTask);
+  ::Create(2, k4::trackServerTask);
+
   ::Create(3, k4::clockTask);
-  ::Create(4, k4::keypressTask);
+  ::Create(4, k4::commandRouterTask);
   ::Create(5, k4::eventListenerTask);
 }

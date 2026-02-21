@@ -1,8 +1,14 @@
 #pragma once
 #include "marklin/marklin_message.h"
+#include "marklin/marklin_train_track.h"
 #include <cstdint>
 
 namespace k4 {
+
+constexpr unsigned MAX_TRAINS = 60;
+constexpr unsigned NUM_SWITCHES = 22;
+constexpr unsigned SENSOR_HISTORY_SIZE = 16;
+constexpr unsigned CMD_HISTORY_SIZE = 16;
 
 constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 
@@ -12,20 +18,6 @@ struct CmdHistoryEntry {
   uint32_t ackAfter;  // ticks elapsed until ack, or NOT_ACKED
 };
 
-inline constexpr const char* MAIN_SERVER_NAME = "k4_server";
-
-enum class MessageType : int { Timer, KeyPress, SensorEvent, CanResponse, StartReverse, EndReverse };
-
-struct EmptyData {};
-
-struct TimerUpdate {
-  unsigned deciseconds;
-};
-
-struct KeyPressData {
-  char c;
-};
-
 struct SensorEventData {
   char bank;
   uint8_t number;
@@ -33,23 +25,128 @@ struct SensorEventData {
   bool newOccupied;
 };
 
-struct CanResponseData {
-  marklin::MMessage msg;
+struct SensorHistoryEntry {
+  SensorEventData event;
+  unsigned ticks;
 };
 
-struct EndReverseData {
-  uint8_t trainNo;
+struct TimeData {
+  unsigned deciseconds;
 };
 
-struct Message {
-  MessageType type;
+inline constexpr const char* DISPATCHER_SERVER_NAME = "k4_dispatch";
+inline constexpr const char* TRAIN_SERVER_NAME = "k4_train";
+inline constexpr const char* TRACK_SERVER_NAME = "k4_track";
+inline constexpr const char* UI_SERVER_NAME = "k4_ui";
+
+enum class DispatcherMsgType : int {
+  QueueCommand,
+  CanResponse,
+  TimerTick,
+};
+
+struct DispatcherMsg {
+  DispatcherMsgType type;
   union {
-    EmptyData empty;
-    TimerUpdate timerUpdate;
-    KeyPressData keyPress;
+    marklin::MMessage mmsg;
+    TimeData time;
+  };
+};
+
+enum class TrainMsgType : int {
+  SetSpeed,
+  Reverse,
+  TimerTick,
+};
+
+struct TrainMsg {
+  TrainMsgType type;
+  struct SetSpeedData {
+    uint8_t trainNo;
+    uint8_t speed;
+  };
+  struct ReverseData {
+    uint8_t trainNo;
+  };
+  union {
+    SetSpeedData setSpeed;
+    ReverseData reverse;
+    TimeData time;
+  };
+};
+
+enum class TrackMsgType : int {
+  ThrowSwitch,
+  SensorEvent,
+  TimerTick,
+};
+
+struct TrackMsg {
+  TrackMsgType type;
+  struct ThrowSwitchData {
+    uint8_t switchNo;
+    bool straight;
+  };
+  union {
+    ThrowSwitchData throwSwitch;
     SensorEventData sensorEvent;
-    CanResponseData canResponse;
-    EndReverseData endReverse;
+    TimeData time;
+  };
+};
+
+enum class UIMsgType : int {
+  PromptInsert,
+  PromptDelete,
+  PromptClear,
+  LogStatus,
+  DrawTime,
+  UpdateSwitch,
+  RedrawSensors,
+  RedrawCmdHistory,
+  ClearScreen,
+};
+
+struct Empty {};
+
+struct PromptInsertData {
+  unsigned index;
+  char ch;
+};
+
+struct PromptDeleteData {
+  unsigned index;
+};
+
+struct StatusData {
+  char msg[128];
+};
+
+struct SwitchUpdateData {
+  uint8_t switchNo;
+  marklin::SwitchState state;
+};
+
+struct SensorsData {
+  SensorHistoryEntry entries[SENSOR_HISTORY_SIZE];
+  unsigned count;
+};
+
+struct CmdHistoryData {
+  CmdHistoryEntry entries[CMD_HISTORY_SIZE];
+  unsigned count;
+};
+
+struct UIMsg {
+  UIMsgType type;
+  union {
+    Empty empty;
+    PromptInsertData promptInsert;
+    PromptDeleteData promptDelete;
+    StatusData status;
+    TimeData time;
+    SwitchUpdateData switchUpdate;
+    SensorsData sensors;
+    CmdHistoryData cmdHistory;
   };
 };
 

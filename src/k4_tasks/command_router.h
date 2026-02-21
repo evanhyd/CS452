@@ -1,9 +1,5 @@
 #pragma once
 
 namespace k4 {
-
-void eventListenerTask();
-
-void clockTask();
-
+void commandRouterTask();
 } // namespace k4

@@ -1,9 +1,5 @@
 #pragma once
 
 namespace k4 {
-
-void eventListenerTask();
-
-void clockTask();
-
+void trainServerTask();
 } // namespace k4
