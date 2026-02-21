@@ -93,9 +93,11 @@ extern "C" [[noreturn]] void switchTask(void* sp);
 void TaskScheduler::activateTask(TaskDescriptor& td) {
   using namespace timer::literals;
 
+  bool wasIdle = false;
   auto now = timer::system_timer.now();
   if (currentTask) {
     if (currentTask->tid == idleTid) {
+      wasIdle = true;
       idlePart += now - lastSwitchTime;
     }
   } else {
@@ -104,15 +106,14 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
 
   auto delta = now - intervalStart;
 
-  // TODO: re-enable this later.
-  if (delta >= 500_ms && false) {
+  // wasIdle makes sure we don't interleave
+  if (delta >= 500_ms && wasIdle) {
     auto idlePerMille = static_cast<uint64_t>(idlePart.micros()) * 1000 / delta.micros();
     auto idlePercent = idlePerMille / 10;
     auto idleFraction = idlePerMille % 10;
 
-    // TODO: use ansi to print in place somewhere?
     char buf[64];
-    char* end = kit::strAppend(buf, "Idle: ");
+    char* end = kit::strAppend(buf, "\033[s\033[1;30HIdle: ");
     if (idlePercent == 100) {
       end = kit::strAppend(end, "100.");
     } else {
@@ -125,7 +126,7 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
       end = kit::strAppend(end, '.');
       end = kit::strAppend(end, static_cast<char>('0' + idleFraction));
     }
-    end = kit::strAppend(end, "%\r\n");
+    end = kit::strAppend(end, "%\033[u");
     Uart::syncPrint(buf);
 
     intervalStart = now;
