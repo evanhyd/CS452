@@ -1,14 +1,14 @@
 #pragma once
 
-#include "util/ctfmt.h"
-#include "server_tasks/io_server.h"
 #include "kernel/syscalls.h"
+#include "server_tasks/io_server.h"
+#include "util/ctfmt.h"
 
 class Console {
 public:
   explicit Console(int tid) : tid_{tid} {}
 
-  template <typename... Args> void printf(kit::FormatSpec<Args...> spec, Args... args) {
+  template <typename... Args> void printf(kit::FormatSpec<Args...> spec, const Args&... args) {
     kit::printf(tid_, spec, args...);
   }
 

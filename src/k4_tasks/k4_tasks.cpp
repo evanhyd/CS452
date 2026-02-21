@@ -1,12 +1,13 @@
 #include "k4_tasks.h"
 
-#include "event_tasks.h"
+#include "helper_tasks.h"
+#include "main_server.h"
+
 #include "kernel/syscalls.h"
 #include "server_tasks/can_server.h"
 #include "server_tasks/clock_server.h"
 #include "server_tasks/io_server.h"
 #include "server_tasks/name_server.h"
-#include "ui_server.h"
 #include "util/debug.h"
 
 void k4::FirstUserTask() {
@@ -23,8 +24,8 @@ void k4::FirstUserTask() {
     logError("failed to create clock server task");
   }
 
-  ::Create(2, ui_server::uiServerTask);
-  ::Create(3, event_tasks::terminalInputTask);
-  ::Create(3, event_tasks::eventListenerTask);
-  ::Create(8, event_tasks::clockTask);
+  ::Create(2, k4::mainServerTask);
+  ::Create(4, k4::keypressTask);
+  ::Create(5, k4::eventListenerTask);
+  ::Create(6, k4::clockTask);
 }

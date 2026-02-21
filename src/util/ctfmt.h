@@ -1,13 +1,15 @@
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
-#include "server_tasks/io_server.h"
 #include "kernel/devices/uart.h"
+#include "server_tasks/io_server.h"
 
 namespace kit {
 
@@ -34,13 +36,18 @@ public:
 
 namespace internal {
 
+template <typename T>
+concept CStr = std::is_same_v<T, const char*> || std::is_same_v<T, char*>;
+
 enum class ArgType { Integer, String, Char };
 template <typename T> consteval ArgType getArgType() {
   if constexpr (std::is_same_v<T, char>) {
     return ArgType::Char;
   } else if constexpr (std::is_integral_v<T>) {
     return ArgType::Integer;
-  } else if constexpr (std::is_same_v<T, const char*> || std::is_same_v<T, char*>) {
+  } else if constexpr (CStr<T>) {
+    return ArgType::String;
+  } else if constexpr (std::is_convertible_v<T, std::string_view>) {
     return ArgType::String;
   } else {
     static_assert(false, "Unsupported argument type");
@@ -60,7 +67,9 @@ struct Arg {
   FormatterFunc func;
 };
 
-template <typename T> void formatInt(Sink& sink, const void* ptr, FormatContext ctx) {
+template <std::integral T>
+  requires(!std::is_same_v<T, bool>)
+void formatInt(Sink& sink, const void* ptr, FormatContext ctx) {
   T value = *static_cast<const T*>(ptr);
   bool hex = ctx.spec == 'x' || ctx.spec == 'X';
   bool upper = ctx.spec == 'X';
@@ -102,7 +111,7 @@ template <typename T> void formatInt(Sink& sink, const void* ptr, FormatContext 
   }
 }
 
-inline void formatStr(Sink& sink, const void* ptr, FormatContext ctx) {
+template <CStr T> void formatStr(Sink& sink, const void* ptr, FormatContext ctx) {
   const char* str = *static_cast<const char* const*>(ptr);
   if (!str) {
     str = "(null)";
@@ -120,6 +129,20 @@ inline void formatStr(Sink& sink, const void* ptr, FormatContext ctx) {
   }
 }
 
+template <std::convertible_to<std::string_view> T>
+  requires(!CStr<T>)
+void formatStr(Sink& sink, const void* ptr, FormatContext ctx) {
+  std::string_view str{*static_cast<const T*>(ptr)};
+  int len = static_cast<int>(str.size());
+  while (ctx.width > len) {
+    sink.put(ctx.pad);
+    --ctx.width;
+  }
+  for (char c : str) {
+    sink.put(c);
+  }
+}
+
 inline void formatChar(Sink& sink, const void* ptr, FormatContext ctx) {
   while (ctx.width > 1) {
     sink.put(ctx.pad);
@@ -131,9 +154,13 @@ inline void formatChar(Sink& sink, const void* ptr, FormatContext ctx) {
 template <typename T> Arg makeArg(const T& val) {
   static constexpr ArgType type = getArgType<T>();
   if constexpr (type == ArgType::Integer) {
-    return Arg{&val, formatInt<std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>>};
+    if constexpr (std::is_same_v<T, bool>) {
+      return Arg{&val, formatInt<uint8_t>};
+    } else {
+      return Arg{&val, formatInt<T>};
+    }
   } else if constexpr (type == ArgType::String) {
-    return Arg{&val, formatStr};
+    return Arg{&val, formatStr<T>};
   } else if constexpr (type == ArgType::Char) {
     return Arg{&val, formatChar};
   }
@@ -225,7 +252,7 @@ inline void doFormat(Sink& sink, const char* fmt, const internal::Arg* args) {
 
 template <typename... Args> using FormatSpec = std::type_identity_t<internal::FormatSpec<Args...>>;
 
-template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec, Args... args) {
+template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec, const Args&... args) {
   if constexpr (sizeof...(Args) > 0) {
     internal::Arg argArr[] = {internal::makeArg(args)...};
     doFormat(sink, spec.get(), argArr);
@@ -234,7 +261,7 @@ template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec
   }
 }
 
-template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> spec, Args... args) {
+template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> spec, const Args&... args) {
   struct S {
     char* buf;
     void operator()(char c) { *buf++ = c; }
@@ -244,12 +271,12 @@ template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> 
   *sink.template get<S>().buf = '\0';
 }
 
-template <typename... Args> void printf(int tid, FormatSpec<Args...> spec, Args... args) {
+template <typename... Args> void printf(int tid, FormatSpec<Args...> spec, const Args&... args) {
   auto sink = Sink::make([tid](char c) { ::Putc(tid, c); });
   formatSink(sink, spec, args...);
 }
 
-template <typename... Args> void syncPrintf(FormatSpec<Args...> spec, Args... args) {
+template <typename... Args> void syncPrintf(FormatSpec<Args...> spec, const Args&... args) {
   auto sink = Sink::make(Uart::syncPutc);
   formatSink(sink, spec, args...);
 }
