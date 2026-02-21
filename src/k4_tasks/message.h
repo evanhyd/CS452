@@ -1,13 +1,8 @@
 #pragma once
-#include "k4_tasks/helper_tasks.h"
 #include "marklin/marklin_message.h"
 #include <cstdint>
 
 namespace k4 {
-
-constexpr size_t NUM_SWITCHES = 22;
-constexpr size_t SENSOR_HISTORY_SIZE = 16;
-constexpr size_t CMD_HISTORY_SIZE = 16;
 
 constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 

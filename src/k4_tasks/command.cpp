@@ -5,6 +5,7 @@
 
 #include "kernel/syscalls.h"
 #include "marklin/marklin_message.h"
+#include "marklin/marklin_train_track.h"
 #include "server_tasks/can_server.h"
 
 namespace cmd {
@@ -37,6 +38,7 @@ void detail::ReverseTrainCommand::process(k4::ServerState& state) const {
   uint8_t trainNo = static_cast<uint8_t>(trainNo_);
   // TODO: handle reverse while another reverse is in progress
   state.status.set("Reversing train %u.", trainNo);
+  state.initTrain(trainNo);
   state.sendCAN(marklin::MMessage::setTrainSpeed(trainNo, 0));
   state.toReverse.push(trainNo);
   ::Create(4, k4::reverseWorkerTask);
@@ -44,8 +46,8 @@ void detail::ReverseTrainCommand::process(k4::ServerState& state) const {
 
 void detail::ThrowSwitchCommand::process(k4::ServerState& state) const {
   state.status.set("Thrown switch %u to %c.", switchNo_, direction_ ? 'S' : 'C');
-  // track::switch_manager.set(switch_no,
-  //                           direction ? track::SwitchManager::State::Straight : track::SwitchManager::State::Curved);
+  auto sw = direction_ ? marklin::SwitchState::Straight : marklin::SwitchState::Curved;
+  state.setSwitchState(switchNo_, sw);
 }
 
 extern "C" [[noreturn]] void _reboot();

@@ -54,7 +54,7 @@ public:
 
   private:
     friend History;
-    Iterator(size_t idx, auto&& history) : idx{idx}, history{history.data()} {}
+    Iterator(size_t i, auto&& h) : idx{i}, history{h.data()} {}
     size_t idx;
     E* history;
   };

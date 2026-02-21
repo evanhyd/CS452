@@ -1,6 +1,5 @@
 #pragma once
 
-#include "kernel/syscalls.h"
 #include "server_tasks/io_server.h"
 #include "util/ctfmt.h"
 
@@ -19,6 +18,19 @@ public:
   }
 
   void putc(char c) { ::Putc(tid_, c); }
+
+  void putTimestamp(unsigned ticks) {
+    unsigned mins = ticks / 600;
+    unsigned secs = ticks / 10 % 60;
+    unsigned tenths = ticks % 10;
+    printf("%02u:%02u.%u", mins, secs, tenths);
+  }
+
+  void putByte(uint8_t byte) {
+    static constexpr char hex[] = "0123456789ABCDEF";
+    putc(hex[(byte >> 4) & 0x0F]);
+    putc(hex[byte & 0x0F]);
+  }
 
   void moveCursor(unsigned row, unsigned col) { kit::printf(tid_, "\033[%u;%uH", row, col); }
 

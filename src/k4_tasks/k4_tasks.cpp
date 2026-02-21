@@ -25,7 +25,7 @@ void k4::FirstUserTask() {
   }
 
   ::Create(2, k4::mainServerTask);
+  ::Create(3, k4::clockTask);
   ::Create(4, k4::keypressTask);
   ::Create(5, k4::eventListenerTask);
-  ::Create(6, k4::clockTask);
 }

@@ -71,9 +71,9 @@ void io_server::ioServerTask() {
   int getcNotifierTid = ::Create(0, getcNotifierTask);
   int putcNotifierTid = ::Create(0, putcNotifierTask);
 
-  RingBuffer<int, 1024> getcWaitingQueue;
-  RingBuffer<GetcNotify, 1024> getcBuffer;
-  RingBuffer<PutcReply, 1024> toPutcBuffer;
+  RingBuffer<int, 128> getcWaitingQueue;
+  RingBuffer<GetcNotify, 1 << 16> getcBuffer;
+  RingBuffer<PutcReply, 1 << 16> toPutcBuffer;
 
   bool putcReady = false;
 
