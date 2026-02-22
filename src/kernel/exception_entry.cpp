@@ -4,6 +4,7 @@
 #include "devices/gpio.h"
 #include "devices/timer.h"
 #include "devices/uart.h"
+#include "kernel/syscall_util_handler.h"
 #include "syscall_comm_handler.h"
 #include "syscall_interrupt_handler.h"
 #include "syscall_task_handler.h"
@@ -54,6 +55,9 @@ void syscallEntry(StackContext* userStack) {
   case 9: // AwaitEvent
     syscall_handler::AwaitEvent(static_cast<int>(userStack->x0));
     break;
+  case 10: // GetIdleTime
+    currTask->setRetValue(syscall_handler::GetIdleTime());
+    break;
   default:
     break;
   }
@@ -74,9 +78,6 @@ void irqEntry(StackContext* userStack) {
 
   // Check the interrupt type.
   auto interruptId = gic::gicc_manager.readAndActivateInterruptId();
-  // char buf[64];
-  // kit::formatString(buf, "Interrupt ID: %u", static_cast<uint32_t>(interruptId));
-  // logDebug(buf);
 
   switch (interruptId) {
   case gic::InterruptEventId::Timer1:

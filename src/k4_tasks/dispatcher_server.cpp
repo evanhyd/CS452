@@ -20,12 +20,14 @@ namespace {
 
 constexpr unsigned ACK_TIMEOUT_TICKS = 10; // 1 second
 
+// Responsible for queueing the commands, tracking the acknowledge status, and round-trip delay.
 struct DispatcherState {
   History<CmdHistoryEntry, CMD_HISTORY_SIZE> cmdHistory;
   RingBuffer<marklin::MMessage, 256> canSendBuffer;
   unsigned currentTicks = 0;
   int canServerTid = -1;
 
+  // Return true if the last sent command is acknowledged or timed out.
   bool lastCommandAcked() const {
     if (cmdHistory.empty()) {
       return true;
@@ -34,6 +36,8 @@ struct DispatcherState {
     return last.ackAfter != NOT_ACKED || currentTicks - last.sentTicks >= ACK_TIMEOUT_TICKS;
   }
 
+  // Request to send a marklin message.
+  // If the queue is not empty, then append to the queue buffer.
   void sendCAN(const marklin::MMessage& msg) {
     if (canSendBuffer.empty() && lastCommandAcked()) {
       ::TransmitCAN(canServerTid, msg);
@@ -45,6 +49,8 @@ struct DispatcherState {
     }
   }
 
+  // Try send as many marklin messages as possible unless there's any message that not acknowledge.
+  // Return true if it sends at least one message.
   bool tryFlushCanBuffer() {
     bool flushed = false;
     while (!canSendBuffer.empty() && lastCommandAcked()) {
@@ -56,6 +62,8 @@ struct DispatcherState {
     return flushed;
   }
 
+  // Mark and calculate the latency of any sent command that matches with the response message.
+  // Return ture if there's a match.
   bool processCanResponse(const marklin::MMessage& response) {
     const auto match = [&](const CmdHistoryEntry& entry) {
       if (entry.ackAfter != NOT_ACKED || entry.msg.command != response.command || entry.msg.dlc != response.dlc) {
@@ -77,6 +85,7 @@ struct DispatcherState {
     return false;
   }
 
+  // Notify the UI server to redraw the command history.
   void notifyCmdHistoryToUI(int uiServerTid) {
     UIMsg uiMsg;
     uiMsg.type = UIMsgType::RedrawCmdHistory;
@@ -93,6 +102,7 @@ struct DispatcherState {
 
 } // namespace
 
+// A server that manages the marklin event queues, history, and other meta data.
 void dispatcherServerTask() {
   if (::RegisterAs(DISPATCHER_SERVER_NAME) < 0) {
     logError("dispatcher: failed to register");
@@ -112,6 +122,7 @@ void dispatcherServerTask() {
   notify(uiServerTid, UIMsg{.type = UIMsgType::ClearScreen, .empty{}});
   notifyStatusToUI(uiServerTid, "Ready.");
 
+  // Enable the system and set all the switches to straight.
   state.sendCAN(marklin::MMessage::systemGoAll());
   for (uint8_t id = 1; id <= 18; ++id) {
     state.sendCAN(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight, true));

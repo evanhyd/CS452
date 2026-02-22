@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 inline constexpr int MAX_PRIORITY_LEVEL = 10;
 enum EventId : int { Timer1, Timer3, UartRx, UartTx, CanIO, COUNT };
@@ -22,4 +23,6 @@ int AwaitEvent(int eventId);
 int Time(int tid);
 int Delay(int tid, int ticks);
 int DelayUntil(int tid, int ticks);
+
+uint64_t GetIdleTime();
 }

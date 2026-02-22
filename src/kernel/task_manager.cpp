@@ -22,6 +22,7 @@ Tid idleTid;
 timer::Time intervalStart;
 timer::Time idlePart;
 timer::Time lastSwitchTime;
+uint64_t idlePerMille;
 
 size_t eventIdToIndex(::EventId eventId) {
   if (!gic::isValidEventId(eventId)) {
@@ -108,27 +109,7 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
 
   // wasIdle makes sure we don't interleave
   if (delta >= 500_ms && wasIdle) {
-    auto idlePerMille = static_cast<uint64_t>(idlePart.micros()) * 1000 / delta.micros();
-    auto idlePercent = idlePerMille / 10;
-    auto idleFraction = idlePerMille % 10;
-
-    char buf[64];
-    char* end = kit::strAppend(buf, "\033[s\033[1;30HIdle: ");
-    if (idlePercent == 100) {
-      end = kit::strAppend(end, "100.");
-    } else {
-      if (idlePercent < 10) {
-        end = kit::strAppend(end, ' ');
-      } else {
-        end = kit::strAppend(end, static_cast<char>('0' + idlePercent / 10));
-      }
-      end = kit::strAppend(end, static_cast<char>('0' + idlePercent % 10));
-      end = kit::strAppend(end, '.');
-      end = kit::strAppend(end, static_cast<char>('0' + idleFraction));
-    }
-    end = kit::strAppend(end, "%\033[u");
-    Uart::syncPrint(buf);
-
+    idlePerMille = static_cast<uint64_t>(idlePart.micros()) * 1000 / delta.micros();
     intervalStart = now;
     idlePart = 0_us;
   }
@@ -137,6 +118,8 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
   lastSwitchTime = now;
   switchTask(td.stackPointer);
 }
+
+uint64_t TaskScheduler::getIdleTime() { return idlePerMille; }
 
 void createIdleTask() {
   int tid = syscall_handler::Create(MAX_PRIORITY_LEVEL, []() {

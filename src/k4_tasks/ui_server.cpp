@@ -10,13 +10,17 @@ namespace k4 {
 
 namespace {
 
-constexpr unsigned ROW_TIME = 1;
+constexpr unsigned ROW_SYSTEM_TIME = 1;
+constexpr unsigned ROW_IDLE_TIME = 1;
+constexpr unsigned COL_IDLE_TIME = 30;
 constexpr unsigned ROW_SWITCHES = 3;
 constexpr unsigned ROW_SENSORS = 3;
 constexpr unsigned COL_SENSORS = 30;
 constexpr unsigned ROW_CMD_HISTORY = 20;
 constexpr unsigned ROW_STATUS = 38;
 constexpr unsigned ROW_PROMPT = 40;
+
+constexpr int DRAW_IDLE_PERIOD = 100; // draw idle percentage every 1s.
 
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
@@ -46,6 +50,8 @@ void uiServerTask() {
   if (ioServerTid < 0) {
     logError("ui server: failed to find IO server");
   }
+
+  int drawIdleTick = 0;
 
   Console console{ioServerTid};
 
@@ -91,9 +97,23 @@ void uiServerTask() {
       console.clearToEol();
       break;
     }
-    case UIMsgType::DrawTime: {
-      console.moveCursor(ROW_TIME, 1);
+    case UIMsgType::DrawSystemTime: {
+      console.moveCursor(ROW_SYSTEM_TIME, 1);
       console.putTimestamp(msg.time.deciseconds);
+      break;
+    }
+    case k4::UIMsgType::DrawIdleTime: {
+      ++drawIdleTick;
+      if (drawIdleTick == DRAW_IDLE_PERIOD) {
+        drawIdleTick = 0;
+        uint64_t idlePerMille = ::GetIdleTime();
+        uint64_t idlePercent = idlePerMille / 10;
+        uint64_t idleFraction = idlePerMille % 10;
+
+        console.moveCursor(ROW_IDLE_TIME, COL_IDLE_TIME);
+        console.printf("Idle: %02u.%02u%%", idlePercent, idleFraction);
+        console.clearToEol();
+      }
       break;
     }
     case UIMsgType::UpdateSwitch: {
@@ -107,8 +127,8 @@ void uiServerTask() {
         const auto& entry = msg.sensors.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
         console.putTimestamp(entry.ticks);
-        console.printf(" %c%u: %s -> %s", entry.event.bank, static_cast<unsigned>(entry.event.number),
-                       entry.event.oldOccupied ? "Occ" : "Free", entry.event.newOccupied ? "Occ" : "Free");
+        console.printf(" %c%u: %s", entry.event.bank, static_cast<unsigned>(entry.event.number),
+                       entry.event.newOccupied ? "Occupied" : "Free");
         console.clearToEol();
       }
       break;

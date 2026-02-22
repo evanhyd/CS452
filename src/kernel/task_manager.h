@@ -159,6 +159,9 @@ struct TaskScheduler {
 
   // Context switch to the task denoted by its task descriptor.
   static void activateTask [[noreturn]] (TaskDescriptor& td);
+
+  // Return the idel time per mille.
+  static uint64_t getIdleTime();
 };
 
 void createIdleTask();

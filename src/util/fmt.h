@@ -1,7 +1,6 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 
 namespace kit {
 // String meta info.
@@ -18,7 +17,6 @@ void u32ToStr(uint32_t num, char* buffer);
 void u64ToStr(uint64_t num, char* buffer);
 void u64ToStrRightAlign(uint64_t number, char* buffer, size_t len);
 void tickToTime(uint64_t tick, char* buffer);
-char* formatString_old(char* buffer, const char* fmt, ...);
 
 // String parsing.
 bool extractStr(const char** begin, const char** end, char delimiter);

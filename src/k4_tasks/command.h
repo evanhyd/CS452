@@ -10,7 +10,7 @@ enum class CmdTag : uint8_t {
   Invalid,
   SetSpeed,
   Reverse,
-  ThrowSwitch,
+  SetSwitch,
   Quit,
 };
 
@@ -24,7 +24,7 @@ struct ParsedCommand {
   struct ReverseData {
     unsigned trainNo;
   };
-  struct ThrowSwitchData {
+  struct SetSwitchData {
     unsigned switchNo;
     bool straight;
   };
@@ -35,11 +35,13 @@ struct ParsedCommand {
     Empty empty;
     SetSpeedData setSpeed;
     ReverseData reverse;
-    ThrowSwitchData throwSwitch;
+    SetSwitchData setSwitch;
     InvalidData invalid;
   };
 };
 
+// A command buffer that holds all the user input.
+// When the user enters and submits the command, it parses to the corresponding ParsedCommand type.
 class CommandBuffer {
 public:
   static constexpr size_t MAX_COMMAND_LENGTH = 128;

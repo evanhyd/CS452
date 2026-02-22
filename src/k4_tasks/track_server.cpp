@@ -90,6 +90,7 @@ struct TrackState {
 
 } // namespace
 
+// A server that manages the local track state, and propagate the changes to the remote by sending CAN message.
 void trackServerTask() {
   if (::RegisterAs(TRACK_SERVER_NAME) < 0) {
     logError("track server: failed to register");
@@ -116,10 +117,10 @@ void trackServerTask() {
     ::Reply(senderTid, "", 0);
 
     switch (msg.type) {
-    case TrackMsgType::ThrowSwitch: {
-      auto sw = msg.throwSwitch.straight ? marklin::SwitchState::Straight : marklin::SwitchState::Curved;
-      state.setSwitchState(msg.throwSwitch.switchNo, sw);
-      sendSwitchToUI(uiTid, msg.throwSwitch.switchNo, sw);
+    case TrackMsgType::SetSwitch: {
+      auto sw = msg.setSwitch.straight ? marklin::SwitchState::Straight : marklin::SwitchState::Curved;
+      state.setSwitchState(msg.setSwitch.switchNo, sw);
+      sendSwitchToUI(uiTid, msg.setSwitch.switchNo, sw);
       break;
     }
     case TrackMsgType::SensorEvent: {

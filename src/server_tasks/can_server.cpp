@@ -118,7 +118,6 @@ void can_server::canServerTask() {
 
       // Transmit Buffer 0 Empty
       if (interruptFlag & mcp2515::CanInterruptMask::TX0IE) {
-        logDebug("TX0");
         if (!transmitBuffer.empty()) {
           marklin::MMessage message = transmitBuffer.pop();
           mcp2515::sendMessage(message);

@@ -4,6 +4,7 @@ namespace cmd {
 
 namespace {
 
+// Convert ascii string to unsigned int.
 const char* a2ui(const char* start, const char* end, unsigned& out) {
   for (out = 0; start < end; ++start) {
     if (*start < '0' || *start > '9') {
@@ -16,7 +17,7 @@ const char* a2ui(const char* start, const char* end, unsigned& out) {
 
 constexpr const char* USAGE_TR = "tr <train number> <train speed> - Set train speed";
 constexpr const char* USAGE_RV = "rv <train number> - Reverse train direction";
-constexpr const char* USAGE_SW = "sw <switch number> <switch direction> - Throw switch to straight (S) or curved (C)";
+constexpr const char* USAGE_SW = "sw <switch number> <switch direction> - Set switch to straight (S) or curved (C)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
 } // namespace
@@ -94,7 +95,7 @@ ParsedCommand CommandBuffer::parse_impl() {
     if (ptr != end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
-    return {.tag = CmdTag::ThrowSwitch, .throwSwitch{switch_no, direction}};
+    return {.tag = CmdTag::SetSwitch, .setSwitch{switch_no, direction}};
   }
   if (length_ >= 1 && ptr[0] == 'q') {
     ptr += 1;

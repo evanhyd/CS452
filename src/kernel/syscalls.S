@@ -7,6 +7,7 @@
 .global Receive
 .global Reply
 .global AwaitEvent
+.global GetIdleTime
 
 Create:
     svc #1
@@ -42,4 +43,8 @@ Reply:
 
 AwaitEvent:
     svc #9
+    ret
+
+GetIdleTime:
+    svc #10
     ret

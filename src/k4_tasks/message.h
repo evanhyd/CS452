@@ -76,19 +76,19 @@ struct TrainMsg {
 };
 
 enum class TrackMsgType : int {
-  ThrowSwitch,
+  SetSwitch,
   SensorEvent,
   TimerTick,
 };
 
 struct TrackMsg {
   TrackMsgType type;
-  struct ThrowSwitchData {
+  struct SetSwitchData {
     uint8_t switchNo;
     bool straight;
   };
   union {
-    ThrowSwitchData throwSwitch;
+    SetSwitchData setSwitch;
     SensorEventData sensorEvent;
     TimeData time;
   };
@@ -99,7 +99,8 @@ enum class UIMsgType : int {
   PromptDelete,
   PromptClear,
   LogStatus,
-  DrawTime,
+  DrawSystemTime,
+  DrawIdleTime,
   UpdateSwitch,
   RedrawSensors,
   RedrawCmdHistory,

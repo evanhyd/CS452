@@ -13,6 +13,8 @@ extern "C" [[noreturn]] void _reboot();
 
 namespace k4 {
 
+// Responsible for accepting and parsing user's terminal input.
+// It sanitizes the command and forward it to the UI server and the dispatcher server.
 void commandRouterTask() {
   int ioServerTid = ::WhoIs(io_server::IO_SERVER_NAME);
   if (ioServerTid < 0) {
@@ -76,13 +78,13 @@ void commandRouterTask() {
         notify(trainTid, tm);
         break;
       }
-      case cmd::CmdTag::ThrowSwitch: {
-        TrackMsg tm{.type = TrackMsgType::ThrowSwitch,
-                    .throwSwitch{.switchNo = static_cast<uint8_t>(parsed.throwSwitch.switchNo),
-                                 .straight = parsed.throwSwitch.straight}};
+      case cmd::CmdTag::SetSwitch: {
+        TrackMsg tm{.type = TrackMsgType::SetSwitch,
+                    .setSwitch{.switchNo = static_cast<uint8_t>(parsed.setSwitch.switchNo),
+                               .straight = parsed.setSwitch.straight}};
         notify(trackTid, tm);
-        notifyStatusToUI(uiTid, "Thrown switch %u to %c.", parsed.throwSwitch.switchNo,
-                         parsed.throwSwitch.straight ? 'S' : 'C');
+        notifyStatusToUI(uiTid, "Set switch %u to %c.", parsed.setSwitch.switchNo,
+                         parsed.setSwitch.straight ? 'S' : 'C');
         break;
       }
       case cmd::CmdTag::Quit: {

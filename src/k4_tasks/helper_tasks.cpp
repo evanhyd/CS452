@@ -59,7 +59,8 @@ void clockTask() {
     notify(dispatcherTid, DispatcherMsg{.type = DispatcherMsgType::TimerTick, .time{deciseconds}});
     notify(trainTid, TrainMsg{.type = TrainMsgType::TimerTick, .time{deciseconds}});
     notify(trackTid, TrackMsg{.type = TrackMsgType::TimerTick, .time{deciseconds}});
-    notify(uiTid, UIMsg{.type = UIMsgType::DrawTime, .time{deciseconds}});
+    notify(uiTid, UIMsg{.type = UIMsgType::DrawSystemTime, .time{deciseconds}});
+    notify(uiTid, UIMsg{.type = UIMsgType::DrawIdleTime, .time{deciseconds}});
   }
 }
 
