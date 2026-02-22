@@ -50,7 +50,7 @@ struct DispatcherState {
   }
 
   // Try send as many marklin messages as possible unless there's any message that not acknowledge.
-  // Return true if it sends at least one message.
+  // Returns true if it sends at least one message.
   bool tryFlushCanBuffer() {
     bool flushed = false;
     while (!canSendBuffer.empty() && lastCommandAcked()) {
@@ -63,7 +63,7 @@ struct DispatcherState {
   }
 
   // Mark and calculate the latency of any sent command that matches with the response message.
-  // Return ture if there's a match.
+  // Returns true if there's a match.
   bool processCanResponse(const marklin::MMessage& response) {
     const auto match = [&](const CmdHistoryEntry& entry) {
       if (entry.ackAfter != NOT_ACKED || entry.msg.command != response.command || entry.msg.dlc != response.dlc) {
@@ -119,7 +119,6 @@ void dispatcherServerTask() {
   DispatcherState state;
   state.canServerTid = canServerTid;
 
-  notify(uiServerTid, UIMsg{.type = UIMsgType::ClearScreen, .empty{}});
   notifyStatusToUI(uiServerTid, "Ready.");
 
   // Enable the system and set all the switches to straight.

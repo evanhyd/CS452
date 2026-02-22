@@ -20,8 +20,6 @@ constexpr unsigned ROW_CMD_HISTORY = 20;
 constexpr unsigned ROW_STATUS = 38;
 constexpr unsigned ROW_PROMPT = 40;
 
-constexpr int DRAW_IDLE_PERIOD = 100; // draw idle percentage every 1s.
-
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
   if (id >= 1 && id <= 11) {
@@ -51,9 +49,19 @@ void uiServerTask() {
     logError("ui server: failed to find IO server");
   }
 
-  int drawIdleTick = 0;
-
   Console console{ioServerTid};
+
+  console.clearScreen();
+  console.hideCursor();
+
+  console.moveCursor(ROW_SWITCHES, 1);
+  console.puts("Switches:");
+  console.moveCursor(ROW_SENSORS, COL_SENSORS);
+  console.puts("Sensors:");
+  console.moveCursor(ROW_CMD_HISTORY, 1);
+  console.puts("Command history:");
+  console.moveCursor(ROW_PROMPT, 1);
+  console.puts("> ");
 
   UIMsg msg;
   for (;;) {
@@ -62,20 +70,6 @@ void uiServerTask() {
     ::Reply(senderTid, "", 0);
 
     switch (msg.type) {
-    case UIMsgType::ClearScreen: {
-      console.clearScreen();
-      console.hideCursor();
-      // redraw static labels
-      console.moveCursor(ROW_SWITCHES, 1);
-      console.puts("Switches:");
-      console.moveCursor(ROW_SENSORS, COL_SENSORS);
-      console.puts("Sensors:");
-      console.moveCursor(ROW_CMD_HISTORY, 1);
-      console.puts("Command history:");
-      console.moveCursor(ROW_PROMPT, 1);
-      console.puts("> ");
-      break;
-    }
     case UIMsgType::PromptInsert: {
       console.moveCursor(ROW_PROMPT, 3 + msg.promptInsert.index);
       console.putc(msg.promptInsert.ch);
@@ -103,17 +97,13 @@ void uiServerTask() {
       break;
     }
     case k4::UIMsgType::DrawIdleTime: {
-      ++drawIdleTick;
-      if (drawIdleTick == DRAW_IDLE_PERIOD) {
-        drawIdleTick = 0;
-        uint64_t idlePerMille = ::GetIdleTime();
-        uint64_t idlePercent = idlePerMille / 10;
-        uint64_t idleFraction = idlePerMille % 10;
+      uint64_t idlePerMille = ::GetIdleTime();
+      uint64_t idlePercent = idlePerMille / 10;
+      uint64_t idleFraction = idlePerMille % 10;
 
-        console.moveCursor(ROW_IDLE_TIME, COL_IDLE_TIME);
-        console.printf("Idle: %02u.%02u%%", idlePercent, idleFraction);
-        console.clearToEol();
-      }
+      console.moveCursor(ROW_IDLE_TIME, COL_IDLE_TIME);
+      console.printf("Idle: %02u.%u%%", idlePercent, idleFraction);
+      console.clearToEol();
       break;
     }
     case UIMsgType::UpdateSwitch: {

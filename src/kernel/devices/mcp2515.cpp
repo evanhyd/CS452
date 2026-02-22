@@ -103,7 +103,7 @@ void writeRegs(uint8_t reg, const uint8_t values[], uint8_t n) {
 void writeReg(uint8_t reg, uint8_t value) { writeRegs(reg, &value, 1); }
 
 // Quick polling command that reads several status bits for transmit and receive functions.
-uint8_t readStatus() {
+[[maybe_unused]] uint8_t readStatus() {
   spi::beginTransaction();
   spi::transferOne(Instruction::ReadStatus);
   uint8_t ret = spi::transferOne(0x00);

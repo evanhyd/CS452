@@ -5,12 +5,12 @@
 
 namespace k4 {
 
-constexpr unsigned MAX_TRAINS = 60;
-constexpr unsigned NUM_SWITCHES = 22;
-constexpr unsigned SENSOR_HISTORY_SIZE = 16;
-constexpr unsigned CMD_HISTORY_SIZE = 16;
+inline constexpr unsigned MAX_TRAINS = 60;
+inline constexpr unsigned NUM_SWITCHES = 22;
+inline constexpr unsigned SENSOR_HISTORY_SIZE = 16;
+inline constexpr unsigned CMD_HISTORY_SIZE = 16;
 
-constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
+inline constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 
 struct CmdHistoryEntry {
   marklin::MMessage msg;
@@ -104,7 +104,6 @@ enum class UIMsgType : int {
   UpdateSwitch,
   RedrawSensors,
   RedrawCmdHistory,
-  ClearScreen,
 };
 
 struct Empty {};

@@ -2,11 +2,9 @@
 
 #include "devices/gic.h"
 #include "devices/timer.h"
-#include "devices/uart.h"
 #include "syscall_task_handler.h"
 #include "syscalls.h"
 #include "util/debug.h"
-#include "util/fmt.h"
 
 namespace {
 
@@ -94,11 +92,9 @@ extern "C" [[noreturn]] void switchTask(void* sp);
 void TaskScheduler::activateTask(TaskDescriptor& td) {
   using namespace timer::literals;
 
-  bool wasIdle = false;
   auto now = timer::system_timer.now();
   if (currentTask) {
     if (currentTask->tid == idleTid) {
-      wasIdle = true;
       idlePart += now - lastSwitchTime;
     }
   } else {
@@ -106,9 +102,7 @@ void TaskScheduler::activateTask(TaskDescriptor& td) {
   }
 
   auto delta = now - intervalStart;
-
-  // wasIdle makes sure we don't interleave
-  if (delta >= 500_ms && wasIdle) {
+  if (delta >= 1_s) {
     idlePerMille = static_cast<uint64_t>(idlePart.micros()) * 1000 / delta.micros();
     intervalStart = now;
     idlePart = 0_us;

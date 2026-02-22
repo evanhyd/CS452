@@ -16,7 +16,7 @@ namespace k4 {
 
 namespace {
 
-constexpr size_t getSwitchIndex(unsigned id) {
+constexpr size_t getSwitchIndex(uint8_t id) {
   if (id >= 1 && id <= 18) {
     return id - 1;
   }
@@ -55,7 +55,7 @@ struct TrackState {
   }
 
   void sendAllSwitchesToUI() const {
-    auto notify = [&](uint8_t id) {
+    auto notify = [this](uint8_t id) {
       size_t idx = getSwitchIndex(id);
       if (idx < NUM_SWITCHES) {
         sendSwitchToUI(uiTid, id, switches[idx]);
@@ -69,7 +69,7 @@ struct TrackState {
     }
   }
 
-  marklin::SwitchState getSwitchState(unsigned id) const {
+  marklin::SwitchState getSwitchState(uint8_t id) const {
     size_t idx = getSwitchIndex(id);
     if (idx < NUM_SWITCHES) {
       return switches[idx];
@@ -77,13 +77,12 @@ struct TrackState {
     return marklin::SwitchState::Curved;
   }
 
-  void setSwitchState(unsigned id, marklin::SwitchState switchState) {
+  void setSwitchState(uint8_t id, marklin::SwitchState switchState) {
     size_t idx = getSwitchIndex(id);
     if (idx < NUM_SWITCHES) {
       switches[idx] = switchState;
-      notify(dispatcherTid,
-             DispatcherMsg{.type = DispatcherMsgType::QueueCommand,
-                           .mmsg = marklin::MMessage::setSwitchState(static_cast<uint8_t>(id), switchState, true)});
+      notify(dispatcherTid, DispatcherMsg{.type = DispatcherMsgType::QueueCommand,
+                                          .mmsg = marklin::MMessage::setSwitchState(id, switchState, true)});
     }
   }
 };

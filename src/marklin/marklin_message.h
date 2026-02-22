@@ -1,6 +1,6 @@
 #pragma once
-#include "marklin/marklin_train_track.h"
-#include <cstddef>
+#include "marklin_train_track.h"
+
 #include <cstdint>
 
 namespace marklin {

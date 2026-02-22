@@ -49,9 +49,10 @@ void commandRouterTask() {
       notify(uiTid, UIMsg{.type = UIMsgType::PromptClear, .empty{}});
 
       switch (parsed.tag) {
-      case cmd::CmdTag::None:
+      case cmd::CmdTag::None: {
+        notifyStatusToUI(uiTid, "Invalid command.");
         break;
-
+      }
       case cmd::CmdTag::SetSpeed: {
         if (parsed.setSpeed.speed > 14) {
           notifyStatusToUI(uiTid, "Invalid speed %u. Must be between 0 and 14.", parsed.setSpeed.speed);

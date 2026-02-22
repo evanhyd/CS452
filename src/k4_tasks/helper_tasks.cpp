@@ -11,6 +11,8 @@
 
 namespace k4 {
 
+static constexpr unsigned DRAW_IDLE_PERIOD = 10; // draw idle percentage every 10 ticks = 1s.
+
 void eventListenerTask() {
   int canServerTid = ::WhoIs(can_server::CAN_SERVER_NAME);
   int dispatcherTid = ::WhoIs(DISPATCHER_SERVER_NAME);
@@ -50,6 +52,8 @@ void clockTask() {
   int trackTid = ::WhoIs(TRACK_SERVER_NAME);
   int uiTid = ::WhoIs(UI_SERVER_NAME);
 
+  unsigned drawIdleTick = 0;
+
   for (;;) {
     int ticks = ::Delay(clockTid, 10); // 10 ticks = 100 ms
     if (ticks < 0) {
@@ -60,7 +64,12 @@ void clockTask() {
     notify(trainTid, TrainMsg{.type = TrainMsgType::TimerTick, .time{deciseconds}});
     notify(trackTid, TrackMsg{.type = TrackMsgType::TimerTick, .time{deciseconds}});
     notify(uiTid, UIMsg{.type = UIMsgType::DrawSystemTime, .time{deciseconds}});
-    notify(uiTid, UIMsg{.type = UIMsgType::DrawIdleTime, .time{deciseconds}});
+
+    ++drawIdleTick;
+    if (drawIdleTick == DRAW_IDLE_PERIOD) {
+      drawIdleTick = 0;
+      notify(uiTid, UIMsg{.type = k4::UIMsgType::DrawIdleTime, .empty{}});
+    }
   }
 }
 

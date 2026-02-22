@@ -105,7 +105,7 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     return {.tag = CmdTag::Quit, .empty{}};
   }
-  return {.tag = CmdTag::Invalid, .invalid{"Unknown command."}};
+  return {.tag = CmdTag::None, .empty{}};
 }
 
 } // namespace cmd

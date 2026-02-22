@@ -1,4 +1,7 @@
-#include "marklin/marklin_message.h"
+#include "marklin_message.h"
+
+#include <cstddef>
+#include <cstdint>
 
 namespace {
 // Magic Constant from the CS2 Manual and lecture note.
