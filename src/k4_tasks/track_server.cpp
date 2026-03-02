@@ -41,9 +41,12 @@ void sendSensorsToUI(int uiTid, const History<SensorHistoryEntry, SENSOR_HISTORY
   notify(uiTid, ui);
 }
 
+constexpr int VELOCITY = 3; // mm per tick
+
 struct TrackState {
   std::array<marklin::SwitchState, NUM_SWITCHES> switches{};
   History<SensorHistoryEntry, SENSOR_HISTORY_SIZE> sensorHistory;
+  marklin::TrackSet track{};
   int dispatcherTid = -1;
   int uiTid = -1;
   unsigned currentTicks = 0;
@@ -53,6 +56,8 @@ struct TrackState {
       sw = marklin::SwitchState::Straight;
     }
   }
+
+  void initTrack() { marklin::initTrackA(track); }
 
   void sendAllSwitchesToUI() const {
     auto notify = [this](uint8_t id) {
@@ -85,6 +90,25 @@ struct TrackState {
                                           .mmsg = marklin::MMessage::setSwitchState(id, switchState, true)});
     }
   }
+
+  marklin::TrackNode* getNextSensor(marklin::TrackNode* current, int& outDist) {
+    outDist = 0;
+    marklin::TrackNode* node = current;
+    while (node != nullptr && node->type != marklin::TrackNode::Type::Sensor) {
+      if (node->type == marklin::TrackNode::Type::Exit) {
+        return nullptr;
+      }
+      size_t dir = marklin::TrackDirection::Ahead;
+      if (node->type == marklin::TrackNode::Type::Branch) {
+        auto sw = getSwitchState(static_cast<uint8_t>(node->num));
+        dir =
+            sw == marklin::SwitchState::Straight ? marklin::TrackDirection::Straight : marklin::TrackDirection::Curved;
+      }
+      outDist += node->edge[dir].dist;
+      node = node->edge[dir].dest;
+    }
+    return node;
+  }
 };
 
 } // namespace
@@ -107,6 +131,7 @@ void trackServerTask() {
   state.dispatcherTid = dispatcherTid;
   state.uiTid = uiTid;
   state.initSwitches();
+  state.initTrack();
   state.sendAllSwitchesToUI();
 
   TrackMsg msg;
@@ -123,7 +148,42 @@ void trackServerTask() {
       break;
     }
     case TrackMsgType::SensorEvent: {
-      state.sensorHistory.push({msg.sensorEvent, state.currentTicks});
+      if (!msg.sensorEvent.newOccupied) {
+        break;
+      }
+
+      size_t sensorIdx = static_cast<size_t>((msg.sensorEvent.bank - 'A') * 16 + msg.sensorEvent.number - 1);
+      marklin::TrackNode* currentNode = &state.track[sensorIdx];
+
+      if (!state.sensorHistory.empty()) {
+        auto& lastEntry = state.sensorHistory.back();
+        if (lastEntry.hasPrediction && lastEntry.predictedBank == msg.sensorEvent.bank &&
+            lastEntry.predictedNumber == msg.sensorEvent.number) {
+          lastEntry.timeErrorTicks = static_cast<int>(state.currentTicks) - static_cast<int>(lastEntry.predictedTicks);
+          lastEntry.distErrorMm = lastEntry.timeErrorTicks * VELOCITY;
+        }
+      }
+
+      SensorHistoryEntry newEntry{};
+      newEntry.event = msg.sensorEvent;
+      newEntry.ticks = state.currentTicks;
+      newEntry.hasPrediction = false;
+      newEntry.timeErrorTicks = 0;
+      newEntry.distErrorMm = 0;
+
+      int outDist = 0;
+      marklin::TrackNode* nextSensor =
+          state.getNextSensor(currentNode->edge[marklin::TrackDirection::Ahead].dest, outDist);
+      if (nextSensor != nullptr && nextSensor->type == marklin::TrackNode::Type::Sensor) {
+        int nextSensorNum = nextSensor->num;
+        newEntry.predictedBank = 'A' + static_cast<char>(nextSensorNum / 16);
+        newEntry.predictedNumber = static_cast<uint8_t>(nextSensorNum % 16 + 1);
+        outDist += currentNode->edge[marklin::TrackDirection::Ahead].dist;
+        newEntry.predictedTicks = state.currentTicks + (static_cast<unsigned>(outDist) / VELOCITY);
+        newEntry.hasPrediction = true;
+      }
+
+      state.sensorHistory.push(newEntry);
       sendSensorsToUI(uiTid, state.sensorHistory);
       break;
     }

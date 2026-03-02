@@ -116,9 +116,16 @@ void uiServerTask() {
       for (unsigned row = 0; row < msg.sensors.count; ++row) {
         const auto& entry = msg.sensors.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
-        console.putTimestamp(entry.ticks);
-        console.printf(" %c%u: %s", entry.event.bank, static_cast<unsigned>(entry.event.number),
+        console.putTicks(entry.ticks);
+        console.printf(" %c%u: %s", entry.event.bank, entry.event.number,
                        entry.event.newOccupied ? "Occupied" : "Free");
+        if (entry.hasPrediction) {
+          console.printf(" -> Exp: %c%u @ ", entry.predictedBank, entry.predictedNumber);
+          console.putTicks(entry.predictedTicks);
+          if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
+            console.printf(" [Err: %dt, %dmm]", entry.timeErrorTicks, entry.distErrorMm);
+          }
+        }
         console.clearToEol();
       }
       break;
@@ -129,7 +136,7 @@ void uiServerTask() {
       for (unsigned row = 0; row < msg.cmdHistory.count; ++row) {
         const auto& entry = msg.cmdHistory.entries[row];
         console.moveCursor(ROW_CMD_HISTORY + 1 + row, 1);
-        console.putTimestamp(entry.sentTicks);
+        console.putTicks(entry.sentTicks);
         console.putc(' ');
         console.putByte(static_cast<uint8_t>(entry.msg.command));
         console.putc(' ');

@@ -26,6 +26,13 @@ public:
     printf("%02u:%02u.%u", mins, secs, tenths);
   }
 
+  void putTicks(unsigned ticks) {
+    unsigned mins = ticks / 6000;
+    unsigned secs = ticks / 100 % 60;
+    unsigned remTicks = ticks % 100;
+    printf("%02u:%02u.%02u", mins, secs, remTicks);
+  }
+
   void putByte(uint8_t byte) {
     static constexpr char hex[] = "0123456789ABCDEF";
     putc(hex[(byte >> 4) & 0x0F]);

@@ -28,6 +28,12 @@ struct SensorEventData {
 struct SensorHistoryEntry {
   SensorEventData event;
   unsigned ticks;
+  bool hasPrediction;
+  char predictedBank;
+  uint8_t predictedNumber;
+  unsigned predictedTicks;
+  int timeErrorTicks;
+  int distErrorMm;
 };
 
 struct TimeData {
