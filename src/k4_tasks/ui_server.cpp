@@ -93,7 +93,7 @@ void uiServerTask() {
     }
     case UIMsgType::DrawSystemTime: {
       console.moveCursor(ROW_SYSTEM_TIME, 1);
-      console.putTimestamp(msg.time.deciseconds);
+      console.putTimestamp(msg.time.ticks);
       break;
     }
     case k4::UIMsgType::DrawIdleTime: {

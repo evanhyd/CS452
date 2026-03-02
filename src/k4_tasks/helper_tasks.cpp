@@ -11,7 +11,8 @@
 
 namespace k4 {
 
-static constexpr unsigned DRAW_IDLE_PERIOD = 10; // draw idle percentage every 10 ticks = 1s.
+static constexpr unsigned DRAW_TIME_PERIOD = 10;
+static constexpr unsigned DRAW_IDLE_PERIOD = 100;
 
 void eventListenerTask() {
   int canServerTid = ::WhoIs(can_server::CAN_SERVER_NAME);
@@ -52,21 +53,25 @@ void clockTask() {
   int trackTid = ::WhoIs(TRACK_SERVER_NAME);
   int uiTid = ::WhoIs(UI_SERVER_NAME);
 
+  unsigned drawTimeTick = 0;
   unsigned drawIdleTick = 0;
 
   for (;;) {
-    int ticks = ::Delay(clockTid, 10); // 10 ticks = 100 ms
-    if (ticks < 0) {
+    int res = ::Delay(clockTid, 1);
+    if (res < 0) {
       logError("clockTask: Delay failed");
     }
-    unsigned deciseconds = static_cast<unsigned>(ticks) / 10;
-    notify(dispatcherTid, DispatcherMsg{.type = DispatcherMsgType::TimerTick, .time{deciseconds}});
-    notify(trainTid, TrainMsg{.type = TrainMsgType::TimerTick, .time{deciseconds}});
-    notify(trackTid, TrackMsg{.type = TrackMsgType::TimerTick, .time{deciseconds}});
-    notify(uiTid, UIMsg{.type = UIMsgType::DrawSystemTime, .time{deciseconds}});
+    unsigned ticks = static_cast<unsigned>(res);
+    notify(dispatcherTid, DispatcherMsg{.type = DispatcherMsgType::TimerTick, .time{ticks}});
+    notify(trainTid, TrainMsg{.type = TrainMsgType::TimerTick, .time{ticks}});
+    notify(trackTid, TrackMsg{.type = TrackMsgType::TimerTick, .time{ticks}});
 
-    ++drawIdleTick;
-    if (drawIdleTick == DRAW_IDLE_PERIOD) {
+    if (++drawTimeTick == DRAW_TIME_PERIOD) {
+      drawTimeTick = 0;
+      notify(uiTid, UIMsg{.type = UIMsgType::DrawSystemTime, .time{ticks}});
+    }
+
+    if (++drawIdleTick == DRAW_IDLE_PERIOD) {
       drawIdleTick = 0;
       notify(uiTid, UIMsg{.type = k4::UIMsgType::DrawIdleTime, .empty{}});
     }

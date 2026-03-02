@@ -20,9 +20,9 @@ public:
   void putc(char c) { ::Putc(tid_, c); }
 
   void putTimestamp(unsigned ticks) {
-    unsigned mins = ticks / 600;
-    unsigned secs = ticks / 10 % 60;
-    unsigned tenths = ticks % 10;
+    unsigned mins = ticks / 6000;
+    unsigned secs = ticks / 100 % 60;
+    unsigned tenths = ticks % 100 / 10;
     printf("%02u:%02u.%u", mins, secs, tenths);
   }
 

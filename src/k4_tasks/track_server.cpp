@@ -128,7 +128,7 @@ void trackServerTask() {
       break;
     }
     case TrackMsgType::TimerTick: {
-      state.currentTicks = msg.time.deciseconds;
+      state.currentTicks = msg.time.ticks;
       break;
     }
     }

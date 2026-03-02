@@ -31,7 +31,7 @@ struct SensorHistoryEntry {
 };
 
 struct TimeData {
-  unsigned deciseconds;
+  unsigned ticks;
 };
 
 inline constexpr const char* DISPATCHER_SERVER_NAME = "k4_dispatch";

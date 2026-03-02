@@ -1,5 +1,4 @@
 #include "marklin_train_track.h"
-#include "util/kit_algorithm.h"
 
 namespace marklin {
 void initTrackA(TrackSet& tracks) {

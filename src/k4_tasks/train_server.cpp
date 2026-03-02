@@ -119,7 +119,7 @@ void trainServerTask() {
 
       // begin reverse countdown
       t.state = TrainState::State::Reversing;
-      t.reverseCountdownTicks = 5 + static_cast<unsigned>(t.speed) * 3;
+      t.reverseCountdownTicks = 50 + static_cast<unsigned>(t.speed) * 25;
 
       notifyStatusToUI(uiTid, "Reversing train %u in %u ticks.", trainNo, t.reverseCountdownTicks);
       break;

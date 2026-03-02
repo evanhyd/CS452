@@ -18,7 +18,7 @@ namespace k4 {
 
 namespace {
 
-constexpr unsigned ACK_TIMEOUT_TICKS = 10; // 1 second
+constexpr unsigned ACK_TIMEOUT_TICKS = 100; // 1 second
 
 // Responsible for queueing the commands, tracking the acknowledge status, and round-trip delay.
 struct DispatcherState {
@@ -151,7 +151,7 @@ void dispatcherServerTask() {
       break;
     }
     case DispatcherMsgType::TimerTick: {
-      state.currentTicks = msg.time.deciseconds;
+      state.currentTicks = msg.time.ticks;
       if (state.tryFlushCanBuffer()) {
         state.notifyCmdHistoryToUI(uiServerTid);
       }
