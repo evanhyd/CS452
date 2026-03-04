@@ -1,4 +1,4 @@
-#include "ui_server.h"
+#include "ui_view_server_task.h"
 
 #include "message.h"
 
@@ -32,7 +32,7 @@ void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
     row = ROW_SWITCHES + id - 153 + 8;
     col = 11;
   } else {
-    logError("ui server: invalid switch id");
+    logError("invalid switch id");
   }
   console.moveCursor(row, col);
   console.printf("%03u: %c", id, state == marklin::SwitchState::Straight ? 'S' : 'C');
@@ -40,13 +40,13 @@ void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
 
 } // namespace
 
-void uiServerTask() {
-  if (::RegisterAs(UI_SERVER_NAME) < 0) {
-    logError("ui server: failed to register");
+void uiViewServerTask() {
+  if (::RegisterAs(UI_VIEW_SERVER_NAME) < 0) {
+    logError("failed to register");
   }
   int ioServerTid = ::WhoIs(io_server::IO_SERVER_NAME);
   if (ioServerTid < 0) {
-    logError("ui server: failed to find IO server");
+    logError("failed to find IO server");
   }
 
   Console console{ioServerTid};
@@ -107,7 +107,7 @@ void uiServerTask() {
       break;
     }
     case UIMsgType::UpdateSwitch: {
-      renderSwitch(console, msg.switchUpdate.switchNo, msg.switchUpdate.state);
+      renderSwitch(console, msg.switchUpdate.switchId, msg.switchUpdate.state);
       break;
     }
     case UIMsgType::RedrawSensors: {
@@ -117,10 +117,13 @@ void uiServerTask() {
         const auto& entry = msg.sensors.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
         console.putTicks(entry.ticks);
-        console.printf(" %c%u: %s", entry.event.bank, entry.event.number,
-                       entry.event.newOccupied ? "Occupied" : "Free");
+        char sensorBank = 'A' + static_cast<char>(entry.event.id / 16);
+        uint8_t sensorNumber = static_cast<uint8_t>(entry.event.id % 16 + 1);
+        console.printf(" %c%u", sensorBank, sensorNumber);
         if (entry.hasPrediction) {
-          console.printf(" -> Exp: %c%u @ ", entry.predictedBank, entry.predictedNumber);
+          char predictedBank = 'A' + static_cast<char>(entry.predictedId / 16);
+          uint8_t predictedNumber = static_cast<uint8_t>(entry.predictedId % 16 + 1);
+          console.printf(" -> Exp: %c%u @ ", predictedBank, predictedNumber);
           console.putTicks(entry.predictedTicks);
           if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
             console.printf(" [Err: %dt, %dmm]", entry.timeErrorTicks, entry.distErrorMm);

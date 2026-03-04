@@ -1,4 +1,4 @@
-#include "can_server.h"
+#include "can_server_task.h"
 
 #include "kernel/devices/mcp2515.h"
 #include "kernel/syscalls.h"

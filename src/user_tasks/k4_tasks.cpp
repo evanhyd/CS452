@@ -1,17 +1,17 @@
 #include "k4_tasks.h"
 
-#include "command_router.h"
-#include "dispatcher_server.h"
 #include "helper_tasks.h"
-#include "track_server.h"
-#include "train_server.h"
-#include "ui_server.h"
+#include "marklin_dispatcher_server_task.h"
+#include "train_track_server_task.h"
+#include "ui_controller_task.h"
+#include "ui_view_server_task.h"
 
 #include "kernel/syscalls.h"
-#include "server_tasks/can_server.h"
-#include "server_tasks/clock_server.h"
-#include "server_tasks/io_server.h"
-#include "server_tasks/name_server.h"
+#include "system_tasks/can_server_task.h"
+#include "system_tasks/clock_server_task.h"
+#include "system_tasks/io_server_task.h"
+#include "system_tasks/name_server_task.h"
+#include "user_tasks/marklin_event_listener_task.h"
 #include "util/debug.h"
 
 void k4::FirstUserTask() {
@@ -28,12 +28,11 @@ void k4::FirstUserTask() {
     logError("failed to create clock server task");
   }
 
-  ::Create(2, k4::uiServerTask);
-  ::Create(2, k4::dispatcherServerTask);
-  ::Create(2, k4::trainServerTask);
-  ::Create(2, k4::trackServerTask);
+  ::Create(2, k4::uiViewServerTask);
+  ::Create(2, k4::marklinDispatcherServerTask);
+  ::Create(2, k4::trainTrackTask);
 
   ::Create(3, k4::clockTask);
-  ::Create(4, k4::commandRouterTask);
-  ::Create(5, k4::eventListenerTask);
+  ::Create(4, k4::uiControllerTask);
+  ::Create(5, k4::marklinEventListenerTask);
 }

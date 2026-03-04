@@ -60,6 +60,6 @@ struct MMessage {
   static MMessage setTrainDirection(uint8_t trainNumber, TrainDirection direction);
   static MMessage getTrainFunctionState(uint8_t trainNumber, TrainFunction function);
   static MMessage setTrainFunctionState(uint8_t trainNumber, TrainFunction function, uint8_t value);
-  static MMessage setSwitchState(uint8_t switchNumber, SwitchState state, bool isSolenoidActive);
+  static MMessage setSwitchState(uint8_t switchNumber, SwitchState state);
 };
 } // namespace marklin

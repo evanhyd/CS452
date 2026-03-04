@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "kernel/devices/uart.h"
-#include "server_tasks/io_server.h"
+#include "system_tasks/io_server_task.h"
 
 namespace kit {
 

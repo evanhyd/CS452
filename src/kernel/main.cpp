@@ -1,13 +1,13 @@
 #include "kernel/devices/gic.h"
 #include "kernel/devices/gpio.h"
-#include "k4_tasks/k4_tasks.h"
 #include "kernel/devices/mcp2515.h"
 #include "kernel/devices/spi.h"
+#include "kernel/devices/timer.h"
+#include "kernel/devices/uart.h"
 #include "kernel/syscall_task_handler.h"
 #include "kernel/task_manager.h"
 #include "kernel/task_queue.h"
-#include "kernel/devices/timer.h"
-#include "kernel/devices/uart.h"
+#include "user_tasks/k4_tasks.h"
 
 #ifdef __OPTIMIZE__
 #define OPT "opt"

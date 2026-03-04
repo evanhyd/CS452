@@ -1,11 +1,11 @@
-#include "dispatcher_server.h"
+#include "marklin_dispatcher_server_task.h"
 
-#include "k4_tasks/send_util.h"
 #include "message.h"
+#include "send_util.h"
 
 #include "kernel/syscalls.h"
 #include "marklin/marklin_message.h"
-#include "server_tasks/can_server.h"
+#include "system_tasks/can_server_task.h"
 #include "util/ctfmt.h"
 #include "util/debug.h"
 #include "util/history.h"
@@ -20,15 +20,17 @@ namespace {
 
 constexpr unsigned ACK_TIMEOUT_TICKS = 100; // 1 second
 
-// Responsible for queueing the commands, tracking the acknowledge status, and round-trip delay.
+// Responsible for queueing the commands,
+// tracking the acknowledge status,
+// and calculating the round-trip delay.
 struct DispatcherState {
   History<CmdHistoryEntry, CMD_HISTORY_SIZE> cmdHistory;
-  RingBuffer<marklin::MMessage, 256> canSendBuffer;
+  RingBuffer<marklin::MMessage, 256> cmdBuffer;
   unsigned currentTicks = 0;
   int canServerTid = -1;
 
   // Return true if the last sent command is acknowledged or timed out.
-  bool lastCommandAcked() const {
+  bool isLastCommandAcked() const {
     if (cmdHistory.empty()) {
       return true;
     }
@@ -38,23 +40,23 @@ struct DispatcherState {
 
   // Request to send a marklin message.
   // If the queue is not empty, then append to the queue buffer.
-  void sendCAN(const marklin::MMessage& msg) {
-    if (canSendBuffer.empty() && lastCommandAcked()) {
+  void sendCommand(const marklin::MMessage& msg) {
+    if (cmdBuffer.empty() && isLastCommandAcked()) {
       ::TransmitCAN(canServerTid, msg);
       cmdHistory.push({msg, currentTicks, NOT_ACKED});
     } else {
-      if (!canSendBuffer.full()) {
-        canSendBuffer.push(msg);
+      if (!cmdBuffer.full()) {
+        cmdBuffer.push(msg);
       }
     }
   }
 
-  // Try send as many marklin messages as possible unless there's any message that not acknowledge.
+  // Try send as many marklin messages as possible until the first unacknowledged message.
   // Returns true if it sends at least one message.
-  bool tryFlushCanBuffer() {
+  bool tryFlushCommandBuffer() {
     bool flushed = false;
-    while (!canSendBuffer.empty() && lastCommandAcked()) {
-      auto msg = canSendBuffer.pop();
+    while (!cmdBuffer.empty() && isLastCommandAcked()) {
+      auto msg = cmdBuffer.pop();
       ::TransmitCAN(canServerTid, msg);
       cmdHistory.push({msg, currentTicks, NOT_ACKED});
       flushed = true;
@@ -64,7 +66,7 @@ struct DispatcherState {
 
   // Mark and calculate the latency of any sent command that matches with the response message.
   // Returns true if there's a match.
-  bool processCanResponse(const marklin::MMessage& response) {
+  bool processResponse(const marklin::MMessage& response) {
     const auto match = [&](const CmdHistoryEntry& entry) {
       if (entry.ackAfter != NOT_ACKED || entry.msg.command != response.command || entry.msg.dlc != response.dlc) {
         return false;
@@ -102,32 +104,32 @@ struct DispatcherState {
 
 } // namespace
 
-// A server that manages the marklin event queues, history, and other meta data.
-void dispatcherServerTask() {
-  if (::RegisterAs(DISPATCHER_SERVER_NAME) < 0) {
-    logError("dispatcher: failed to register");
+// A server sends/receives marklin message,
+// and manages the marklin event queues, history, etc.
+void marklinDispatcherServerTask() {
+  if (::RegisterAs(MARKLIN_DISPATCHER_SERVER_NAME) < 0) {
+    logError("failed to register");
   }
   int canServerTid = ::WhoIs(can_server::CAN_SERVER_NAME);
   if (canServerTid < 0) {
-    logError("dispatcher: failed to find CAN server");
+    logError("failed to find CAN server");
   }
-  int uiServerTid = ::WhoIs(UI_SERVER_NAME);
+  int uiServerTid = ::WhoIs(UI_VIEW_SERVER_NAME);
   if (uiServerTid < 0) {
-    logError("dispatcher: failed to find UI server");
+    logError("failed to find UI server");
   }
 
   DispatcherState state;
   state.canServerTid = canServerTid;
-
   notifyStatusToUI(uiServerTid, "Ready.");
 
   // Enable the system and set all the switches to straight.
-  state.sendCAN(marklin::MMessage::systemGoAll());
+  state.sendCommand(marklin::MMessage::systemGoAll());
   for (uint8_t id = 1; id <= 18; ++id) {
-    state.sendCAN(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight, true));
+    state.sendCommand(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
   }
   for (uint8_t id = 153; id <= 156; ++id) {
-    state.sendCAN(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight, true));
+    state.sendCommand(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
   }
   state.notifyCmdHistoryToUI(uiServerTid);
 
@@ -138,21 +140,21 @@ void dispatcherServerTask() {
     ::Reply(senderTid, "", 0);
 
     switch (msg.type) {
-    case DispatcherMsgType::QueueCommand: {
-      state.sendCAN(msg.mmsg);
+    case DispatcherMsgType::SendMsg: {
+      state.sendCommand(msg.mmsg);
       state.notifyCmdHistoryToUI(uiServerTid);
       break;
     }
-    case DispatcherMsgType::CanResponse: {
-      if (state.processCanResponse(msg.mmsg)) {
-        state.tryFlushCanBuffer();
+    case DispatcherMsgType::ReceiveMsg: {
+      if (state.processResponse(msg.mmsg)) {
+        state.tryFlushCommandBuffer();
       }
       state.notifyCmdHistoryToUI(uiServerTid);
       break;
     }
     case DispatcherMsgType::TimerTick: {
       state.currentTicks = msg.time.ticks;
-      if (state.tryFlushCanBuffer()) {
+      if (state.tryFlushCommandBuffer()) {
         state.notifyCmdHistoryToUI(uiServerTid);
       }
       break;

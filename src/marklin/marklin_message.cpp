@@ -73,9 +73,9 @@ MMessage MMessage::setTrainFunctionState(uint8_t trainNumber, TrainFunction func
   return MMessage::base(0, Command::TrainFunction, sizeof(data), data);
 }
 
-MMessage MMessage::setSwitchState(uint8_t switchNumber, SwitchState state, bool isSolenoidActive) {
+MMessage MMessage::setSwitchState(uint8_t switchNumber, SwitchState state) {
   --switchNumber; // 0 base index
-  uint8_t data[] = {0x00, 0x00, SWITCH_BASE, switchNumber, uint8_t(state), (uint8_t)isSolenoidActive};
+  uint8_t data[] = {0x00, 0x00, SWITCH_BASE, switchNumber, uint8_t(state), 1};
   return MMessage::base(0, Command::AccessoriesSwitching, sizeof(data), data);
 }
 } // namespace marklin

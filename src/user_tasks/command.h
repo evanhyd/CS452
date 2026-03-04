@@ -1,5 +1,6 @@
 #pragma once
 
+#include "marklin/marklin_train_track.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -18,15 +19,15 @@ struct ParsedCommand {
   CmdTag tag;
   struct Empty {};
   struct SetSpeedData {
-    unsigned trainNo;
+    unsigned trainId;
     unsigned speed;
   };
   struct ReverseData {
-    unsigned trainNo;
+    unsigned trainId;
   };
   struct SetSwitchData {
-    unsigned switchNo;
-    bool straight;
+    unsigned switchId;
+    marklin::SwitchState state;
   };
   struct InvalidData {
     const char* usage;

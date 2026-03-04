@@ -1,5 +1,5 @@
 #pragma once
 
 namespace k4 {
-void uiServerTask();
+void uiViewServerTask();
 } // namespace k4

@@ -1,4 +1,5 @@
 #include "command.h"
+#include "marklin/marklin_train_track.h"
 
 namespace cmd {
 
@@ -82,11 +83,11 @@ ParsedCommand CommandBuffer::parse_impl() {
     if (ptr == end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
-    bool direction;
+    marklin::SwitchState state;
     if (ptr[0] == 'S' || ptr[0] == 's') {
-      direction = true;
+      state = marklin::SwitchState::Straight;
     } else if (ptr[0] == 'C' || ptr[0] == 'c') {
-      direction = false;
+      state = marklin::SwitchState::Curved;
     } else {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
@@ -95,7 +96,7 @@ ParsedCommand CommandBuffer::parse_impl() {
     if (ptr != end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
-    return {.tag = CmdTag::SetSwitch, .setSwitch{switch_no, direction}};
+    return {.tag = CmdTag::SetSwitch, .setSwitch{switch_no, state}};
   }
   if (length_ >= 1 && ptr[0] == 'q') {
     ptr += 1;

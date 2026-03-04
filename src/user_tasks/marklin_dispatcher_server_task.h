@@ -1,5 +1,5 @@
 #pragma once
 
 namespace k4 {
-void dispatcherServerTask();
+void marklinDispatcherServerTask();
 } // namespace k4

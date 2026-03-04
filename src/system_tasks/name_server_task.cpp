@@ -1,4 +1,4 @@
-#include "name_server.h"
+#include "name_server_task.h"
 
 #include "kernel/devices/uart.h"
 #include "kernel/syscalls.h"
