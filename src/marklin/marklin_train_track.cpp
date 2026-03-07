@@ -5,9 +5,9 @@ namespace marklin {
 TrainTrackState::TrainTrackState() {
   // ALl trains to idle.
   for (TrainState& train : trains) {
-    train.speed = 0;
+    train.speedLevel = 0;
     train.forward = true;
-    train.state = TrainState::State::Idle;
+    train.motionState = TrainState::MotionState::Idle;
     train.touched = false;
     train.reverseCountdownTicks = 0;
   }
@@ -2369,13 +2369,15 @@ TrainTrackState::TrainTrackState() {
   trackB[139].reverse = &trackB[138];
 }
 
+TrainState& TrainTrackState::getTrainStateRef(uint8_t id) { return trains[id - 1]; }
+
 SwitchState TrainTrackState::getSwitchState(uint8_t id) const { return switches[getSwitchIndex(id)]; }
 
 void TrainTrackState::setSwitchState(uint8_t id, SwitchState switchState) {
   switches[getSwitchIndex(id)] = switchState;
 }
 
-void TrainTrackState::setCurrentTrack(int trackId) { currentTrack = trackId; }
+void TrainTrackState::setCurrentTrack(uint8_t trackId) { currentTrack = trackId; }
 
 TrackSet& TrainTrackState::getCurrentTrack() { return currentTrack == 0 ? trackA : trackB; }
 

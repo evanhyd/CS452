@@ -1,0 +1,19 @@
+if (msg.sensorEvent.bank == 'E' && msg.sensorEvent.number == 8) {
+  notify(trainServerTid, TrainMsg{.type = TrainMsgType::SetSpeed, .setSpeed{.trainNo = 15, .speed = 0}});
+}
+
+Speed, Distance (mm)
+1, 2.1
+2, 3.6
+3, 5.6
+4, 9.5
+5, 13.1
+6, 19.8
+7, 26.4
+8, 37.8
+9, 42.7
+10, 57.9
+11, 76.6
+12, 98.0
+13, 118.4
+14, 152.3

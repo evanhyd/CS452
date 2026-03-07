@@ -1,6 +1,5 @@
 #pragma once
 #include "marklin/marklin_message.h"
-#include "kernel/devices/mcp2515.h"
 
 namespace marklin {
 struct MMessage;

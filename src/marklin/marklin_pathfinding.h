@@ -2,9 +2,8 @@
 #include "marklin_train_track.h"
 
 namespace marklin {
-inline TrackNode* getNextSensor(TrainTrackState& state, TrackNode* current, int& outDist) {
-  outDist = 0;
-  TrackNode* node = current;
+inline const TrackNode* getNextSensor(TrainTrackState& state, const TrackNode* current, unsigned& outDist) {
+  const TrackNode* node = current;
   while (node != nullptr && node->type != TrackNode::Type::Sensor) {
     if (node->type == TrackNode::Type::Exit) {
       return nullptr;

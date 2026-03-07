@@ -12,6 +12,9 @@ enum class CmdTag : uint8_t {
   SetSpeed,
   Reverse,
   SetSwitch,
+  SetTrack,
+  Loop,
+  Goto,
   Quit,
 };
 
@@ -29,6 +32,16 @@ struct ParsedCommand {
     unsigned switchId;
     marklin::SwitchState state;
   };
+  struct SetTrackData {
+    uint8_t trackId;
+  };
+  struct LoopData {
+    unsigned trainId;
+  };
+  struct GotoData {
+    unsigned trainId;
+    char location[16];
+  };
   struct InvalidData {
     const char* usage;
   };
@@ -37,6 +50,9 @@ struct ParsedCommand {
     SetSpeedData setSpeed;
     ReverseData reverse;
     SetSwitchData setSwitch;
+    SetTrackData setTrack;
+    LoopData loop;
+    GotoData go;
     InvalidData invalid;
   };
 };

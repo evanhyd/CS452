@@ -5,3 +5,16 @@
 -fno-rtti
 -DMMU
 -Isrc
+-Wall
+-Wextra
+-Wpedantic
+-Wno-unused-const-variable
+-Werror=shadow
+-Wconversion
+-Wsign-conversion
+-Wcast-align
+-Wstrict-aliasing
+-Wreorder
+-Wuninitialized
+-Wdouble-promotion
+-Wvirtual-move-assign

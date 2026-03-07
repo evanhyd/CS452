@@ -11,7 +11,7 @@ const char* a2ui(const char* start, const char* end, unsigned& out) {
     if (*start < '0' || *start > '9') {
       break;
     }
-    out = out * 10 + (*start - '0');
+    out = out * 10 + static_cast<unsigned>(*start - '0');
   }
   return start;
 }
@@ -19,6 +19,9 @@ const char* a2ui(const char* start, const char* end, unsigned& out) {
 constexpr const char* USAGE_TR = "tr <train number> <train speed> - Set train speed";
 constexpr const char* USAGE_RV = "rv <train number> - Reverse train direction";
 constexpr const char* USAGE_SW = "sw <switch number> <switch direction> - Set switch to straight (S) or curved (C)";
+constexpr const char* USAGE_ST = "st <track number> - Set track to A or B";
+constexpr const char* USAGE_LOOP = "loop <train number> - Send train to the captive loop";
+constexpr const char* USAGE_GOTO = "goto <train number> <location> - Send train to a track node (e.g. A5, BR15)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
 } // namespace
@@ -98,6 +101,18 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     return {.tag = CmdTag::SetSwitch, .setSwitch{switch_no, state}};
   }
+  if (length_ >= 2 && ptr[0] == 's' && ptr[1] == 't') {
+    ptr += 2;
+    skip_ws();
+    char trackLetter = *ptr;
+    if (trackLetter == 'a' || trackLetter == 'A') {
+      return {.tag = CmdTag::SetTrack, .setTrack{0}};
+    }
+    if (trackLetter == 'b' || trackLetter == 'B') {
+      return {.tag = CmdTag::SetTrack, .setTrack{1}};
+    }
+    return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
+  }
   if (length_ >= 1 && ptr[0] == 'q') {
     ptr += 1;
     skip_ws();
@@ -105,6 +120,54 @@ ParsedCommand CommandBuffer::parse_impl() {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_Q}};
     }
     return {.tag = CmdTag::Quit, .empty{}};
+  }
+  if (length_ >= 4 && ptr[0] == 'l' && ptr[1] == 'o' && ptr[2] == 'o' && ptr[3] == 'p') {
+    ptr += 4;
+    skip_ws();
+    unsigned train_no;
+    next = a2ui(ptr, end(), train_no);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_LOOP}};
+    }
+    ptr = next;
+    skip_ws();
+    if (ptr != end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_LOOP}};
+    }
+    return {.tag = CmdTag::Loop, .loop{train_no}};
+  }
+  if (length_ >= 4 && ptr[0] == 'g' && ptr[1] == 'o' && ptr[2] == 't' && ptr[3] == 'o') {
+    ptr += 4;
+    skip_ws();
+    unsigned train_no;
+    next = a2ui(ptr, end(), train_no);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    ptr = next;
+    skip_ws();
+    if (ptr == end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    const char* locStart = ptr;
+    while (ptr < end() && *ptr != ' ') {
+      ++ptr;
+    }
+    size_t locLen = static_cast<size_t>(ptr - locStart);
+    if (locLen == 0 || locLen >= 16) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    skip_ws();
+    if (ptr != end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    ParsedCommand result{.tag = CmdTag::Goto, .go{}};
+    result.go.trainId = train_no;
+    for (size_t i = 0; i < locLen; ++i) {
+      result.go.location[i] = locStart[i];
+    }
+    result.go.location[locLen] = '\0';
+    return result;
   }
   return {.tag = CmdTag::None, .empty{}};
 }

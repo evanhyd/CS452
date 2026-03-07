@@ -17,8 +17,11 @@ constexpr unsigned ROW_SWITCHES = 3;
 constexpr unsigned ROW_SENSORS = 3;
 constexpr unsigned COL_SENSORS = 30;
 constexpr unsigned ROW_CMD_HISTORY = 20;
-constexpr unsigned ROW_STATUS = 38;
-constexpr unsigned ROW_PROMPT = 40;
+constexpr unsigned ROW_TRAIN_STATE = 38;
+constexpr unsigned ROW_STATUS = 40;
+constexpr unsigned ROW_PROMPT = 42;
+
+constexpr unsigned CMD_HISTORY_DEBOUNCE_TICKS = 10;
 
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
@@ -63,6 +66,38 @@ void uiViewServerTask() {
   console.moveCursor(ROW_PROMPT, 1);
   console.puts("> ");
 
+  bool cmdHistoryDirty = false;
+  unsigned cmdHistoryDrawnTicks = 0;
+  UIMsg::CmdHistoryData cmdHistoryToDraw;
+
+  auto maybeDrawCmdHistory = [&](unsigned currentTicks) {
+    if (cmdHistoryDirty && currentTicks - cmdHistoryDrawnTicks >= CMD_HISTORY_DEBOUNCE_TICKS) {
+      cmdHistoryDrawnTicks = currentTicks;
+      cmdHistoryDirty = false;
+      console.moveCursor(ROW_CMD_HISTORY, 1);
+      console.puts("Command history:");
+      for (unsigned row = 0; row < cmdHistoryToDraw.count; ++row) {
+        const auto& entry = cmdHistoryToDraw.entries[row];
+        console.moveCursor(ROW_CMD_HISTORY + 1 + row, 1);
+        console.putTicks(entry.sentTicks);
+        console.putc(' ');
+        console.putByte(static_cast<uint8_t>(entry.msg.command));
+        console.putc(' ');
+        for (unsigned d = 0; d < 8; ++d) {
+          if (d < entry.msg.dlc) {
+            console.putByte(entry.msg.data[d]);
+          } else {
+            console.puts("..");
+          }
+        }
+        if (entry.ackAfter != NOT_ACKED) {
+          console.printf(" ack %u ticks", entry.ackAfter);
+        }
+        console.clearToEol();
+      }
+    }
+  };
+
   UIMsg msg;
   for (;;) {
     int senderTid;
@@ -94,6 +129,7 @@ void uiViewServerTask() {
     case UIMsgType::DrawSystemTime: {
       console.moveCursor(ROW_SYSTEM_TIME, 1);
       console.putTimestamp(msg.time.ticks);
+      maybeDrawCmdHistory(msg.time.ticks);
       break;
     }
     case k4::UIMsgType::DrawIdleTime: {
@@ -117,12 +153,10 @@ void uiViewServerTask() {
         const auto& entry = msg.sensors.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
         console.putTicks(entry.ticks);
-        char sensorBank = 'A' + static_cast<char>(entry.event.id / 16);
-        uint8_t sensorNumber = static_cast<uint8_t>(entry.event.id % 16 + 1);
+        auto [sensorBank, sensorNumber] = marklin::idToSensor(entry.event.id);
         console.printf(" %c%u", sensorBank, sensorNumber);
         if (entry.hasPrediction) {
-          char predictedBank = 'A' + static_cast<char>(entry.predictedId / 16);
-          uint8_t predictedNumber = static_cast<uint8_t>(entry.predictedId % 16 + 1);
+          auto [predictedBank, predictedNumber] = marklin::idToSensor(entry.predictedId);
           console.printf(" -> Exp: %c%u @ ", predictedBank, predictedNumber);
           console.putTicks(entry.predictedTicks);
           if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
@@ -134,28 +168,18 @@ void uiViewServerTask() {
       break;
     }
     case UIMsgType::RedrawCmdHistory: {
-      console.moveCursor(ROW_CMD_HISTORY, 1);
-      console.puts("Command history:");
-      for (unsigned row = 0; row < msg.cmdHistory.count; ++row) {
-        const auto& entry = msg.cmdHistory.entries[row];
-        console.moveCursor(ROW_CMD_HISTORY + 1 + row, 1);
-        console.putTicks(entry.sentTicks);
-        console.putc(' ');
-        console.putByte(static_cast<uint8_t>(entry.msg.command));
-        console.putc(' ');
-        for (unsigned d = 0; d < 8; ++d) {
-          if (d < entry.msg.dlc) {
-            console.putByte(entry.msg.data[d]);
-          } else {
-            console.puts("..");
-          }
-        }
-        if (entry.ackAfter != NOT_ACKED) {
-          console.printf(" ack %u ticks", entry.ackAfter);
-        }
-        console.clearToEol();
-      }
+      cmdHistoryToDraw = msg.cmdHistory;
+      cmdHistoryDirty = true;
       break;
+    }
+    case UIMsgType::TrainState: {
+      const auto& t = msg.trainState.state;
+      console.moveCursor(ROW_TRAIN_STATE, 1);
+      console.printf(
+          "Train: Speed Lvl %u, Est Speed %d um/tick, Est Accel %d um/tick^2, Last sensor %s, Pos Offset %d um",
+          t.speedLevel, t.estimatedSpeed, t.estimatedAcceleration, t.lastSensorNode ? t.lastSensorNode->name : "None",
+          t.positionOffset);
+      console.clearToEol();
     }
     }
   }

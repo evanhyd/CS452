@@ -19,7 +19,7 @@ struct SensorHistoryEntry {
   marklin::SensorTriggeredEvent event;
   unsigned ticks;
   bool hasPrediction;
-  uint32_t predictedId;
+  uint8_t predictedId;
   unsigned predictedTicks;
   int timeErrorTicks;
   int distErrorMm;
@@ -54,6 +54,9 @@ enum class TrainTrackMsgType : int {
   SetSpeedCmd,
   ReverseCmd,
   SetSwitchCmd,
+  SetTrackCmd,
+  LoopCmd,
+  GotoCmd,
   SensorEvent,
   TimerTick,
 };
@@ -72,10 +75,23 @@ struct TrainTrackMsg {
     uint8_t switchId;
     marklin::SwitchState state;
   };
+  struct SetTrackCmdData {
+    uint8_t trackId;
+  };
+  struct LoopCmdData {
+    uint8_t trainId;
+  };
+  struct GotoCmdData {
+    uint8_t trainId;
+    char location[16];
+  };
   union {
     SetSpeedCmdData setSpeedCmd;
     ReverseCmdData reverseCmd;
     SetSwitchCmdData setSwitchCmd;
+    SetTrackCmdData setTrackCmd;
+    LoopCmdData loopCmd;
+    GotoCmdData gotoCmd;
     marklin::SensorTriggeredEvent sensorEvent;
     TimeData time;
   };
@@ -92,6 +108,7 @@ enum class UIMsgType : int {
   UpdateSwitch,
   RedrawSensors,
   RedrawCmdHistory,
+  TrainState,
 };
 
 struct UIMsg {
@@ -127,6 +144,10 @@ struct UIMsg {
     unsigned count;
   };
 
+  struct TrainStateData {
+    marklin::TrainState state;
+  };
+
   union {
     Empty empty;
     PromptInsertData promptInsert;
@@ -136,6 +157,7 @@ struct UIMsg {
     SwitchUpdateData switchUpdate;
     SensorsData sensors;
     CmdHistoryData cmdHistory;
+    TrainStateData trainState;
   };
 };
 

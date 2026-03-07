@@ -32,7 +32,7 @@ void k4::FirstUserTask() {
   ::Create(2, k4::marklinDispatcherServerTask);
   ::Create(2, k4::trainTrackTask);
 
-  ::Create(3, k4::clockTask);
-  ::Create(4, k4::uiControllerTask);
-  ::Create(5, k4::marklinEventListenerTask);
+  ::Create(0, k4::clockTask);
+  ::Create(0, k4::marklinEventListenerTask);
+  ::Create(0, k4::uiControllerTask);
 }
