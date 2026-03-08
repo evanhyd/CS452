@@ -34,14 +34,25 @@ void sendAllSwitchesToUI(int uiTid, marklin::TrainTrackState& ttState) {
   }
 }
 
-void sendSensorsToUI(int uiTid, const History<SensorHistoryEntry, SENSOR_HISTORY_SIZE>& history) {
+void sendSensorHistoryToUI(int uiTid, const History<SensorHistoryEntry, SENSOR_HISTORY_SIZE>& history) {
   UIMsg ui;
   ui.type = UIMsgType::RedrawSensors;
   unsigned idx = 0;
   for (const auto& e : history) {
-    ui.sensors.entries[idx++] = e;
+    ui.sensorHistory.entries[idx++] = e;
   }
-  ui.sensors.count = idx;
+  ui.sensorHistory.count = idx;
+  notify(uiTid, ui);
+}
+
+void sendTrainHistoryToUI(int uiTid, const History<TrainHistoryEntry, TRAIN_HISTORY_SIZE>& history) {
+  UIMsg ui;
+  ui.type = UIMsgType::TrainHistory;
+  unsigned idx = 0;
+  for (const auto& e : history) {
+    ui.trainHistory.entries[idx++] = e;
+  }
+  ui.trainHistory.count = idx;
   notify(uiTid, ui);
 }
 
@@ -53,9 +64,9 @@ void initTrain(int dispatcherTid, marklin::TrainTrackState& ttState, marklin::Tr
     sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainDirection(trainId, marklin::TrainDirection::Forward));
 
     // hardcoded start: between B9/B10 and A5/A6, facing towards A5, so last sensor is B9
+    // TODO: remove me, get id form looping instead.
     t.lastVisitedNodeId = marklin::sensorToTrackNodeId({'B', 9});
   }
-  ttState.theTrain = trainId;
 }
 
 } // namespace
@@ -77,6 +88,7 @@ void trainTrackTask() {
   uint32_t lastTrainUIRefreshTicks = 0;
   marklin::TrainTrackState ttState{};
   History<SensorHistoryEntry, SENSOR_HISTORY_SIZE> sensorHistory;
+  History<TrainHistoryEntry, TRAIN_HISTORY_SIZE> trainHistory;
 
   sendAllSwitchesToUI(uiTid, ttState);
 
@@ -92,60 +104,64 @@ void trainTrackTask() {
       // Check argument ranges.
       marklin::TrainId trainId = msg.setSpeedCmd.trainId;
       marklin::SpeedLevel speedLevel = msg.setSpeedCmd.speedLevel;
-      if (speedLevel > 14) {
+      if (!marklin::isValidSpeedLevel(speedLevel)) {
         logError("invalid train speed level");
       }
-      if (trainId == 0 || trainId > marklin::NUM_TRAINS) {
+      if (!marklin::isValidTrainId(trainId)) {
         logError("invalid train id");
       }
 
-      // Dispatch commands.
+      // Check busy status.
       initTrain(dispatcherTid, ttState, trainId);
       marklin::Train& t = ttState.getTrainRef(trainId);
-      t.speedLevel = speedLevel;
-      if (t.motionState == marklin::Train::MotionState::Idle) {
-        // If reversing, will set speed after reverse countdown finishes.
-        sendToDispatcher(dispatcherTid,
-                         marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
+      if (t.action != marklin::Train::Action::Idle) {
+        notifyStatusToUI(uiTid, "Train %u is busy right now.", trainId);
+        break;
       }
+
+      // Change speed.
+      t.speedLevel = speedLevel;
+      sendToDispatcher(dispatcherTid,
+                       marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
       notifyStatusToUI(uiTid, "Set train %u to speed %u.", trainId, speedLevel);
       break;
     }
     case TrainTrackMsgType::ReverseCmd: {
       marklin::TrainId trainId = msg.reverseCmd.trainId;
-      if (trainId == 0 || trainId > marklin::NUM_TRAINS) {
+      if (!marklin::isValidTrainId(trainId)) {
         logError("invalid train id");
       }
 
+      // Check busy status.
       initTrain(dispatcherTid, ttState, trainId);
       marklin::Train& t = ttState.getTrainRef(trainId);
-      if (t.motionState == marklin::Train::MotionState::Reversing) {
-        // already reversing, cancel existing reverse command
-        t.motionState = marklin::Train::MotionState::Idle;
-        notifyStatusToUI(uiTid, "Cancelled reversing train %u.", trainId);
-        sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainSpeed(trainId, t.speedLevel));
+      if (t.action != marklin::Train::Action::Idle) {
+        notifyStatusToUI(uiTid, "Train %u is busy right now.", trainId);
         break;
       }
 
-      // stop the train
-      sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainSpeed(trainId, 0));
-
-      // begin reverse countdown
-      t.motionState = marklin::Train::MotionState::Reversing;
+      // Perform reversing.
+      t.action = marklin::Train::Action::Reversing;
       t.reverseCountdownTicks = 50 + static_cast<unsigned>(t.speedLevel) * 25;
-
+      sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainSpeed(trainId, 0));
       notifyStatusToUI(uiTid, "Reversing train %u in %u ticks.", trainId, t.reverseCountdownTicks);
       break;
     }
     case TrainTrackMsgType::SetSwitchCmd: {
-      ttState.setSwitchState(msg.setSwitchCmd.switchId, msg.setSwitchCmd.state);
-      sendToDispatcher(dispatcherTid,
-                       marklin::MMessage::setSwitchState(msg.setSwitchCmd.switchId, msg.setSwitchCmd.state));
-      sendSwitchToUI(uiTid, msg.setSwitchCmd.switchId, msg.setSwitchCmd.state);
+      marklin::SwitchId switchId = msg.setSwitchCmd.switchId;
+      marklin::SwitchState switchState = msg.setSwitchCmd.state;
+      if (!marklin::isValidSwitchId(switchId)) {
+        logError("invalid switch id");
+      }
+
+      ttState.setSwitchState(switchId, switchState);
+      sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(switchId, switchState));
+      sendSwitchToUI(uiTid, switchId, switchState);
       break;
     }
     case TrainTrackMsgType::SetTrackCmd: {
       ttState.setCurrentTrack(msg.setTrackCmd.trackId);
+      notifyStatusToUI(uiTid, "Switched track to %c.", (msg.setTrackCmd.trackId == 0 ? 'A' : 'B'));
       break;
     }
     case TrainTrackMsgType::SensorEvent: {
@@ -156,7 +172,6 @@ void trainTrackTask() {
       // Get the train track and the owner train info.
       marklin::TrackNodeId trackNodeId = msg.sensorEvent.id;
       marklin::TrackNode* trackNode = &ttState.getTrackNodeRef(trackNodeId);
-      trackNode->trainOwnerId = ttState.theTrain; // TODO:  remove me
 
       // Calculate the error for the previous sensor history.
       marklin::Speed estSpeed = ttState.getTrainRef(trackNode->trainOwnerId).estimatedSpeed;
@@ -192,93 +207,99 @@ void trainTrackTask() {
         }
       }
       sensorHistory.push(newEntry);
-      sendSensorsToUI(uiTid, sensorHistory);
+      sendSensorHistoryToUI(uiTid, sensorHistory);
 
       // Recalibrate train's motion state.
       marklin::calibrateTrainFromTrackNode(ttState, msg.sensorEvent.id, currentTicks);
       break;
     }
-    // case TrainTrackMsgType::LoopCmd: {
-    //   uint8_t trainId = msg.loopCmd.trainId;
-    //   if (trainId == 0 || trainId > marklin::NUM_TRAINS) {
-    //     notifyStatusToUI(uiTid, "Invalid train id for loop.");
-    //     break;
-    //   }
-    //   initTrain(dispatcherTid, ttState, trainId);
-    //   marklin::TrainState& t = ttState.getTrainStateRef(trainId);
-    //   const marklin::TrackNode* startNode = t.lastSensorNode;
-    //   if (startNode == nullptr) {
-    //     notifyStatusToUI(uiTid, "Train %u has no known location.", trainId);
-    //     break;
-    //   }
+    case TrainTrackMsgType::GotoCmd: {
+      uint8_t trainId = msg.gotoCmd.trainId;
+      if (trainId == 0 || trainId > marklin::NUM_TRAINS) {
+        notifyStatusToUI(uiTid, "Invalid train id for goto.");
+        break;
+      }
+      initTrain(dispatcherTid, ttState, trainId);
 
-    //   const marklin::TrackNode* targetNode = bfsAndSetSwitches(startNode, isNodeInLoop, ttState, dispatcherTid,
-    //   uiTid); if (targetNode == nullptr) {
-    //     notifyStatusToUI(uiTid, "No path found to the loop from %s.", startNode->name);
-    //   } else {
-    //     notifyStatusToUI(uiTid, "Path set from %s to loop node %s.", startNode->name, targetNode->name);
-    //   }
-    //   break;
-    // }
-    // case TrainTrackMsgType::GotoCmd: {
-    //   uint8_t trainId = msg.gotoCmd.trainId;
-    //   if (trainId == 0 || trainId > marklin::NUM_TRAINS) {
-    //     notifyStatusToUI(uiTid, "Invalid train id for goto.");
-    //     break;
-    //   }
-    //   initTrain(dispatcherTid, ttState, trainId);
-    //   marklin::TrainState& t = ttState.getTrainStateRef(trainId);
-    //   const marklin::TrackNode* startNode = t.lastSensorNode;
-    //   if (startNode == nullptr) {
-    //     notifyStatusToUI(uiTid, "Train %u has no known location.", trainId);
-    //     break;
-    //   }
+      marklin::Train& train = ttState.getTrainRef(trainId);
+      if (train.action != marklin::Train::Action::Idle) {
+        notifyStatusToUI(uiTid, "Please wait until train finishes the current action.");
+        break;
+      }
 
-    //   const marklin::TrackNode* destNode = findNodeByName(ttState, msg.gotoCmd.location);
-    //   if (destNode == nullptr) {
-    //     notifyStatusToUI(uiTid, "Unknown track node '%s'.", msg.gotoCmd.location);
-    //     break;
-    //   }
+      // Enter the loop.
 
-    //   uint32_t destId = destNode->id;
-    //   auto isGoal = [destId](const marklin::TrackNode* node) { return node->id == destId; };
-    //   const marklin::TrackNode* targetNode = bfsAndSetSwitches(startNode, isGoal, ttState, dispatcherTid, uiTid);
-    //   if (targetNode == nullptr) {
-    //     notifyStatusToUI(uiTid, "No path found from %s to %s.", startNode->name, destNode->name);
-    //   } else {
-    //     notifyStatusToUI(uiTid, "Path set from %s to %s.", startNode->name, targetNode->name);
-    //   }
-    //   break;
-    // }
+      //   const marklin::TrackNode* startNode = train.lastVisitedNodeId;
+      //   if (startNode == nullptr) {
+      //     notifyStatusToUI(uiTid, "Train %u has no known location.", trainId);
+      //     break;
+      //   }
+
+      //   const marklin::TrackNode* destNode = findNodeByName(ttState, msg.gotoCmd.location);
+      //   if (destNode == nullptr) {
+      //     notifyStatusToUI(uiTid, "Unknown track node '%s'.", msg.gotoCmd.location);
+      //     break;
+      //   }
+
+      //   uint32_t destId = destNode->id;
+      //   auto isGoal = [destId](const marklin::TrackNode* node) { return node->id == destId; };
+      //   const marklin::TrackNode* targetNode = bfsAndSetSwitches(startNode, isGoal, ttState, dispatcherTid, uiTid);
+      //   if (targetNode == nullptr) {
+      //     notifyStatusToUI(uiTid, "No path found from %s to %s.", startNode->name, destNode->name);
+      //   } else {
+      //     notifyStatusToUI(uiTid, "Path set from %s to %s.", startNode->name, targetNode->name);
+      //   }
+      break;
+    }
     case TrainTrackMsgType::TimerTick: {
       currentTicks = msg.time.ticks;
-      for (marklin::TrainId trainId = 1; trainId <= marklin::NUM_TRAINS; ++trainId) {
-        marklin::Train& t = ttState.getTrainRef(trainId);
 
-        // Reverse direction
-        if (t.motionState == marklin::Train::MotionState::Reversing && --t.reverseCountdownTicks == 0) {
-          auto reverseDir = t.forward ? marklin::TrainDirection::Backward : marklin::TrainDirection::Forward;
-          sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainDirection(trainId, reverseDir));
-          sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainSpeed(
-                                              trainId, marklin::convertSpeedLevelToCANSpeed(t.speedLevel)));
-          t.forward = !t.forward;
-          t.motionState = marklin::Train::MotionState::Idle;
+      for (marklin::TrainId trainId = 1; trainId <= marklin::NUM_TRAINS; ++trainId) {
+        marklin::Train& train = ttState.getTrainRef(trainId);
+        if (!train.touched) {
+          continue;
+        }
+
+        // Perform action every tick.
+        switch (train.action) {
+        case marklin::Train::Action::Idle: {
+          break;
+        }
+        case marklin::Train::Action::Reversing: {
+          --train.reverseCountdownTicks;
+          if (train.reverseCountdownTicks == 0) {
+            train.action = marklin::Train::Action::Idle;
+            train.forward = !train.forward;
+            auto reverseDir = train.forward ? marklin::TrainDirection::Backward : marklin::TrainDirection::Forward;
+            sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainDirection(trainId, reverseDir));
+            sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainSpeed(
+                                                trainId, marklin::convertSpeedLevelToCANSpeed(train.speedLevel)));
+          }
+          break;
+        }
+        case marklin::Train::Action::Looping: {
+          // TDOO: implement me
+          break;
+        }
         }
 
         // Update the train position
-        t.estimatedOffset += t.estimatedSpeed;
+        train.estimatedOffset += train.estimatedSpeed;
+        if (currentTicks - lastTrainUIRefreshTicks >= 10 && trainHistory.size() < TRAIN_HISTORY_SIZE) {
+          trainHistory.push(TrainHistoryEntry{
+              .trainId = trainId,
+              .lastTrackNodeId = train.lastVisitedNodeId,
+              .estimatedTrackNodeId = train.lastVisitedNodeId,
+              .estimatedOffset = train.estimatedOffset,
+              .estimatedSpeed = train.estimatedSpeed,
+          });
+        }
       }
 
-      // Send state of "theTrain" to UI
-      if (ttState.theTrain != 0 && currentTicks - lastTrainUIRefreshTicks >= 10) {
+      // Send the train states to the UI.
+      if (currentTicks - lastTrainUIRefreshTicks >= 10) {
         lastTrainUIRefreshTicks = currentTicks;
-        marklin::Train& t = ttState.getTrainRef(ttState.theTrain);
-        notify(uiTid, UIMsg{.type = UIMsgType::TrainState,
-                            .trainState{.trainId = ttState.theTrain,
-                                        .lastTrackNodeId = t.lastVisitedNodeId,
-                                        .estimatedTrackNodeId = t.lastVisitedNodeId,
-                                        .estimatedPositionOffset = t.estimatedOffset,
-                                        .estimatedSpeed = t.estimatedSpeed}});
+        sendTrainHistoryToUI(uiTid, trainHistory);
       }
       break;
     }

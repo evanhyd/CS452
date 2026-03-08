@@ -12,7 +12,6 @@ enum class CmdTag : uint8_t {
   Reverse,
   SetSwitch,
   SetTrack,
-  Loop,
   Goto,
   Quit,
 };
@@ -46,13 +45,12 @@ struct ParsedCommand {
   };
   union {
     Empty empty;
-    SetSpeedData setSpeedData;
-    ReverseData reverseData;
-    SetSwitchData setSwitchData;
-    SetTrackData setTrackData;
-    LoopData loopData;
+    SetSpeedData setSpeed;
+    ReverseData reverse;
+    SetSwitchData setSwitch;
+    SetTrackData setTrack;
     GotoData gotoData;
-    InvalidData invalidData;
+    InvalidData invalid;
   };
 };
 

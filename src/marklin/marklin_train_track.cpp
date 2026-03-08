@@ -8,7 +8,7 @@ TrainTrackState::TrainTrackState() {
   for (Train& train : trains) {
     train.speedLevel = 0;
     train.forward = true;
-    train.motionState = Train::MotionState::Idle;
+    train.action = Train::Action::Idle;
     train.touched = false;
     train.reverseCountdownTicks = 0;
   }

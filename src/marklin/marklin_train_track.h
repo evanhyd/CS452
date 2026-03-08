@@ -23,6 +23,7 @@ using TrackId = uint8_t;      // Track A or Track B
 /**********************************
 Magic Constant
 ***********************************/
+static constexpr size_t MAX_SPEED_LEVEL = 14;
 static constexpr size_t NUM_TRAINS = 60;
 static constexpr size_t NUM_TRACK_NODES = 144;
 static constexpr size_t NUM_SWITCHES = 22;
@@ -40,7 +41,7 @@ struct TrackNode;
 struct Train {
   bool touched;
   bool forward;
-  enum class MotionState { Idle, Reversing } motionState;
+  enum class Action { Idle, Reversing, Looping } action;
   unsigned reverseCountdownTicks;
   SpeedLevel speedLevel;
 
@@ -57,12 +58,15 @@ constexpr CANSpeed convertSpeedLevelToCANSpeed(SpeedLevel speedLevel) {
   return static_cast<CANSpeed>(speedLevel > 0 ? 1 + (speedLevel - 1) * 77 : 0);
 }
 
+constexpr bool isValidSpeedLevel(SpeedLevel speedLevel) { return speedLevel <= MAX_SPEED_LEVEL; }
+constexpr bool isValidTrainId(TrainId id) { return 1 <= id && id <= NUM_TRAINS; }
+
 /**********************************
 Switch Definition
 ***********************************/
 enum class SwitchState { Curved, Straight };
 
-constexpr bool isValidSwitchIndex(SwitchId id) { return (id >= 1 && id <= 18) || (id >= 153 && id <= 156); }
+constexpr bool isValidSwitchId(SwitchId id) { return (id >= 1 && id <= 18) || (id >= 153 && id <= 156); }
 
 // Convert switch id to switch array index.
 constexpr size_t getSwitchIndex(SwitchId id) {
@@ -148,8 +152,6 @@ public:
   // Set the current track (0 - A, 1 - B).
   void setCurrentTrack(TrackId id);
   TrackNode& getTrackNodeRef(TrackNodeId id);
-
-  TrainId theTrain = 0;
 };
 
 } // namespace marklin

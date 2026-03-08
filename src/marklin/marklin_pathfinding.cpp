@@ -1,6 +1,6 @@
 #include "marklin/marklin_pathfinding.h"
 #include "marklin/marklin_train_track.h"
-#include "util/debug.h"
+#include "util/kit_algorithm.h"
 #include "util/ring_buffer.h"
 #include "util/static_priority_queue.h"
 #include <limits>
@@ -8,7 +8,9 @@
 namespace marklin {
 
 namespace {
-static constexpr int32_t EWMA_DENOMINATOR = 4;
+constexpr int32_t EWMA_DENOMINATOR = 4;
+constexpr std::array STOP_DISTANCE = {0,     2100,  3600,  5600,  9500,  13100,  19800, 26400,
+                                      37800, 42700, 57900, 76600, 98000, 118400, 152300};
 
 // Return true if the track node is part of the loop.
 bool isNodeInLoop(TrackNodeId id) {
@@ -135,10 +137,8 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId destId) {
 }
 
 void calibrateTrainFromTrackNode(TrainTrackState& ttState, TrackNodeId triggeredTrackId, uint32_t currentTicks) {
-  // TODO: replace currentTicks with estimated network event tick
-  // TODO: assign owner during path planning.
+  // TODO: take network delay into consideration.
   TrackNode& triggeredSensor = ttState.getTrackNodeRef(triggeredTrackId);
-  triggeredSensor.trainOwnerId = ttState.theTrain;
   if (triggeredSensor.trainOwnerId == 0) {
     return;
   }

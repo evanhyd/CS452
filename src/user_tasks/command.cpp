@@ -43,20 +43,20 @@ ParsedCommand CommandBuffer::parse_impl() {
     unsigned trainId, speedLevel;
     next = a2ui(ptr, end(), trainId);
     if (next == ptr) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_TR}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_TR}};
     }
     ptr = next;
     skip_ws();
     next = a2ui(ptr, end(), speedLevel);
     if (next == ptr) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_TR}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_TR}};
     }
     ptr = next;
     skip_ws();
     if (ptr != end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_TR}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_TR}};
     }
-    return {.tag = CmdTag::SetSpeed, .setSpeedData{marklin::TrainId(trainId), marklin::SpeedLevel(speedLevel)}};
+    return {.tag = CmdTag::SetSpeed, .setSpeed{marklin::TrainId(trainId), marklin::SpeedLevel(speedLevel)}};
   }
   if (length_ >= 2 && ptr[0] == 'r' && ptr[1] == 'v') {
     ptr += 2;
@@ -64,14 +64,14 @@ ParsedCommand CommandBuffer::parse_impl() {
     unsigned trainId;
     next = a2ui(ptr, end(), trainId);
     if (next == ptr) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_RV}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
     }
     ptr = next;
     skip_ws();
     if (ptr != end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_RV}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
     }
-    return {.tag = CmdTag::Reverse, .reverseData{marklin::TrainId(trainId)}};
+    return {.tag = CmdTag::Reverse, .reverse{marklin::TrainId(trainId)}};
   }
   if (length_ >= 2 && ptr[0] == 's' && ptr[1] == 'w') {
     ptr += 2;
@@ -79,12 +79,12 @@ ParsedCommand CommandBuffer::parse_impl() {
     unsigned switchId;
     next = a2ui(ptr, end(), switchId);
     if (next == ptr) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_SW}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
     ptr = next;
     skip_ws();
     if (ptr == end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_SW}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
     marklin::SwitchState state;
     if (ptr[0] == 'S' || ptr[0] == 's') {
@@ -92,49 +92,34 @@ ParsedCommand CommandBuffer::parse_impl() {
     } else if (ptr[0] == 'C' || ptr[0] == 'c') {
       state = marklin::SwitchState::Curved;
     } else {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_SW}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
     ptr += 1;
     skip_ws();
     if (ptr != end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_SW}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_SW}};
     }
-    return {.tag = CmdTag::SetSwitch, .setSwitchData{marklin::SwitchId(switchId), state}};
+    return {.tag = CmdTag::SetSwitch, .setSwitch{marklin::SwitchId(switchId), state}};
   }
   if (length_ >= 2 && ptr[0] == 's' && ptr[1] == 't') {
     ptr += 2;
     skip_ws();
     char trackLetter = *ptr;
     if (trackLetter == 'a' || trackLetter == 'A') {
-      return {.tag = CmdTag::SetTrack, .setTrackData{0}};
+      return {.tag = CmdTag::SetTrack, .setTrack{0}};
     }
     if (trackLetter == 'b' || trackLetter == 'B') {
-      return {.tag = CmdTag::SetTrack, .setTrackData{1}};
+      return {.tag = CmdTag::SetTrack, .setTrack{1}};
     }
-    return {.tag = CmdTag::Invalid, .invalidData{USAGE_RV}};
+    return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
   }
   if (length_ >= 1 && ptr[0] == 'q') {
     ptr += 1;
     skip_ws();
     if (ptr != end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_Q}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_Q}};
     }
     return {.tag = CmdTag::Quit, .empty{}};
-  }
-  if (length_ >= 4 && ptr[0] == 'l' && ptr[1] == 'o' && ptr[2] == 'o' && ptr[3] == 'p') {
-    ptr += 4;
-    skip_ws();
-    unsigned trainId;
-    next = a2ui(ptr, end(), trainId);
-    if (next == ptr) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_LOOP}};
-    }
-    ptr = next;
-    skip_ws();
-    if (ptr != end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_LOOP}};
-    }
-    return {.tag = CmdTag::Loop, .loopData{marklin::TrainId(trainId)}};
   }
   if (length_ >= 4 && ptr[0] == 'g' && ptr[1] == 'o' && ptr[2] == 't' && ptr[3] == 'o') {
     ptr += 4;
@@ -142,12 +127,12 @@ ParsedCommand CommandBuffer::parse_impl() {
     unsigned trainId;
     next = a2ui(ptr, end(), trainId);
     if (next == ptr) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_GOTO}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
     ptr = next;
     skip_ws();
     if (ptr == end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_GOTO}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
     const char* locStart = ptr;
     while (ptr < end() && *ptr != ' ') {
@@ -155,11 +140,11 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     size_t locLen = static_cast<size_t>(ptr - locStart);
     if (locLen == 0 || locLen >= 16) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_GOTO}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
     skip_ws();
     if (ptr != end()) {
-      return {.tag = CmdTag::Invalid, .invalidData{USAGE_GOTO}};
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
     ParsedCommand result{.tag = CmdTag::Goto, .gotoData{}};
     result.gotoData.trainId = marklin::TrainId(trainId);

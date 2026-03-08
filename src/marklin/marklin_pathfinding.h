@@ -1,6 +1,5 @@
 #pragma once
 #include "marklin_train_track.h"
-#include "util/kit_algorithm.h"
 
 namespace marklin {
 // Get the next sensor track node by following the track at the current configuration.

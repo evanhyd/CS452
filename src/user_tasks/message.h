@@ -7,6 +7,7 @@
 namespace k4 {
 inline constexpr size_t SENSOR_HISTORY_SIZE = 16;
 inline constexpr size_t CMD_HISTORY_SIZE = 16;
+inline constexpr size_t TRAIN_HISTORY_SIZE = 6; // can only found 6 trains in the lab
 inline constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 
 struct CmdHistoryEntry {
@@ -23,6 +24,14 @@ struct SensorHistoryEntry {
   uint32_t predictedTicks;
   int32_t timeErrorTicks;
   marklin::Distance distErrorMm;
+};
+
+struct TrainHistoryEntry {
+  marklin::TrainId trainId;
+  marklin::TrackNodeId lastTrackNodeId;
+  marklin::TrackNodeId estimatedTrackNodeId;
+  marklin::Distance estimatedOffset;
+  marklin::Speed estimatedSpeed;
 };
 
 // Clock Server Message
@@ -108,7 +117,7 @@ enum class UIMsgType : int {
   UpdateSwitch,
   RedrawSensors,
   RedrawCmdHistory,
-  TrainState,
+  TrainHistory,
 };
 
 struct UIMsg {
@@ -134,7 +143,7 @@ struct UIMsg {
     marklin::SwitchState state;
   };
 
-  struct SensorsData {
+  struct SensorHistoryData {
     SensorHistoryEntry entries[SENSOR_HISTORY_SIZE];
     unsigned count;
   };
@@ -144,12 +153,9 @@ struct UIMsg {
     unsigned count;
   };
 
-  struct TrainStateData {
-    marklin::TrainId trainId;
-    marklin::TrackNodeId lastTrackNodeId;
-    marklin::TrackNodeId estimatedTrackNodeId;
-    marklin::Distance estimatedPositionOffset;
-    marklin::Speed estimatedSpeed;
+  struct TrainHistoryData {
+    TrainHistoryEntry entries[TRAIN_HISTORY_SIZE];
+    unsigned count;
   };
 
   union {
@@ -159,9 +165,9 @@ struct UIMsg {
     StatusData status;
     TimeData time;
     SwitchUpdateData switchUpdate;
-    SensorsData sensors;
+    SensorHistoryData sensorHistory;
     CmdHistoryData cmdHistory;
-    TrainStateData trainState;
+    TrainHistoryData trainHistory;
   };
 };
 

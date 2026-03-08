@@ -51,65 +51,54 @@ void uiControllerTask() {
         break;
       }
       case cmd::CmdTag::SetSpeed: {
-        if (parsed.setSpeedData.speedLevel > 14) {
-          notifyStatusToUI(uiTid, "Invalid speed %u. Must be between 0 and 14.", parsed.setSpeedData.speedLevel);
+        if (!marklin::isValidSpeedLevel(parsed.setSpeed.speedLevel)) {
+          notifyStatusToUI(uiTid, "Invalid speed %u. Must be between 0 and 14.", parsed.setSpeed.speedLevel);
           break;
         }
-        if (parsed.setSpeedData.trainId == 0 || parsed.setSpeedData.trainId > marklin::NUM_TRAINS) {
-          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.setSpeedData.trainId,
+        if (!marklin::isValidTrainId(parsed.setSpeed.trainId)) {
+          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.setSpeed.trainId,
                            marklin::NUM_TRAINS);
           break;
         }
-        TrainTrackMsg tm{
-            .type = TrainTrackMsgType::SetSpeedCmd,
-            .setSpeedCmd{.trainId = parsed.setSpeedData.trainId, .speedLevel = parsed.setSpeedData.speedLevel}};
+        TrainTrackMsg tm{.type = TrainTrackMsgType::SetSpeedCmd,
+                         .setSpeedCmd{.trainId = parsed.setSpeed.trainId, .speedLevel = parsed.setSpeed.speedLevel}};
         notify(trainTrackTid, tm);
         break;
       }
       case cmd::CmdTag::Reverse: {
-        if (parsed.reverseData.trainId == 0 || parsed.reverseData.trainId > marklin::NUM_TRAINS) {
-          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.reverseData.trainId,
+        if (!marklin::isValidTrainId(parsed.reverse.trainId)) {
+          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.reverse.trainId,
                            marklin::NUM_TRAINS);
           break;
         }
-        TrainTrackMsg tm{.type = TrainTrackMsgType::ReverseCmd, .reverseCmd{.trainId = parsed.reverseData.trainId}};
+        TrainTrackMsg tm{.type = TrainTrackMsgType::ReverseCmd, .reverseCmd{.trainId = parsed.reverse.trainId}};
         notify(trainTrackTid, tm);
         break;
       }
       case cmd::CmdTag::SetSwitch: {
-        if (!marklin::isValidSwitchIndex(parsed.setSwitchData.switchId)) {
-          notifyStatusToUI(uiTid, "Invalid switch id %u.", parsed.setSwitchData.switchId);
+        if (!marklin::isValidSwitchId(parsed.setSwitch.switchId)) {
+          notifyStatusToUI(uiTid, "Invalid switch id %u.", parsed.setSwitch.switchId);
           break;
         }
         TrainTrackMsg tm{.type = TrainTrackMsgType::SetSwitchCmd,
-                         .setSwitchCmd{.switchId = parsed.setSwitchData.switchId, .state = parsed.setSwitchData.state}};
+                         .setSwitchCmd{.switchId = parsed.setSwitch.switchId, .state = parsed.setSwitch.state}};
         notify(trainTrackTid, tm);
-        notifyStatusToUI(uiTid, "Set switch %u to %c.", parsed.setSwitchData.switchId,
-                         parsed.setSwitchData.state == marklin::SwitchState::Straight ? 'S' : 'C');
+        notifyStatusToUI(uiTid, "Set switch %u to %c.", parsed.setSwitch.switchId,
+                         parsed.setSwitch.state == marklin::SwitchState::Straight ? 'S' : 'C');
         break;
       }
       case cmd::CmdTag::SetTrack: {
-        TrainTrackMsg tm{.type = TrainTrackMsgType::SetTrackCmd, .setTrackCmd{.trackId = parsed.setTrackData.trackId}};
+        TrainTrackMsg tm{.type = TrainTrackMsgType::SetTrackCmd, .setTrackCmd{.trackId = parsed.setTrack.trackId}};
         notify(trainTrackTid, tm);
-        notifyStatusToUI(uiTid, "Set track to %c.", parsed.setTrackData.trackId == 0 ? 'A' : 'B');
+        notifyStatusToUI(uiTid, "Set track to %c.", parsed.setTrack.trackId == 0 ? 'A' : 'B');
         break;
       }
       case cmd::CmdTag::Quit: {
         _reboot();
         break;
       }
-      case cmd::CmdTag::Loop: {
-        if (parsed.loopData.trainId == 0 || parsed.loopData.trainId > marklin::NUM_TRAINS) {
-          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.loopData.trainId,
-                           marklin::NUM_TRAINS);
-          break;
-        }
-        TrainTrackMsg tm{.type = TrainTrackMsgType::LoopCmd, .loopCmd{.trainId = parsed.loopData.trainId}};
-        notify(trainTrackTid, tm);
-        break;
-      }
       case cmd::CmdTag::Goto: {
-        if (parsed.gotoData.trainId == 0 || parsed.gotoData.trainId > marklin::NUM_TRAINS) {
+        if (!marklin::isValidTrainId(parsed.gotoData.trainId)) {
           notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.gotoData.trainId,
                            marklin::NUM_TRAINS);
           break;
@@ -123,7 +112,7 @@ void uiControllerTask() {
         break;
       }
       case cmd::CmdTag::Invalid: {
-        notifyStatusToUI(uiTid, "Usage: %s", parsed.invalidData.usage);
+        notifyStatusToUI(uiTid, "Usage: %s", parsed.invalid.usage);
         break;
       }
       }

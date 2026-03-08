@@ -17,8 +17,9 @@ constexpr unsigned COL_IDLE_TIME = 30;
 constexpr unsigned ROW_SWITCHES = 3;
 constexpr unsigned ROW_SENSORS = 3;
 constexpr unsigned COL_SENSORS = 30;
+constexpr unsigned ROW_TRAINS = 3;
+constexpr unsigned COL_TRAINS = 50;
 constexpr unsigned ROW_CMD_HISTORY = 20;
-constexpr unsigned ROW_TRAIN_STATE = 38;
 constexpr unsigned ROW_STATUS = 40;
 constexpr unsigned ROW_PROMPT = 42;
 
@@ -62,6 +63,8 @@ void uiViewServerTask() {
   console.puts("Switches:");
   console.moveCursor(ROW_SENSORS, COL_SENSORS);
   console.puts("Sensors:");
+  console.moveCursor(ROW_TRAINS, COL_TRAINS);
+  console.puts("Trains:");
   console.moveCursor(ROW_CMD_HISTORY, 1);
   console.puts("Command history:");
   console.moveCursor(ROW_PROMPT, 1);
@@ -150,8 +153,8 @@ void uiViewServerTask() {
     case UIMsgType::RedrawSensors: {
       console.moveCursor(ROW_SENSORS, COL_SENSORS);
       console.puts("Sensors:");
-      for (unsigned row = 0; row < msg.sensors.count; ++row) {
-        const auto& entry = msg.sensors.entries[row];
+      for (unsigned row = 0; row < msg.sensorHistory.count; ++row) {
+        const auto& entry = msg.sensorHistory.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
         console.putTicks(entry.ticks);
         auto [sensorBank, sensorNumber] = marklin::trackNodeIdToSensor(entry.event.id);
@@ -164,7 +167,6 @@ void uiViewServerTask() {
             console.printf(" [Err: %dt, %dmm]", entry.timeErrorTicks, entry.distErrorMm);
           }
         }
-        console.clearToEol();
       }
       break;
     }
@@ -173,15 +175,21 @@ void uiViewServerTask() {
       cmdHistoryDirty = true;
       break;
     }
-    case UIMsgType::TrainState: {
-      const auto& t = msg.trainState;
-      marklin::Sensor lastSensor = marklin::trackNodeIdToSensor(t.lastTrackNodeId);
-      marklin::Sensor estSensor = marklin::trackNodeIdToSensor(t.estimatedTrackNodeId);
-      console.moveCursor(ROW_TRAIN_STATE, 1);
-      console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Distance %d um, Est Speed %d um/t", t.trainId,
-                     lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number, t.estimatedPositionOffset,
-                     t.estimatedSpeed);
-      console.clearToEol();
+    case UIMsgType::TrainHistory: {
+      console.moveCursor(ROW_TRAINS, COL_TRAINS);
+      console.puts("Trains:");
+      for (unsigned row = 0; row < msg.trainHistory.count; ++row) {
+        const auto& entry = msg.trainHistory.entries[row];
+        console.moveCursor(ROW_TRAINS + 1 + row, COL_TRAINS);
+
+        marklin::TrainId trainId = entry.trainId;
+        marklin::Sensor lastSensor = marklin::trackNodeIdToSensor(entry.lastTrackNodeId);
+        marklin::Sensor estSensor = marklin::trackNodeIdToSensor(entry.estimatedTrackNodeId);
+        console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Offset %d um, Est Speed %d um/t", trainId,
+                       lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number, entry.estimatedOffset,
+                       entry.estimatedSpeed);
+        console.clearToEol();
+      }
       break;
     }
     }
