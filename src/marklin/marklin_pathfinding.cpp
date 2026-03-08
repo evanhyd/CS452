@@ -1,5 +1,6 @@
 #include "marklin/marklin_pathfinding.h"
 #include "marklin/marklin_train_track.h"
+#include "user_tasks/send_util.h"
 #include "util/kit_algorithm.h"
 #include "util/ring_buffer.h"
 #include "util/static_priority_queue.h"
@@ -28,7 +29,11 @@ bool isNodeInLoop(TrackNodeId id) {
 }
 
 // Run dijkstra to find the shortest AND viable path between srce and dest.
-bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId srce, TrackNodeId dest) {
+bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest) {
+  Train& train = ttState.getTrain(trainId);
+
+  // Already at the destination.
+  TrackNodeId srce = train.lastVisitedNode->id;
   if (srce == dest) {
     return true;
   }
@@ -52,15 +57,15 @@ bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId srce, Track
   while (!isReachable && !queue.empty()) {
     TrackNodeId u = queue.top();
     queue.pop();
-    const TrackNode& uNode = ttState.getTrackNodeRef(u);
+    const TrackNode& uNode = ttState.getTrackNodeById(u);
 
-    size_t numEdges = [&uNode] -> size_t {
+    size_t numEdges = [&] -> size_t {
       switch (uNode.type) {
+      case TrackNode::Type::Branch:
+        return 2;
       case TrackNode::Type::Sensor:
       case TrackNode::Type::Merge:
       case TrackNode::Type::Enter:
-        return 2;
-      case TrackNode::Type::Branch:
         return 1;
       default:
         return 0;
@@ -92,10 +97,11 @@ bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId srce, Track
 
   // Extract the path.
   if (isReachable) {
-    auto& path = ttState.getTrainRef(trainId).path;
-    path.clear();
-    for (TrackNodeId u = dest; u != srce; u = parents[u]) {
-      path.pushFront(u);
+    train.path.clear();
+    for (TrackNodeId u = dest; u != srce && u != NO_PARENT; u = parents[u]) {
+      TrackNode* node = &ttState.getTrackNodeById(u);
+      node->trainOwnerId = trainId;
+      train.path.pushFront(node);
     }
   }
 
@@ -103,31 +109,41 @@ bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId srce, Track
 }
 } // namespace
 
+TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
+  if (srce.type == TrackNode::Type::Exit) {
+    return nullptr;
+  }
+  size_t dir = TrackDirection::Ahead;
+  if (srce.type == TrackNode::Type::Branch) {
+    auto sw = state.getSwitchState(srce.num);
+    dir = (sw == SwitchState::Straight ? TrackDirection::Straight : TrackDirection::Curved);
+  }
+  outDistance = srce.edges[dir].dist;
+  return srce.edges[dir].dest;
+}
+
 TrackNode* getNextSensor(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
-  TrackNode* node = &srce;
   outDistance = 0;
-  while (node && node->type != TrackNode::Type::Sensor) {
-    if (node->type == TrackNode::Type::Exit) {
-      return nullptr;
+  TrackNode* node = &srce;
+  while (true) {
+    Distance dist = 0;
+    node = getNextTrackNode(state, *node, dist);
+    outDistance += dist;
+    if (!node || node->type == TrackNode::Type::Sensor) {
+      break;
     }
-    size_t dir = TrackDirection::Ahead;
-    if (node->type == TrackNode::Type::Branch) {
-      auto sw = state.getSwitchState(node->num);
-      dir = (sw == SwitchState::Straight ? TrackDirection::Straight : TrackDirection::Curved);
-    }
-    outDistance += node->edges[dir].dist;
-    node = node->edges[dir].dest;
   }
   return node;
 }
 
-bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId destId) {
-  Train& train = ttState.getTrainRef(trainId);
-
+bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest) {
   // Calculate the shortest and viable path.
-  bool isReachable = dijkstra(ttState, trainId, train.lastVisitedNodeId, destId);
+  bool isReachable = dijkstra(ttState, trainId, dest);
+  if (!isReachable) {
+    return false;
+  }
 
-  // Enrich with the loop.
+  // Acquire the lock.
 
   // Calcualte the track node to stop.
 
@@ -138,18 +154,24 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId destId) {
 
 void calibrateTrainFromTrackNode(TrainTrackState& ttState, TrackNodeId triggeredTrackId, uint32_t currentTicks) {
   // TODO: take network delay into consideration.
-  TrackNode& triggeredSensor = ttState.getTrackNodeRef(triggeredTrackId);
+  TrackNode& triggeredSensor = ttState.getTrackNodeById(triggeredTrackId);
   if (triggeredSensor.trainOwnerId == 0) {
     return;
   }
 
-  Train& train = ttState.getTrainRef(triggeredSensor.trainOwnerId);
+  Train& train = ttState.getTrain(triggeredSensor.trainOwnerId);
 
   // Update the train estimated speed.
   uint32_t dT = kit::max(1u, currentTicks - train.lastVisitedTicks);
   Distance dS = [&] -> Distance {
+    // If the train is not located, then skip the speed calculation.
+    TrackNode* lastSensor = train.lastVisitedNode;
+    if (!lastSensor) {
+      return 0;
+    }
+
+    // Calculate the speed. Need multiple hop because the train can miss the sensor.
     Distance totalDistance = train.estimatedOffset;
-    TrackNode* lastSensor = &ttState.getTrackNodeRef(train.lastVisitedNodeId);
     static constexpr int MAX_HOPS = 20;
     for (int hop = 0; hop < MAX_HOPS; ++hop) {
       Distance dist = 0;
@@ -173,7 +195,7 @@ void calibrateTrainFromTrackNode(TrainTrackState& ttState, TrackNodeId triggered
   }
 
   // Update the train last triggered sensor node.
-  train.lastVisitedNodeId = triggeredSensor.id;
+  train.lastVisitedNode = &triggeredSensor;
   train.lastVisitedTicks = currentTicks;
   train.estimatedOffset = 0;
 }

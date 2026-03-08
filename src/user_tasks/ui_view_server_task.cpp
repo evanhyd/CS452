@@ -158,15 +158,15 @@ void uiViewServerTask() {
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
         console.putTicks(entry.ticks);
         auto [sensorBank, sensorNumber] = marklin::trackNodeIdToSensor(entry.event.id);
-        console.printf(" %c%u", sensorBank, sensorNumber);
-        if (entry.hasPrediction) {
-          auto [predictedBank, predictedNumber] = marklin::trackNodeIdToSensor(entry.predictedId);
-          console.printf(" -> Exp: %c%u @ ", predictedBank, predictedNumber);
-          console.putTicks(entry.predictedTicks);
-          if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
-            console.printf(" [Err: %dt, %dmm]", entry.timeErrorTicks, entry.distErrorMm);
-          }
-        }
+        console.printf(" %c%u ", sensorBank, sensorNumber); // need the extra space in the end
+        // if (entry.hasPrediction) {
+        //   auto [predictedBank, predictedNumber] = marklin::trackNodeIdToSensor(entry.predictedId);
+        //   console.printf(" -> Exp: %c%u @ ", predictedBank, predictedNumber);
+        //   console.putTicks(entry.predictedTicks);
+        //   if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
+        //     console.printf(" [Err: %dt, %dmm]", entry.timeErrorTicks, entry.distErrorMm);
+        //   }
+        // }
       }
       break;
     }
@@ -175,16 +175,18 @@ void uiViewServerTask() {
       cmdHistoryDirty = true;
       break;
     }
-    case UIMsgType::TrainHistory: {
+    case UIMsgType::TrainStates: {
       console.moveCursor(ROW_TRAINS, COL_TRAINS);
       console.puts("Trains:");
-      for (unsigned row = 0; row < msg.trainHistory.count; ++row) {
-        const auto& entry = msg.trainHistory.entries[row];
+      for (unsigned row = 0; row < msg.trainStates.count; ++row) {
+        const auto& entry = msg.trainStates.entries[row];
         console.moveCursor(ROW_TRAINS + 1 + row, COL_TRAINS);
-
         marklin::TrainId trainId = entry.trainId;
-        marklin::Sensor lastSensor = marklin::trackNodeIdToSensor(entry.lastTrackNodeId);
-        marklin::Sensor estSensor = marklin::trackNodeIdToSensor(entry.estimatedTrackNodeId);
+        marklin::Sensor lastSensor =
+            (entry.lastTrackNode ? marklin::trackNodeIdToSensor(entry.lastTrackNode->id) : marklin::Sensor{'?', 0});
+        marklin::Sensor estSensor =
+            (entry.estimatedTrackNode ? marklin::trackNodeIdToSensor(entry.estimatedTrackNode->id)
+                                      : marklin::Sensor{'?', 0});
         console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Offset %d um, Est Speed %d um/t", trainId,
                        lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number, entry.estimatedOffset,
                        entry.estimatedSpeed);

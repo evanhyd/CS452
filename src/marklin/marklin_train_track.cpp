@@ -1,16 +1,21 @@
 #include "marklin_train_track.h"
 #include "util/debug.h"
+#include "util/kit_algorithm.h"
 
 namespace marklin {
 
 TrainTrackState::TrainTrackState() {
   // ALl trains to idle.
   for (Train& train : trains) {
-    train.speedLevel = 0;
-    train.forward = true;
-    train.action = Train::Action::Idle;
     train.touched = false;
-    train.reverseCountdownTicks = 0;
+    train.forward = true;
+    train.stateMachine.type = TrainStateMachine::Type::Idle;
+    train.speedLevel = 0;
+    train.estimatedSpeed = 0;
+    train.estimatedOffset = 0;
+    train.lastVisitedNode = nullptr;
+    train.lastVisitedTicks = 0;
+    train.path = {};
   }
 
   // All switches to straight.
@@ -2376,7 +2381,12 @@ TrainTrackState::TrainTrackState() {
   }
 }
 
-Train& TrainTrackState::getTrainRef(TrainId id) { return trains[id - 1]; }
+Train& TrainTrackState::getTrain(TrainId id) {
+  if (!isValidTrainId(id)) {
+    logError("invalid train id");
+  }
+  return trains[id - 1];
+}
 
 SwitchState TrainTrackState::getSwitchState(SwitchId id) const { return switches[getSwitchIndex(id)]; }
 
@@ -2386,7 +2396,7 @@ void TrainTrackState::setSwitchState(SwitchId id, SwitchState switchState) {
 
 void TrainTrackState::setCurrentTrack(TrackId trackId) { currentTrack = trackId; }
 
-TrackNode& TrainTrackState::getTrackNodeRef(TrackNodeId id) {
+TrackNode& TrainTrackState::getTrackNodeById(TrackNodeId id) {
   if (currentTrack == 0) {
     if (id >= 144) {
       logError("invalid track node id");
@@ -2398,6 +2408,16 @@ TrackNode& TrainTrackState::getTrackNodeRef(TrackNodeId id) {
     }
     return trackB[id];
   }
+}
+
+TrackNode* TrainTrackState::getTrackNode(const char* name) {
+  TrackSet& trackSet = (currentTrack == 0 ? trackA : trackB);
+  for (TrackNode& trackNode : trackSet) {
+    if (!strncmp(trackNode.name, name, 5)) {
+      return &trackNode;
+    }
+  }
+  return nullptr;
 }
 
 } // namespace marklin

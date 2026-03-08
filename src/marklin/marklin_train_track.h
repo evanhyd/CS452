@@ -38,19 +38,40 @@ enum class TrainFunction { // clang-format off
 
 struct TrackNode;
 
+struct TrainStateMachine {
+  enum class Type { Idle, Reversing, Locating, Pathing } type;
+  struct IdleState {};
+  struct ReversingState {
+    unsigned countdownTicks;
+  };
+  struct LocatingState {
+    TrackNodeId dest;
+  };
+  struct PathingState {
+    TrackNodeId dest;
+  };
+
+  union {
+    IdleState idle;
+    ReversingState reversing;
+    LocatingState locating;
+    PathingState pathing;
+  };
+};
+
 struct Train {
   bool touched;
   bool forward;
-  enum class Action { Idle, Reversing, Looping } action;
-  unsigned reverseCountdownTicks;
-  SpeedLevel speedLevel;
 
-  // Path Finding
+  TrainStateMachine stateMachine{};
+
+  // Motion State
+  SpeedLevel speedLevel;
   Speed estimatedSpeed;     // um/tick, calculated from the sensor
   Distance estimatedOffset; // position offset away from the last triggered track node.
-  TrackNodeId lastVisitedNodeId;
+  TrackNode* lastVisitedNode;
   uint32_t lastVisitedTicks;
-  RingBuffer<TrackNodeId, NUM_TRACK_NODES> path;
+  RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
 };
 
 // Convert speed level to speed.
@@ -145,13 +166,17 @@ private:
 
 public:
   TrainTrackState();
-  Train& getTrainRef(TrainId id);
+  Train& getTrain(TrainId id);
   SwitchState getSwitchState(SwitchId id) const;
   void setSwitchState(SwitchId id, SwitchState switchState);
 
   // Set the current track (0 - A, 1 - B).
   void setCurrentTrack(TrackId id);
-  TrackNode& getTrackNodeRef(TrackNodeId id);
+  TrackNode& getTrackNodeById(TrackNodeId id);
+
+  // Perform a linear scan to get track node by its name.
+  // Very bad performance.
+  TrackNode* getTrackNode(const char* name);
 };
 
 } // namespace marklin

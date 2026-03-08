@@ -26,10 +26,10 @@ struct SensorHistoryEntry {
   marklin::Distance distErrorMm;
 };
 
-struct TrainHistoryEntry {
+struct TrainStatesEntry {
   marklin::TrainId trainId;
-  marklin::TrackNodeId lastTrackNodeId;
-  marklin::TrackNodeId estimatedTrackNodeId;
+  marklin::TrackNode* lastTrackNode;
+  marklin::TrackNode* estimatedTrackNode;
   marklin::Distance estimatedOffset;
   marklin::Speed estimatedSpeed;
 };
@@ -64,7 +64,6 @@ enum class TrainTrackMsgType : int {
   ReverseCmd,
   SetSwitchCmd,
   SetTrackCmd,
-  LoopCmd,
   GotoCmd,
   SensorEvent,
   TimerTick,
@@ -87,9 +86,6 @@ struct TrainTrackMsg {
   struct SetTrackCmdData {
     marklin::TrackId trackId;
   };
-  struct LoopCmdData {
-    marklin::TrainId trainId;
-  };
   struct GotoCmdData {
     marklin::TrainId trainId;
     char location[16];
@@ -99,7 +95,6 @@ struct TrainTrackMsg {
     ReverseCmdData reverseCmd;
     SetSwitchCmdData setSwitchCmd;
     SetTrackCmdData setTrackCmd;
-    LoopCmdData loopCmd;
     GotoCmdData gotoCmd;
     marklin::SensorTriggeredEvent sensorEvent;
     TimeData time;
@@ -117,7 +112,7 @@ enum class UIMsgType : int {
   UpdateSwitch,
   RedrawSensors,
   RedrawCmdHistory,
-  TrainHistory,
+  TrainStates,
 };
 
 struct UIMsg {
@@ -153,8 +148,8 @@ struct UIMsg {
     unsigned count;
   };
 
-  struct TrainHistoryData {
-    TrainHistoryEntry entries[TRAIN_HISTORY_SIZE];
+  struct TrainStatesData {
+    TrainStatesEntry entries[TRAIN_HISTORY_SIZE];
     unsigned count;
   };
 
@@ -167,7 +162,7 @@ struct UIMsg {
     SwitchUpdateData switchUpdate;
     SensorHistoryData sensorHistory;
     CmdHistoryData cmdHistory;
-    TrainHistoryData trainHistory;
+    TrainStatesData trainStates;
   };
 };
 
