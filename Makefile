@@ -1,3 +1,4 @@
+MAKEFLAGS += -j8
 FILENAME=kitty_kernel
 XDIR:=/u/cs452/public/xdev
 TRIPLE=aarch64-none-elf

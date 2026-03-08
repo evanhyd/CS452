@@ -1,4 +1,5 @@
 #include "marklin_message.h"
+#include "marklin/marklin_train_track.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -38,44 +39,44 @@ MMessage MMessage::systemHaltAll() {
   return MMessage::base(0, Command::SystemCommands, sizeof(data), data);
 }
 
-MMessage MMessage::systemEmergencyStop(uint8_t trainNumber) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber, uint8_t(SystemSub::EmergencyStop)};
+MMessage MMessage::systemEmergencyStop(TrainId trainId) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId, uint8_t(SystemSub::EmergencyStop)};
   return MMessage::base(0, Command::SystemCommands, sizeof(data), data);
 }
 
-MMessage MMessage::setTrainSpeed(uint8_t trainNumber, uint16_t speed) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber, uint8_t(speed >> 8), uint8_t(speed)};
+MMessage MMessage::setTrainSpeed(TrainId trainId, CANSpeed speed) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId, uint8_t(speed >> 8), uint8_t(speed)};
   return MMessage::base(0, Command::TrainSpeed, sizeof(data), data);
 }
 
-MMessage MMessage::getTrainSpeed(uint8_t trainNumber) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber};
+MMessage MMessage::getTrainSpeed(TrainId trainId) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId};
   return MMessage::base(0, Command::TrainSpeed, sizeof(data), data);
 }
 
-MMessage MMessage::getTrainDirection(uint8_t trainNumber) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber};
+MMessage MMessage::getTrainDirection(TrainId trainId) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId};
   return MMessage::base(0, Command::TrainDirection, sizeof(data), data);
 }
 
-MMessage MMessage::setTrainDirection(uint8_t trainNumber, TrainDirection direction) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber, (uint8_t)direction};
+MMessage MMessage::setTrainDirection(TrainId trainId, TrainDirection direction) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId, (uint8_t)direction};
   return MMessage::base(0, Command::TrainDirection, sizeof(data), data);
 }
 
-MMessage MMessage::getTrainFunctionState(uint8_t trainNumber, TrainFunction function) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber, (uint8_t)function};
+MMessage MMessage::getTrainFunctionState(TrainId trainId, TrainFunction function) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId, (uint8_t)function};
   return MMessage::base(0, Command::TrainFunction, sizeof(data), data);
 }
 
-MMessage MMessage::setTrainFunctionState(uint8_t trainNumber, TrainFunction function, uint8_t value) {
-  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainNumber, (uint8_t)function, value};
+MMessage MMessage::setTrainFunctionState(TrainId trainId, TrainFunction function, uint8_t value) {
+  uint8_t data[] = {0x00, 0x00, TRAIN_BASE, trainId, (uint8_t)function, value};
   return MMessage::base(0, Command::TrainFunction, sizeof(data), data);
 }
 
-MMessage MMessage::setSwitchState(uint8_t switchNumber, SwitchState state) {
-  --switchNumber; // 0 base index
-  uint8_t data[] = {0x00, 0x00, SWITCH_BASE, switchNumber, uint8_t(state), 1};
+MMessage MMessage::setSwitchState(SwitchId switchId, SwitchState state) {
+  --switchId; // 0 base index
+  uint8_t data[] = {0x00, 0x00, SWITCH_BASE, switchId, uint8_t(state), 1};
   return MMessage::base(0, Command::AccessoriesSwitching, sizeof(data), data);
 }
 } // namespace marklin

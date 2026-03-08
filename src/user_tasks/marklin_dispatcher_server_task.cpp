@@ -1,5 +1,6 @@
 #include "marklin_dispatcher_server_task.h"
 
+#include "marklin/marklin_train_track.h"
 #include "message.h"
 #include "send_util.h"
 
@@ -11,7 +12,6 @@
 #include "util/history.h"
 #include "util/ring_buffer.h"
 
-#include <cstdint>
 #include <ranges>
 
 namespace k4 {
@@ -46,7 +46,7 @@ struct DispatcherState {
       cmdHistory.push({msg, currentTicks, NOT_ACKED});
     } else {
       if (!cmdBuffer.full()) {
-        cmdBuffer.push(msg);
+        cmdBuffer.pushBack(msg);
       }
     }
   }
@@ -56,7 +56,7 @@ struct DispatcherState {
   bool tryFlushCommandBuffer() {
     bool flushed = false;
     while (!cmdBuffer.empty() && isLastCommandAcked()) {
-      auto msg = cmdBuffer.pop();
+      auto msg = cmdBuffer.popFront();
       ::TransmitCAN(canServerTid, msg);
       cmdHistory.push({msg, currentTicks, NOT_ACKED});
       flushed = true;
@@ -126,10 +126,10 @@ void marklinDispatcherServerTask() {
   // Enable the system and set all the switches to straight.
   state.sendCommand(marklin::MMessage::systemGoAll());
   state.sendCommand(marklin::MMessage::systemHaltAll());
-  for (uint8_t id = 1; id <= 18; ++id) {
+  for (marklin::SwitchId id = 1; id <= 18; ++id) {
     state.sendCommand(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
   }
-  for (uint8_t id = 153; id <= 156; ++id) {
+  for (marklin::SwitchId id = 153; id <= 156; ++id) {
     state.sendCommand(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
   }
   state.notifyCmdHistoryToUI(uiServerTid);

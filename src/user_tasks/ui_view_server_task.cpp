@@ -1,5 +1,6 @@
 #include "ui_view_server_task.h"
 
+#include "marklin/marklin_train_track.h"
 #include "message.h"
 
 #include "kernel/syscalls.h"
@@ -153,10 +154,10 @@ void uiViewServerTask() {
         const auto& entry = msg.sensors.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
         console.putTicks(entry.ticks);
-        auto [sensorBank, sensorNumber] = marklin::idToSensor(entry.event.id);
+        auto [sensorBank, sensorNumber] = marklin::trackNodeIdToSensor(entry.event.id);
         console.printf(" %c%u", sensorBank, sensorNumber);
         if (entry.hasPrediction) {
-          auto [predictedBank, predictedNumber] = marklin::idToSensor(entry.predictedId);
+          auto [predictedBank, predictedNumber] = marklin::trackNodeIdToSensor(entry.predictedId);
           console.printf(" -> Exp: %c%u @ ", predictedBank, predictedNumber);
           console.putTicks(entry.predictedTicks);
           if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
@@ -173,13 +174,15 @@ void uiViewServerTask() {
       break;
     }
     case UIMsgType::TrainState: {
-      const auto& t = msg.trainState.state;
+      const auto& t = msg.trainState;
+      marklin::Sensor lastSensor = marklin::trackNodeIdToSensor(t.lastTrackNodeId);
+      marklin::Sensor estSensor = marklin::trackNodeIdToSensor(t.estimatedTrackNodeId);
       console.moveCursor(ROW_TRAIN_STATE, 1);
-      console.printf(
-          "Train: Speed Lvl %u, Est Speed %d um/tick, Est Accel %d um/tick^2, Last sensor %s, Pos Offset %d um",
-          t.speedLevel, t.estimatedSpeed, t.estimatedAcceleration, t.lastSensorNode ? t.lastSensorNode->name : "None",
-          t.positionOffset);
+      console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Distance %d um, Est Speed %d um/t", t.trainId,
+                     lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number, t.estimatedPositionOffset,
+                     t.estimatedSpeed);
       console.clearToEol();
+      break;
     }
     }
   }

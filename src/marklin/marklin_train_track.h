@@ -1,79 +1,71 @@
 #pragma once
 #include "util/debug.h"
+#include "util/ring_buffer.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 
 namespace marklin {
 /**********************************
-Train Definition
+Type Alias
+***********************************/
+using Speed = int32_t;
+using SpeedLevel = uint16_t;
+using CANSpeed = uint16_t;
+using Distance = int32_t;
+using TrainId = uint8_t;
+using SensorNumber = uint8_t; // the "12" in A12
+using SwitchId = uint8_t;
+using TrackNodeId = uint8_t;  // Track Node array index, maps 1 to 1 to sensor id by coincidence.
+using TrackNodeNum = uint8_t; // Map to either a switch id or a sensor id or other special id.
+using TrackId = uint8_t;      // Track A or Track B
+
+/**********************************
+Magic Constant
 ***********************************/
 static constexpr size_t NUM_TRAINS = 60;
-enum class TrainDirection : uint8_t { NoChange, Forward, Backward, Reverse };
-// clang-format off
-enum class TrainFunction : uint8_t {
-  F0, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31 };
-// clang-format on
+static constexpr size_t NUM_TRACK_NODES = 144;
+static constexpr size_t NUM_SWITCHES = 22;
+
+/**********************************
+Train Definition
+***********************************/
+enum class TrainDirection { NoChange, Forward, Backward, Reverse };
+enum class TrainFunction { // clang-format off
+  F0, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31
+}; // clang-format on
 
 struct TrackNode;
 
-struct TrainState {
-  uint8_t speedLevel;            // set by user
-  uint32_t estimatedSpeed;       // um/tick, calculated from the sensor
-  int32_t estimatedAcceleration; // um/tick^2, calculated from change in speed
-  uint32_t positionOffset;       // position offset away from the last triggered track node.
-  const TrackNode* lastSensorNode;
-  uint32_t lastSensorTicks;
-
-  bool forward;
-  enum class MotionState : uint8_t { Idle, Reversing } motionState;
+struct Train {
   bool touched;
+  bool forward;
+  enum class MotionState { Idle, Reversing } motionState;
   unsigned reverseCountdownTicks;
+  SpeedLevel speedLevel;
 
-  static constexpr int32_t EWMA_DENOMINATOR = 4;
+  // Path Finding
+  Speed estimatedSpeed;     // um/tick, calculated from the sensor
+  Distance estimatedOffset; // position offset away from the last triggered track node.
+  TrackNodeId lastVisitedNodeId;
+  uint32_t lastVisitedTicks;
+  RingBuffer<TrackNodeId, NUM_TRACK_NODES> path;
 };
-static_assert(std::is_trivially_default_constructible_v<TrainState>);
 
 // Convert speed level to speed.
-constexpr uint16_t convertSpeedLevelToCANSpeed(unsigned speedLevel) {
-  return static_cast<uint16_t>(speedLevel > 0 ? 1 + (speedLevel - 1) * 77 : 0);
+constexpr CANSpeed convertSpeedLevelToCANSpeed(SpeedLevel speedLevel) {
+  return static_cast<CANSpeed>(speedLevel > 0 ? 1 + (speedLevel - 1) * 77 : 0);
 }
 
 /**********************************
-Track Definition
+Switch Definition
 ***********************************/
-static constexpr size_t NUM_TRACK = 144;
-static constexpr size_t NUM_SWITCHES = 22;
-enum class SwitchState : uint8_t { Curved, Straight };
-enum class SensorState : uint8_t { Free, Occupied };
-enum TrackDirection : size_t { Ahead = 0, Straight = 0, Curved = 1 };
+enum class SwitchState { Curved, Straight };
 
-struct TrackEdge {
-  TrackEdge* reverse;
-  TrackNode* src;
-  TrackNode* dest;
-  uint32_t dist; // millimeters
-};
-
-struct TrackNode {
-  enum class Type { None, Sensor, Branch, Merge, Enter, Exit };
-
-  const char* name;
-  Type type;
-  uint8_t id;         // sensor or switch number
-  TrackNode* reverse; // same location, but opposite direction
-  TrackEdge edge[2];
-
-  uint8_t trainOwnerId; // the train ID that has exclusive access
-};
-
-using TrackSet = std::array<TrackNode, NUM_TRACK>;
-
-constexpr bool isValidSwitchIndex(unsigned id) { return (id >= 1 && id <= 18) || (id >= 153 && id <= 156); }
+constexpr bool isValidSwitchIndex(SwitchId id) { return (id >= 1 && id <= 18) || (id >= 153 && id <= 156); }
 
 // Convert switch id to switch array index.
-constexpr size_t getSwitchIndex(uint8_t id) {
+constexpr size_t getSwitchIndex(SwitchId id) {
   if (id >= 1 && id <= 18) {
     return id - 1;
   }
@@ -83,23 +75,65 @@ constexpr size_t getSwitchIndex(uint8_t id) {
   logError("invalid switch id");
 }
 
-constexpr size_t getSensorIndex(uint8_t id) { return id; }
+/**********************************
+Sensor Definition
+***********************************/
+enum class SensorState { Free, Occupied };
 
-struct SensorName {
+struct Sensor {
   char bank;
-  uint8_t number;
+  SensorNumber number;
 };
 
-constexpr uint8_t sensorToId(SensorName s) { return static_cast<uint8_t>((s.bank - 'A') * 16 + s.number - 1); }
+// Convert Sensor to track node id.
+constexpr TrackNodeId sensorToTrackNodeId(Sensor s) {
+  return static_cast<SensorNumber>((s.bank - 'A') * 16 + s.number - 1);
+}
 
-constexpr SensorName idToSensor(uint8_t id) { return {static_cast<char>('A' + id / 16), uint8_t(id % 16 + 1)}; }
+// Convert track node id to Sensor.
+constexpr Sensor trackNodeIdToSensor(TrackNodeId id) {
+  return {static_cast<char>('A' + id / 16), uint8_t(id % 16 + 1)};
+}
+
+/**********************************
+Track Definition
+***********************************/
+enum TrackDirection { Ahead = 0, Straight = 0, Curved = 1 };
+
+struct TrackEdge {
+  TrackEdge* reverse;
+  TrackNode* src;
+  TrackNode* dest;
+  Distance dist; // micro-meters
+  int32_t speedCompPercentage;
+};
+
+struct TrackNode {
+  enum class Type {
+    None,
+    Sensor, // Ahead
+    Branch, // Straight, Curved
+    Merge,  // Ahead
+    Enter,  // Ahead
+    Exit,   // None
+  };
+  const char* name;
+  Type type;
+  TrackNodeNum num;   // sensor or switch number
+  TrackNodeId id;     // TrackSet index
+  TrackNode* reverse; // same location, but opposite direction
+  TrackEdge edges[2];
+  TrainId trainOwnerId; // the train ID that has exclusive access
+};
 
 /**********************************
 Train Track Definition
 ***********************************/
+using TrackSet = std::array<TrackNode, NUM_TRACK_NODES>;
+
 struct TrainTrackState {
 private:
-  std::array<TrainState, NUM_TRAINS> trains{};
+  std::array<Train, NUM_TRAINS> trains{};
   uint32_t currentTrack;
   TrackSet trackA{};
   TrackSet trackB{};
@@ -107,25 +141,15 @@ private:
 
 public:
   TrainTrackState();
+  Train& getTrainRef(TrainId id);
+  SwitchState getSwitchState(SwitchId id) const;
+  void setSwitchState(SwitchId id, SwitchState switchState);
 
-  // Return the train state by train id (not index).
-  TrainState& getTrainStateRef(uint8_t id);
+  // Set the current track (0 - A, 1 - B).
+  void setCurrentTrack(TrackId id);
+  TrackNode& getTrackNodeRef(TrackNodeId id);
 
-  // Return the switch state by switch id (not index).
-  SwitchState getSwitchState(uint8_t id) const;
-
-  // Set the switch state by switch id (not index).
-  void setSwitchState(uint8_t id, SwitchState switchState);
-
-  // Set the current track.
-  // 0 - A
-  // 1 - B
-  void setCurrentTrack(uint8_t trackId);
-
-  // Return the current track.
-  TrackSet& getCurrentTrack();
-
-  uint8_t theTrain = 0;
+  TrainId theTrain = 0;
 };
 
 } // namespace marklin

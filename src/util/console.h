@@ -13,11 +13,11 @@ public:
 
   void puts(const char* str) {
     for (; *str; ++str) {
-      ::Putc(tid_, *str);
+      ::Putc(tid_, static_cast<unsigned char>(*str));
     }
   }
 
-  void putc(char c) { ::Putc(tid_, c); }
+  void putc(char c) { ::Putc(tid_, static_cast<unsigned char>(c)); }
 
   void putTimestamp(unsigned ticks) {
     unsigned mins = ticks / 6000;

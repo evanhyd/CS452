@@ -1,6 +1,5 @@
 #pragma once
 #include "marklin_train_track.h"
-
 #include <cstdint>
 
 namespace marklin {
@@ -53,13 +52,13 @@ struct MMessage {
   static MMessage systemStopAll();
   static MMessage systemGoAll();
   static MMessage systemHaltAll();
-  static MMessage systemEmergencyStop(uint8_t trainNumber);
-  static MMessage setTrainSpeed(uint8_t trainNumber, uint16_t speed);
-  static MMessage getTrainSpeed(uint8_t trainNumber);
-  static MMessage getTrainDirection(uint8_t trainNumber);
-  static MMessage setTrainDirection(uint8_t trainNumber, TrainDirection direction);
-  static MMessage getTrainFunctionState(uint8_t trainNumber, TrainFunction function);
-  static MMessage setTrainFunctionState(uint8_t trainNumber, TrainFunction function, uint8_t value);
-  static MMessage setSwitchState(uint8_t switchNumber, SwitchState state);
+  static MMessage systemEmergencyStop(TrainId trainId);
+  static MMessage setTrainSpeed(TrainId trainId, CANSpeed speed);
+  static MMessage getTrainSpeed(TrainId trainid);
+  static MMessage getTrainDirection(TrainId trainId);
+  static MMessage setTrainDirection(TrainId trainId, TrainDirection direction);
+  static MMessage getTrainFunctionState(TrainId trainId, TrainFunction function);
+  static MMessage setTrainFunctionState(TrainId trainId, TrainFunction function, uint8_t value);
+  static MMessage setSwitchState(SwitchId switchId, SwitchState state);
 };
 } // namespace marklin

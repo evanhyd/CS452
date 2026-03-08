@@ -23,4 +23,19 @@ template <typename It, typename Unary> It find_if(It begin, It end, const Unary&
   }
   return begin;
 }
+
+template <typename It, typename T> bool contains(It begin, It end, const T& value) {
+  for (; begin != end; ++begin) {
+    if (*begin == value) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename It, typename T> void fill(It begin, It end, const T& value) {
+  for (; begin != end; ++begin) {
+    *begin = value;
+  }
+}
 } // namespace kit

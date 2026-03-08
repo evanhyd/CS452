@@ -1,5 +1,4 @@
 #pragma once
-
 #include "marklin/marklin_train_track.h"
 #include <cstddef>
 #include <cstdint>
@@ -22,24 +21,24 @@ struct ParsedCommand {
   CmdTag tag;
   struct Empty {};
   struct SetSpeedData {
-    unsigned trainId;
-    unsigned speed;
+    marklin::TrainId trainId;
+    marklin::SpeedLevel speedLevel;
   };
   struct ReverseData {
-    unsigned trainId;
+    marklin::TrainId trainId;
   };
   struct SetSwitchData {
-    unsigned switchId;
+    marklin::SwitchId switchId;
     marklin::SwitchState state;
   };
   struct SetTrackData {
-    uint8_t trackId;
+    marklin::TrackId trackId;
   };
   struct LoopData {
-    unsigned trainId;
+    marklin::TrainId trainId;
   };
   struct GotoData {
-    unsigned trainId;
+    marklin::TrainId trainId;
     char location[16];
   };
   struct InvalidData {
@@ -47,13 +46,13 @@ struct ParsedCommand {
   };
   union {
     Empty empty;
-    SetSpeedData setSpeed;
-    ReverseData reverse;
-    SetSwitchData setSwitch;
-    SetTrackData setTrack;
-    LoopData loop;
-    GotoData go;
-    InvalidData invalid;
+    SetSpeedData setSpeedData;
+    ReverseData reverseData;
+    SetSwitchData setSwitchData;
+    SetTrackData setTrackData;
+    LoopData loopData;
+    GotoData gotoData;
+    InvalidData invalidData;
   };
 };
 
@@ -100,7 +99,5 @@ private:
   char buffer_[MAX_COMMAND_LENGTH];
   size_t length_;
 };
-
-constexpr uint16_t convSpeed(unsigned speed) { return static_cast<uint16_t>(speed > 0 ? 1 + (speed - 1) * 77 : 0); }
 
 } // namespace cmd

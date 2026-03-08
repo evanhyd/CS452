@@ -5,29 +5,29 @@
 #include <cstdint>
 
 namespace k4 {
-inline constexpr unsigned SENSOR_HISTORY_SIZE = 16;
-inline constexpr unsigned CMD_HISTORY_SIZE = 16;
+inline constexpr size_t SENSOR_HISTORY_SIZE = 16;
+inline constexpr size_t CMD_HISTORY_SIZE = 16;
 inline constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 
 struct CmdHistoryEntry {
   marklin::MMessage msg;
-  unsigned sentTicks; // clock ticks when sent
+  uint32_t sentTicks; // clock ticks when sent
   uint32_t ackAfter;  // ticks elapsed until ack, or NOT_ACKED
 };
 
 struct SensorHistoryEntry {
   marklin::SensorTriggeredEvent event;
-  unsigned ticks;
+  uint32_t ticks;
   bool hasPrediction;
-  uint8_t predictedId;
-  unsigned predictedTicks;
-  int timeErrorTicks;
-  int distErrorMm;
+  marklin::TrackNodeId predictedId;
+  uint32_t predictedTicks;
+  int32_t timeErrorTicks;
+  marklin::Distance distErrorMm;
 };
 
 // Clock Server Message
 struct TimeData {
-  unsigned ticks;
+  uint32_t ticks;
 };
 
 inline constexpr const char* MARKLIN_DISPATCHER_SERVER_NAME = "marklin_dispatcher_server";
@@ -65,24 +65,24 @@ struct TrainTrackMsg {
   TrainTrackMsgType type;
 
   struct SetSpeedCmdData {
-    uint8_t trainId;
-    uint8_t speed;
+    marklin::TrainId trainId;
+    marklin::SpeedLevel speedLevel;
   };
   struct ReverseCmdData {
-    uint8_t trainId;
+    marklin::TrainId trainId;
   };
   struct SetSwitchCmdData {
-    uint8_t switchId;
+    marklin::SwitchId switchId;
     marklin::SwitchState state;
   };
   struct SetTrackCmdData {
-    uint8_t trackId;
+    marklin::TrackId trackId;
   };
   struct LoopCmdData {
-    uint8_t trainId;
+    marklin::TrainId trainId;
   };
   struct GotoCmdData {
-    uint8_t trainId;
+    marklin::TrainId trainId;
     char location[16];
   };
   union {
@@ -130,7 +130,7 @@ struct UIMsg {
   };
 
   struct SwitchUpdateData {
-    uint8_t switchId;
+    marklin::SwitchId switchId;
     marklin::SwitchState state;
   };
 
@@ -145,7 +145,11 @@ struct UIMsg {
   };
 
   struct TrainStateData {
-    marklin::TrainState state;
+    marklin::TrainId trainId;
+    marklin::TrackNodeId lastTrackNodeId;
+    marklin::TrackNodeId estimatedTrackNodeId;
+    marklin::Distance estimatedPositionOffset;
+    marklin::Speed estimatedSpeed;
   };
 
   union {

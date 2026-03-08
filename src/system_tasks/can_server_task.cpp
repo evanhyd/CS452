@@ -63,13 +63,13 @@ void can_server::canServerTask() {
     case CanServerMessageType::ReceiveRequest: {
       // Already received a message.
       if (!receiveBuffer.empty()) {
-        marklin::MMessage message = receiveBuffer.pop();
+        marklin::MMessage message = receiveBuffer.popFront();
         ::Reply(tid, reinterpret_cast<const char*>(&message), sizeof(marklin::MMessage));
         break;
       }
 
       // No message in the buffer, block and wait.
-      receiveWaitingQueue.push(tid);
+      receiveWaitingQueue.pushBack(tid);
       break;
     }
     case CanServerMessageType::TransmitRequest: {
@@ -79,7 +79,7 @@ void can_server::canServerTask() {
         mcp2515::sendMessage(msg.transmitRequest.message);
       } else {
         // TX0 is not ready, append to the buffer.
-        transmitBuffer.push(msg.transmitRequest.message);
+        transmitBuffer.pushBack(msg.transmitRequest.message);
       }
 
       ::Reply(tid, "", 0);
@@ -96,10 +96,10 @@ void can_server::canServerTask() {
       if (interruptFlag & mcp2515::CanInterruptMask::RX0IE) {
         marklin::MMessage message = mcp2515::receiveMessage(mcp2515::RxBuffer::Rx0);
         if (!receiveWaitingQueue.empty()) {
-          int waitingTask = receiveWaitingQueue.pop();
+          int waitingTask = receiveWaitingQueue.popFront();
           ::Reply(waitingTask, reinterpret_cast<const char*>(&message), sizeof(marklin::MMessage));
         } else {
-          receiveBuffer.push(message);
+          receiveBuffer.pushBack(message);
         }
         mcp2515::clearInterrupt(mcp2515::CanInterruptMask::RX0IE);
       }
@@ -108,10 +108,10 @@ void can_server::canServerTask() {
       if (interruptFlag & mcp2515::CanInterruptMask::RX1IE) {
         marklin::MMessage message = mcp2515::receiveMessage(mcp2515::RxBuffer::Rx1);
         if (!receiveWaitingQueue.empty()) {
-          int waitingTask = receiveWaitingQueue.pop();
+          int waitingTask = receiveWaitingQueue.popFront();
           ::Reply(waitingTask, reinterpret_cast<const char*>(&message), sizeof(marklin::MMessage));
         } else {
-          receiveBuffer.push(message);
+          receiveBuffer.pushBack(message);
         }
         mcp2515::clearInterrupt(mcp2515::CanInterruptMask::RX1IE);
       }
@@ -119,7 +119,7 @@ void can_server::canServerTask() {
       // Transmit Buffer 0 Empty
       if (interruptFlag & mcp2515::CanInterruptMask::TX0IE) {
         if (!transmitBuffer.empty()) {
-          marklin::MMessage message = transmitBuffer.pop();
+          marklin::MMessage message = transmitBuffer.popFront();
           mcp2515::sendMessage(message);
         } else {
           isTX0Ready = true;

@@ -87,10 +87,10 @@ void io_server::ioServerTask() {
       // If the getc data buffer is not empty, then read from the buffer.
       // Otherwise wait in the getc tid queue.
       if (!getcBuffer.empty()) {
-        int ch = static_cast<int>(getcBuffer.pop().ch);
+        int ch = static_cast<int>(getcBuffer.popFront().ch);
         ::Reply(tid, reinterpret_cast<const char*>(&ch), sizeof(ch));
       } else {
-        getcWaitingQueue.push(tid);
+        getcWaitingQueue.pushBack(tid);
       }
       break;
     }
@@ -101,7 +101,7 @@ void io_server::ioServerTask() {
         putcReady = false;
         ::Reply(putcNotifierTid, reinterpret_cast<const char*>(&msg.putcRequest.ch), sizeof(msg.putcRequest.ch));
       } else {
-        toPutcBuffer.push(PutcReply{msg.putcRequest.ch});
+        toPutcBuffer.pushBack(PutcReply{msg.putcRequest.ch});
       }
       int success = 0;
       ::Reply(tid, reinterpret_cast<const char*>(&success), sizeof(int));
@@ -114,10 +114,10 @@ void io_server::ioServerTask() {
       // If has task waiting in the getc tid queue, then reply immediately.
       // Otherwise store the data in the getc data buffer.
       if (!getcWaitingQueue.empty()) {
-        int waitingTid = getcWaitingQueue.pop();
+        int waitingTid = getcWaitingQueue.popFront();
         ::Reply(waitingTid, reinterpret_cast<const char*>(&msg.getcNotify.ch), sizeof(msg.getcNotify.ch));
       } else {
-        getcBuffer.push(msg.getcNotify);
+        getcBuffer.pushBack(msg.getcNotify);
       }
       ::Reply(getcNotifierTid, "", 0); // reply to getcNotifier
       break;
@@ -129,7 +129,7 @@ void io_server::ioServerTask() {
       // If has data waiting in the putc data queue, then reply to putcNotifier and send to UART.
       // Otherwise mark putcNotifier as ready.
       if (!toPutcBuffer.empty()) {
-        PutcReply reply = toPutcBuffer.pop();
+        PutcReply reply = toPutcBuffer.popFront();
         ::Reply(putcNotifierTid, reinterpret_cast<const char*>(&reply.ch), sizeof(reply.ch));
       } else {
         putcReady = true;

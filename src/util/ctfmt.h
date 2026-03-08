@@ -3,7 +3,6 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <new>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -272,7 +271,7 @@ template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> 
 }
 
 template <typename... Args> void printf(int tid, FormatSpec<Args...> spec, const Args&... args) {
-  auto sink = Sink::make([tid](char c) { ::Putc(tid, c); });
+  auto sink = Sink::make([tid](char c) { ::Putc(tid, static_cast<unsigned char>(c)); });
   formatSink(sink, spec, args...);
 }
 
