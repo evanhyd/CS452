@@ -10,8 +10,8 @@ namespace marklin {
 
 namespace {
 constexpr int32_t EWMA_DENOMINATOR = 4;
-constexpr std::array STOPPING_DISTANCE = {0,     2100,  3600,  5600,  9500,  13100,  19800, 26400,
-                                          37800, 42700, 57900, 76600, 98000, 118400, 152300};
+constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000,  95000,  131000,  198000, 264000,
+                                          378000, 427000, 579000, 766000, 980000, 1184000, 1523000};
 
 constexpr marklin::TrackNodeId loopSensorNodeIds[] = {
     marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'A', 4}),
