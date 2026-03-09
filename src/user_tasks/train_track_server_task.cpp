@@ -212,8 +212,13 @@ void trainTrackTask() {
     }
     case TrainTrackMsgType::GotoCmd: {
       marklin::TrainId trainId = msg.gotoCmd.trainId;
+      marklin::SpeedLevel speedLevel = msg.gotoCmd.speedLevel;
       if (!marklin::isValidTrainId(trainId)) {
         notifyStatusToUI(uiTid, "Invalid train id for goto.");
+        break;
+      }
+      if (!marklin::isValidSpeedLevel(speedLevel)) {
+        notifyStatusToUI(uiTid, "Invalid speed level for goto.");
         break;
       }
       marklin::TrackNode* dest = ttState.getTrackNodeByName(msg.gotoCmd.location);
@@ -251,6 +256,10 @@ void trainTrackTask() {
         sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
         sendSwitchToUI(uiTid, id, marklin::SwitchState::Straight);
       }
+      train.speedLevel = speedLevel;
+      sendToDispatcher(dispatcherTid,
+                       marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
+
       notifyStatusToUI(uiTid, "Locating train %u.", trainId);
       break;
     }
@@ -298,18 +307,16 @@ void trainTrackTask() {
           // Update the switches directions.
           marklin::TrackNode* last = train.lastVisitedNode;
           for (marklin::TrackNode* curr : train.path) {
-            if (last->type != marklin::TrackNode::Type::Branch) {
-              continue;
-            }
-
-            marklin::SwitchState sw = ttState.getSwitchState(last->num);
-            marklin::TrackDirection td = (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
-            if (last->edges[td].dest != curr) {
-              sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved
-                                                         : marklin::SwitchState::Straight);
-              ttState.setSwitchState(last->num, sw);
-              sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(last->num, sw));
-              sendSwitchToUI(uiTid, last->num, sw);
+            if (last->type == marklin::TrackNode::Type::Branch) {
+              marklin::SwitchState sw = ttState.getSwitchState(last->num);
+              marklin::TrackDirection td = (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
+              if (last->edges[td].dest != curr) {
+                sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved
+                                                           : marklin::SwitchState::Straight);
+                ttState.setSwitchState(last->num, sw);
+                sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(last->num, sw));
+                sendSwitchToUI(uiTid, last->num, sw);
+              }
             }
             last = curr;
           }
@@ -322,7 +329,11 @@ void trainTrackTask() {
         case marklin::TrainStateMachine::Type::Pathing: {
           // Check if the pathing is completed.
           if (train.path.empty()) {
-            notifyStatusToUI(uiTid, "train %u arrived at destination.", trainId);
+            train.speedLevel = 0;
+            sendToDispatcher(dispatcherTid,
+                             marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
+            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
+            notifyStatusToUI(uiTid, "train %u reached the last sensor.", trainId);
             break;
           }
 
@@ -350,7 +361,7 @@ void trainTrackTask() {
             sendToDispatcher(dispatcherTid,
                              marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
-            notifyStatusToUI(uiTid, "stopping train %u.", trainId);
+            notifyStatusToUI(uiTid, "train %u arrived at destination (estimate).", trainId);
           }
         }
         }

@@ -21,7 +21,8 @@ constexpr const char* USAGE_RV = "rv <train id> - Reverse train direction";
 constexpr const char* USAGE_SW = "sw <switch id> <switch direction> - Set switch to straight (S) or curved (C)";
 constexpr const char* USAGE_ST = "st <track id> - Set track to A or B";
 constexpr const char* USAGE_LOOP = "loop <train id> - Send train to the captive loop";
-constexpr const char* USAGE_GOTO = "goto <train id> <location> - Send train to a track node (e.g. A5, BR15)";
+constexpr const char* USAGE_GOTO =
+    "goto <train id> <speed level> <location> - Send train to a track node (e.g. A5, BR15)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
 } // namespace
@@ -124,13 +125,30 @@ ParsedCommand CommandBuffer::parse_impl() {
   if (length_ >= 4 && ptr[0] == 'g' && ptr[1] == 'o' && ptr[2] == 't' && ptr[3] == 'o') {
     ptr += 4;
     skip_ws();
+
     unsigned trainId;
+    unsigned speedLevel;
+
+    // 1. Parse Train ID
     next = a2ui(ptr, end(), trainId);
     if (next == ptr) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
     ptr = next;
     skip_ws();
+
+    // 2. Parse Speed Level (New Parameter)
+    if (ptr == end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    next = a2ui(ptr, end(), speedLevel);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    ptr = next;
+    skip_ws();
+
+    // 3. Parse Location String
     if (ptr == end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
@@ -139,15 +157,24 @@ ParsedCommand CommandBuffer::parse_impl() {
       ++ptr;
     }
     size_t locLen = static_cast<size_t>(ptr - locStart);
+
+    // Validate location length
     if (locLen == 0 || locLen >= 16) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
-    skip_ws();
-    if (ptr != end()) {
+
+    // 4. Ensure no extra garbage parameters exist after location
+    const char* checkPtr = ptr;
+    while (checkPtr < end() && *checkPtr == ' ') {
+      ++checkPtr;
+    }
+    if (checkPtr != end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
+
     ParsedCommand result{.tag = CmdTag::Goto, .gotoData{}};
     result.gotoData.trainId = marklin::TrainId(trainId);
+    result.gotoData.speedLevel = marklin::SpeedLevel(speedLevel);
     for (size_t i = 0; i < locLen; ++i) {
       result.gotoData.location[i] = locStart[i];
     }

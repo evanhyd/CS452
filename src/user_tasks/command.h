@@ -38,6 +38,7 @@ struct ParsedCommand {
   };
   struct GotoData {
     marklin::TrainId trainId;
+    marklin::SpeedLevel speedLevel;
     char location[16];
   };
   struct InvalidData {

@@ -52,7 +52,7 @@ void uiControllerTask() {
       }
       case cmd::CmdTag::SetSpeed: {
         if (!marklin::isValidSpeedLevel(parsed.setSpeed.speedLevel)) {
-          notifyStatusToUI(uiTid, "Invalid speed %u. Must be between 0 and 14.", parsed.setSpeed.speedLevel);
+          notifyStatusToUI(uiTid, "Invalid speed level %u. Must be between 0 and 14.", parsed.setSpeed.speedLevel);
           break;
         }
         if (!marklin::isValidTrainId(parsed.setSpeed.trainId)) {
@@ -103,8 +103,14 @@ void uiControllerTask() {
                            marklin::NUM_TRAINS);
           break;
         }
+        if (!marklin::isValidSpeedLevel(parsed.gotoData.speedLevel)) {
+          notifyStatusToUI(uiTid, "Invalid speed level %u. Must be between 0 and 14.", parsed.gotoData.speedLevel);
+          break;
+        }
+
         TrainTrackMsg tm{.type = TrainTrackMsgType::GotoCmd, .gotoCmd{}};
         tm.gotoCmd.trainId = parsed.gotoData.trainId;
+        tm.gotoCmd.speedLevel = parsed.gotoData.speedLevel;
         for (int i = 0; i < 16; ++i) {
           tm.gotoCmd.location[i] = parsed.gotoData.location[i];
         }
