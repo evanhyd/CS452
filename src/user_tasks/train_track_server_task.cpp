@@ -66,6 +66,21 @@ void initTrain(int dispatcherTid, marklin::TrainTrackState& ttState, marklin::Tr
   }
 }
 
+void setSwitchNodeState(int dispatcherTid, int uiTid, marklin::TrainTrackState& ttState,
+                        const marklin::TrackNode& node) {
+  if (node.type != marklin::TrackNode::Type::Branch || !node.lock.hasOwner()) {
+    return;
+  }
+  marklin::SwitchState sw = ttState.getSwitchState(node.num);
+  marklin::TrackDirection td = (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
+  if (td != node.lock.topDirection()) {
+    sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved : marklin::SwitchState::Straight);
+    ttState.setSwitchState(node.num, sw);
+    sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(node.num, sw));
+    sendSwitchToUI(uiTid, node.num, sw);
+  }
+}
+
 } // namespace
 
 void trainTrackTask() {
@@ -206,7 +221,13 @@ void trainTrackTask() {
       // Calibrate train's motion state.
       marklin::TrackNode& triggeredNode = ttState.getTrackNodeById(msg.sensorEvent.id);
       if (triggeredNode.lock.hasOwner()) {
-        marklin::calibrateTrain(ttState, triggeredNode, currentTicks);
+        marklin::TrainId ownerId = triggeredNode.lock.owner();
+        if (auto& st = ttState.getTrain(ownerId).stateMachine; st.type == marklin::TrainStateMachine::Type::Locating) {
+          st.locating.hasHitFirstSensor = true;
+        }
+        marklin::calibrateTrainAndSetSwitches(
+            ttState, triggeredNode, currentTicks,
+            [&](const marklin::TrackNode& node) { setSwitchNodeState(dispatcherTid, uiTid, ttState, node); });
       } else {
         // TODO: If the sensor has no owner, attribute it to a train currently in Locating state?
       }
@@ -244,6 +265,7 @@ void trainTrackTask() {
       }
       train.stateMachine.type = marklin::TrainStateMachine::Type::Locating;
       train.stateMachine.locating.dest = dest->id;
+      train.stateMachine.locating.hasHitFirstSensor = false;
 
       // Guide the train to enter the loop.
       static constexpr marklin::SwitchId toCurved[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
@@ -297,6 +319,10 @@ void trainTrackTask() {
             break;
           }
 
+          if (!train.stateMachine.locating.hasHitFirstSensor) {
+            break;
+          }
+
           // Find the path to the destination.
           marklin::unlockAllLoopSensorNodes(ttState, trainId);
           marklin::Distance totalPathDist = 0;
@@ -307,20 +333,8 @@ void trainTrackTask() {
           }
 
           // Update the switches directions.
-          marklin::TrackNode* last = train.lastVisitedNode;
           for (marklin::TrackNode* curr : train.path) {
-            if (last->type == marklin::TrackNode::Type::Branch) {
-              marklin::SwitchState sw = ttState.getSwitchState(last->num);
-              marklin::TrackDirection td = (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
-              if (last->edges[td].dest != curr) {
-                sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved
-                                                           : marklin::SwitchState::Straight);
-                ttState.setSwitchState(last->num, sw);
-                sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(last->num, sw));
-                sendSwitchToUI(uiTid, last->num, sw);
-              }
-            }
-            last = curr;
+            setSwitchNodeState(dispatcherTid, uiTid, ttState, *curr);
           }
 
           train.stateMachine.type = marklin::TrainStateMachine::Type::Pathing;

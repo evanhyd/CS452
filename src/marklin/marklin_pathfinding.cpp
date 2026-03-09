@@ -161,13 +161,16 @@ bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
 
   // Extract the path.
   if (isReachable) {
+    TrackDirection lastDirection = TrackDirection::Ahead;
     for (TrackNodeId u = dest; u != srce; u = parents[u]) {
-      TrackNode* node = &ttState.getTrackNodeById(u);
-      if (!node->lock.tryAcquire(trainId)) {
+      TrackNode& node = ttState.getTrackNodeById(u);
+      TrackNode& parent = ttState.getTrackNodeById(parents[u]);
+      if (!node.lock.tryAcquire(trainId, lastDirection)) {
         logError("lock failed even though checked passable");
       }
-      train.path.pushFront(node);
-      outTotalPathDist += getAdjacentDistance(ttState.getTrackNodeById(parents[u]), *node);
+      lastDirection = getAdjacentDirection(parent, node);
+      train.path.pushFront(&node);
+      outTotalPathDist += getAdjacentDistance(parent, node);
     }
   }
 
@@ -179,7 +182,7 @@ Distance getStoppingDistance(SpeedLevel speedLevel) { return STOPPING_DISTANCE[s
 
 bool lockAllLoopSensorNodes(TrainTrackState& ttState, TrainId trainId) {
   for (auto id : loopSensorNodeIds) {
-    if (ttState.getTrackNodeById(id).lock.canAcquire(trainId)) {
+    if (!ttState.getTrackNodeById(id).lock.canAcquire(trainId)) {
       return false;
     }
   }
@@ -246,49 +249,87 @@ Distance getAdjacentDistance(TrackNode& n1, TrackNode& n2) {
   }
 }
 
+TrackDirection getAdjacentDirection(TrackNode& n1, TrackNode& n2) {
+  switch (n1.type) {
+  case TrackNode::Type::Branch:
+    if (TrackNode* u = n1.edges[0].dest; u && u->id == n2.id) {
+      return TrackDirection::Straight;
+    }
+    if (TrackNode* u = n1.edges[1].dest; u && u->id == n2.id) {
+      return TrackDirection::Curved;
+    }
+    logError("n1 and n2 are not adjacent");
+  case TrackNode::Type::Sensor:
+  case TrackNode::Type::Merge:
+  case TrackNode::Type::Enter:
+    if (TrackNode* u = n1.edges[0].dest; u && u->id == n2.id) {
+      return TrackDirection::Ahead;
+    }
+    logError("n1 and n2 are not adjacent");
+  default:
+    logError("n1 and n2 are not adjacent");
+  }
+}
+
 bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance& outTotalPathDist) {
-  // Calculate the shortest and viable path.
+  // Calculate the shortest path to the destination.
+  // Populates train.path and locks the nodes from the destination back to the loop exit.
   bool isReachable = dijkstra(ttState, trainId, dest, outTotalPathDist);
   if (!isReachable) {
     return false;
   }
 
-  // Acquire the lock.
+  Train& train = ttState.getTrain(trainId);
+  TrackNode* startNode = train.lastVisitedNode;
 
-  // Calcualte the track node to stop.
+  // Trace one full lap around the captive loop.
+  // Because Locating set the switches, getNextTrackNode will naturally follow the loop.
+  std::array<TrackNode*, NUM_TRACK_NODES> loopArr;
+  size_t loopSize = 0;
+  TrackNode* curr = startNode;
+  do {
+    Distance dist = 0;
+    curr = getNextTrackNode(ttState, *curr, dist);
+    if (!curr) {
+      logError("Loop trace hit a dead end!");
+      return false;
+    }
+    loopArr[loopSize++] = curr;
+  } while (curr != startNode);
 
-  // Lock all the path.
+  // Prepend the loop nodes to the train's path
+  for (int i = static_cast<int>(loopSize) - 1; i >= 0; --i) {
+    TrackNode* node = loopArr[size_t(i)];
+    TrackNode* parent = (i == 0) ? startNode : loopArr[size_t(i - 1)];
+
+    // The direction 'node' must take to reach the NEXT node in the train's path.
+    TrackDirection dir = TrackDirection::Ahead;
+    if (!train.path.empty()) {
+      dir = getAdjacentDirection(*node, *train.path.front());
+    }
+
+    if (!node->lock.tryAcquire(trainId, dir)) {
+      logError("Loop node lock failed!");
+    }
+    train.path.pushFront(node);
+    outTotalPathDist += getAdjacentDistance(*parent, *node);
+  }
+
+  // Lock startNode
+  TrackDirection enterDir = TrackDirection::Ahead;
+  if (!train.path.empty()) {
+    enterDir = getAdjacentDirection(*startNode, *train.path.front());
+  }
+  if (!startNode->lock.tryAcquire(trainId, enterDir)) {
+    logError("Start node lock failed!");
+  }
 
   return isReachable;
 }
 
-void calibrateTrain(TrainTrackState& ttState, TrackNode& triggeredNode, uint32_t currentTicks) {
-  TrainId trainId = triggeredNode.lock.owner();
-  Train& train = ttState.getTrain(trainId);
-
+void calibrateTrain(Train& train, TrackNode& triggeredNode, uint32_t currentTicks, Distance dS) {
   // Update the train estimated speed.
   uint32_t dT = kit::max(1u, currentTicks - train.lastSpeedUpdateTicks);
-  Distance dS = [&] -> Distance {
-    // The train must be located first.
-    TrackNode* last = train.lastVisitedNode;
-    if (!last) {
-      return 0;
-    }
-
-    // Remove all the missing nodes and sum up the distance.
-    last->lock.release(trainId);
-    Distance totalDist = 0;
-    while (!train.path.empty()) {
-      TrackNode* curr = train.path.popFront();
-      curr->lock.release(trainId);
-      totalDist += getAdjacentDistance(*last, *curr);
-      last = curr;
-      if (curr->id == triggeredNode.id) {
-        break;
-      }
-    }
-    return totalDist;
-  }();
 
   // Update the time weighted speed.
   if (dS != 0) {
@@ -307,4 +348,5 @@ void calibrateTrain(TrainTrackState& ttState, TrackNode& triggeredNode, uint32_t
   train.lastVisitedNode = &triggeredNode;
   train.lastSpeedUpdateTicks = currentTicks;
 }
+
 } // namespace marklin

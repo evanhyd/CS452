@@ -1,6 +1,7 @@
 #pragma once
 #include "util/debug.h"
 #include "util/ring_buffer.h"
+#include "util/static_stack.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -47,6 +48,7 @@ struct TrainStateMachine {
   };
   struct LocatingState {
     TrackNodeId dest;
+    bool hasHitFirstSensor;
   };
   struct PathingState {
     TrackNodeId dest;
@@ -148,36 +150,44 @@ struct TrackNode {
 
   class NodeLock {
   public:
-    NodeLock() : owner_(NO_TRAIN), count_(0) {}
+    NodeLock() : owner_(NO_TRAIN), directionStack_() {}
 
-    bool tryAcquire(TrainId trainId) {
+    bool tryAcquire(TrainId trainId, TrackDirection direction = TrackDirection::Ahead) {
       if (canAcquire(trainId)) {
         owner_ = trainId;
-        ++count_;
+        directionStack_.push(direction);
         return true;
       }
       return false;
     }
 
-    bool canAcquire(TrainId trainId) const { return count_ == 0 || owner_ == trainId; }
+    bool canAcquire(TrainId trainId) const { return directionStack_.empty() || owner_ == trainId; }
 
-    void release(TrainId trainId) {
-      if (count_ > 0 && owner_ == trainId) {
-        --count_;
-        if (count_ == 0) {
+    void release(TrainId trainId, std::source_location loc = std::source_location::current()) {
+      if (hasOwner() && owner_ == trainId) {
+        directionStack_.pop();
+        if (directionStack_.empty()) {
           owner_ = NO_TRAIN;
         }
+        return;
       }
-      logError("release failed");
+      logError("release failed", loc);
     }
 
-    bool hasOwner() const { return count_ == 0; }
+    TrackDirection topDirection() const {
+      if (hasOwner()) {
+        return directionStack_.top();
+      }
+      return TrackDirection::Ahead;
+    }
+
+    bool hasOwner() const { return !directionStack_.empty(); }
 
     TrainId owner() const { return owner_; }
 
   private:
     TrainId owner_;
-    unsigned count_;
+    StaticStack<TrackDirection, 4> directionStack_;
   };
 
   const char* name;

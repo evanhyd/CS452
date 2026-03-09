@@ -188,7 +188,7 @@ void uiViewServerTask() {
                                       : marklin::Sensor{'?', 0});
         console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Offset %d um, Est Speed %d um/t",
                        entry.trainId, lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number,
-                       entry.estimatedOffset / 1000, entry.estimatedSpeed);
+                       entry.estimatedOffset, entry.estimatedSpeed);
         console.clearToEol();
       }
       break;

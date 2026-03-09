@@ -20,7 +20,6 @@ constexpr const char* USAGE_TR = "tr <train id> <speed level> - Set train speed 
 constexpr const char* USAGE_RV = "rv <train id> - Reverse train direction";
 constexpr const char* USAGE_SW = "sw <switch id> <switch direction> - Set switch to straight (S) or curved (C)";
 constexpr const char* USAGE_ST = "st <track id> - Set track to A or B";
-constexpr const char* USAGE_LOOP = "loop <train id> - Send train to the captive loop";
 constexpr const char* USAGE_GOTO =
     "goto <train id> <speed level> <location> - Send train to a track node (e.g. A5, BR15)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
@@ -112,7 +111,7 @@ ParsedCommand CommandBuffer::parse_impl() {
     if (trackLetter == 'b' || trackLetter == 'B') {
       return {.tag = CmdTag::SetTrack, .setTrack{1}};
     }
-    return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
+    return {.tag = CmdTag::Invalid, .invalid{USAGE_ST}};
   }
   if (length_ >= 1 && ptr[0] == 'q') {
     ptr += 1;

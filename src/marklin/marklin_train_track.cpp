@@ -12,7 +12,7 @@ TrainTrackState::TrainTrackState() {
     train.stateMachine.type = TrainStateMachine::Type::Idle;
     train.speedLevel = 0;
     train.estimatedSpeed = 0;
-    train.estimatedOffset = 0;
+    train.estimatedOffsetFromLast = 0;
     train.lastVisitedNode = nullptr;
     train.lastSpeedUpdateTicks = 0;
     train.path = {};
@@ -2415,7 +2415,7 @@ TrackNode& TrainTrackState::getTrackNodeById(TrackNodeId id) {
 TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
   TrackSet& trackSet = (currentTrack == 0 ? trackA : trackB);
   for (TrackNode& trackNode : trackSet) {
-    if (!strncmp(trackNode.name, name, 6)) {
+    if (trackNode.name && !strncmp(trackNode.name, name, 6)) {
       return &trackNode;
     }
   }
