@@ -21,7 +21,7 @@ constexpr const char* USAGE_RV = "rv <train id> - Reverse train direction";
 constexpr const char* USAGE_SW = "sw <switch id> <switch direction> - Set switch to straight (S) or curved (C)";
 constexpr const char* USAGE_ST = "st <track id> - Set track to A or B";
 constexpr const char* USAGE_GOTO =
-    "goto <train id> <speed level> <location> - Send train to a track node (e.g. A5, BR15)";
+    "goto <train id> <speed level> <location> <offset> - Send train to a track node (e.g. A5, BR15)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
 } // namespace
@@ -162,18 +162,36 @@ ParsedCommand CommandBuffer::parse_impl() {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
 
-    // 4. Ensure no extra garbage parameters exist after location
-    const char* checkPtr = ptr;
-    while (checkPtr < end() && *checkPtr == ' ') {
-      ++checkPtr;
+    // 4. Parse Offset
+    if (ptr == end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
-    if (checkPtr != end()) {
+    int sign = 1;
+    if (*ptr == '-') {
+      sign = -1;
+      ++ptr;
+    } else if (*ptr == '+') {
+      ++ptr;
+    }
+    unsigned offsetMag;
+    next = a2ui(ptr, end(), offsetMag);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
+    }
+    marklin::Distance offsetMm = sign * static_cast<int32_t>(offsetMag);
+    ptr = next;
+    skip_ws();
+
+    // 4. Ensure no extra garbage parameters exist after location
+    skip_ws();
+    if (ptr != end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
 
     ParsedCommand result{.tag = CmdTag::Goto, .gotoData{}};
     result.gotoData.trainId = marklin::TrainId(trainId);
     result.gotoData.speedLevel = marklin::SpeedLevel(speedLevel);
+    result.gotoData.offsetMm = offsetMm;
     for (size_t i = 0; i < locLen; ++i) {
       result.gotoData.location[i] = locStart[i];
     }

@@ -48,10 +48,12 @@ struct TrainStateMachine {
   };
   struct LocatingState {
     TrackNodeId dest;
+    Distance offset;
     bool hasHitFirstSensor;
   };
   struct PathingState {
     TrackNodeId dest;
+    Distance offset;
     Distance pathDistance;
   };
 

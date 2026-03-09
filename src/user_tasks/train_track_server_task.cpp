@@ -265,6 +265,7 @@ void trainTrackTask() {
       }
       train.stateMachine.type = marklin::TrainStateMachine::Type::Locating;
       train.stateMachine.locating.dest = dest->id;
+      train.stateMachine.locating.offset = msg.gotoCmd.offsetMm * 1000;
       train.stateMachine.locating.hasHitFirstSensor = false;
 
       // Guide the train to enter the loop.
@@ -326,7 +327,7 @@ void trainTrackTask() {
           // Find the path to the destination.
           marklin::unlockAllLoopSensorNodes(ttState, trainId);
           marklin::Distance totalPathDist = 0;
-          if (!marklin::planPath(ttState, trainId, train.stateMachine.pathing.dest, totalPathDist)) {
+          if (!marklin::planPath(ttState, trainId, train.stateMachine.locating.dest, totalPathDist)) {
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             notifyStatusToUI(uiTid, "train %u failed to find any path.", trainId);
             break;
@@ -338,20 +339,22 @@ void trainTrackTask() {
           }
 
           train.stateMachine.type = marklin::TrainStateMachine::Type::Pathing;
-          train.stateMachine.pathing.pathDistance = totalPathDist;
+          train.stateMachine.pathing.dest = train.stateMachine.locating.dest;
+          train.stateMachine.pathing.offset = train.stateMachine.locating.offset;
+          train.stateMachine.pathing.pathDistance = totalPathDist + train.stateMachine.locating.offset;
           notifyStatusToUI(uiTid, "train %u found path[%u].", trainId, train.path.size());
           break;
         }
         case marklin::TrainStateMachine::Type::Pathing: {
           // Check if the pathing is completed.
-          if (train.path.empty()) {
-            train.speedLevel = 0;
-            sendToDispatcher(dispatcherTid,
-                             marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
-            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
-            notifyStatusToUI(uiTid, "train %u reached the last sensor.", trainId);
-            break;
-          }
+          // if (train.path.empty()) {
+          //   train.speedLevel = 0;
+          //   sendToDispatcher(dispatcherTid,
+          //                    marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
+          //   train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
+          //   notifyStatusToUI(uiTid, "train %u reached the last sensor.", trainId);
+          //   break;
+          // }
 
           // Update train position.
           train.estimatedOffsetFromLast += train.estimatedSpeed;

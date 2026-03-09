@@ -89,6 +89,7 @@ struct TrainTrackMsg {
   struct GotoCmdData {
     marklin::TrainId trainId;
     marklin::SpeedLevel speedLevel;
+    marklin::Distance offsetMm;
     char location[16];
   };
   union {

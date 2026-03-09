@@ -114,6 +114,7 @@ void uiControllerTask() {
         for (int i = 0; i < 16; ++i) {
           tm.gotoCmd.location[i] = parsed.gotoData.location[i];
         }
+        tm.gotoCmd.offsetMm = parsed.gotoData.offsetMm;
         notify(trainTrackTid, tm);
         break;
       }
