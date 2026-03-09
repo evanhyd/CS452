@@ -205,8 +205,10 @@ void trainTrackTask() {
 
       // Calibrate train's motion state.
       marklin::TrackNode& triggeredNode = ttState.getTrackNodeById(msg.sensorEvent.id);
-      if (triggeredNode.owner != marklin::NO_TRAIN) {
+      if (triggeredNode.lock.hasOwner()) {
         marklin::calibrateTrain(ttState, triggeredNode, currentTicks);
+      } else {
+        // TODO: If the sensor has no owner, attribute it to a train currently in Locating state?
       }
       break;
     }
@@ -296,7 +298,7 @@ void trainTrackTask() {
           }
 
           // Find the path to the destination.
-          marklin::unlockAllLoopSensorNodes(ttState);
+          marklin::unlockAllLoopSensorNodes(ttState, trainId);
           marklin::Distance totalPathDist = 0;
           if (!marklin::planPath(ttState, trainId, train.stateMachine.pathing.dest, totalPathDist)) {
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
@@ -338,10 +340,10 @@ void trainTrackTask() {
           }
 
           // Update train position.
-          train.estimatedOffset += train.estimatedSpeed;
+          train.estimatedOffsetFromLast += train.estimatedSpeed;
 
           // Update estimated node position.
-          marklin::Distance estOffset = train.estimatedOffset;
+          marklin::Distance estOffset = train.estimatedOffsetFromLast;
           marklin::TrackNode* last = train.lastVisitedNode;
           for (marklin::TrackNode* curr : train.path) {
             marklin::Distance dist = getAdjacentDistance(*last, *curr);
@@ -355,7 +357,7 @@ void trainTrackTask() {
 
           // Stop the train if close to safe stopping distance.
           marklin::Distance estimatedRemainingPathDist =
-              train.stateMachine.pathing.pathDistance - train.estimatedOffset;
+              train.stateMachine.pathing.pathDistance - train.estimatedOffsetFromLast;
           if (estimatedRemainingPathDist <= marklin::getStoppingDistance(train.speedLevel)) {
             train.speedLevel = 0;
             sendToDispatcher(dispatcherTid,
@@ -372,7 +374,7 @@ void trainTrackTask() {
               .trainId = trainId,
               .lastTrackNode = train.lastVisitedNode,
               .estimatedTrackNode = train.estimatedNode,
-              .estimatedOffset = train.estimatedOffset,
+              .estimatedOffset = train.estimatedOffsetFromLast,
               .estimatedSpeed = train.estimatedSpeed,
           });
         }

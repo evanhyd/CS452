@@ -10,7 +10,7 @@ Distance getStoppingDistance(SpeedLevel speedLevel);
 bool lockAllLoopSensorNodes(TrainTrackState& ttState, TrainId trainId);
 
 // Unlock all the sensors on the loop.
-void unlockAllLoopSensorNodes(TrainTrackState& ttState);
+void unlockAllLoopSensorNodes(TrainTrackState& ttState, TrainId trainId);
 
 // Get the next track node by following the track at the current configuration.
 // Return nullptr if not found.

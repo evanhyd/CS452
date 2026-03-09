@@ -1,6 +1,5 @@
 #include "marklin/marklin_pathfinding.h"
 #include "marklin/marklin_train_track.h"
-#include "user_tasks/send_util.h"
 #include "util/debug.h"
 #include "util/kit_algorithm.h"
 #include "util/ring_buffer.h"
@@ -29,17 +28,54 @@ constexpr marklin::TrackNodeId loopSensorNodeIds[] = {
     marklin::sensorToTrackNodeId({'C', 11}), marklin::sensorToTrackNodeId({'C', 12}),
 };
 
+constexpr marklin::TrackNodeId loopClockwiseSensorNodeIds[] = {
+    marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'C', 11}),
+    marklin::sensorToTrackNodeId({'B', 5}),  marklin::sensorToTrackNodeId({'D', 3}),
+    marklin::sensorToTrackNodeId({'E', 5}),  marklin::sensorToTrackNodeId({'D', 6}),
+    marklin::sensorToTrackNodeId({'E', 10}), marklin::sensorToTrackNodeId({'E', 13}),
+    marklin::sensorToTrackNodeId({'D', 13}), marklin::sensorToTrackNodeId({'B', 2}),
+    marklin::sensorToTrackNodeId({'C', 9}),  marklin::sensorToTrackNodeId({'B', 15}),
+};
+
+constexpr marklin::TrackNodeId loopCounterClockwiseSensorNodeIds[] = {
+    marklin::sensorToTrackNodeId({'A', 4}),  marklin::sensorToTrackNodeId({'B', 16}),
+    marklin::sensorToTrackNodeId({'C', 10}), marklin::sensorToTrackNodeId({'B', 1}),
+    marklin::sensorToTrackNodeId({'D', 14}), marklin::sensorToTrackNodeId({'E', 14}),
+    marklin::sensorToTrackNodeId({'E', 9}),  marklin::sensorToTrackNodeId({'D', 5}),
+    marklin::sensorToTrackNodeId({'E', 6}),  marklin::sensorToTrackNodeId({'D', 4}),
+    marklin::sensorToTrackNodeId({'B', 6}),  marklin::sensorToTrackNodeId({'C', 12}),
+};
+
+static_assert([] {
+  std::array<bool, NUM_TRACK_NODES> isLoopSensorNode{};
+  for (auto id : loopSensorNodeIds) {
+    if (isLoopSensorNode[id]) {
+      return false;
+    }
+    isLoopSensorNode[id] = true;
+  }
+  for (auto id : loopClockwiseSensorNodeIds) {
+    if (!isLoopSensorNode[id]) {
+      return false;
+    }
+    isLoopSensorNode[id] = false;
+  }
+  for (auto id : loopCounterClockwiseSensorNodeIds) {
+    if (!isLoopSensorNode[id]) {
+      return false;
+    }
+    isLoopSensorNode[id] = false;
+  }
+  return true;
+}());
+
 // The node is NOT passable if:
 // A different train sitting on the node on either direction
-// The same train sittong on the same direction.
 bool isPassable(TrackNode& node, TrainId id) {
-  if (node.owner != NO_TRAIN && node.owner != id) {
+  if (node.lock.hasOwner() && node.lock.owner() != id) {
     return false;
   }
-  if (node.reverse->owner != NO_TRAIN && node.reverse->owner != id) {
-    return false;
-  }
-  if (node.owner == id) {
+  if (node.reverse->lock.hasOwner() && node.reverse->lock.owner() != id) {
     return false;
   }
   return true;
@@ -127,7 +163,9 @@ bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
   if (isReachable) {
     for (TrackNodeId u = dest; u != srce; u = parents[u]) {
       TrackNode* node = &ttState.getTrackNodeById(u);
-      node->owner = trainId;
+      if (!node->lock.tryAcquire(trainId)) {
+        logError("lock failed even though checked passable");
+      }
       train.path.pushFront(node);
       outTotalPathDist += getAdjacentDistance(ttState.getTrackNodeById(parents[u]), *node);
     }
@@ -141,19 +179,21 @@ Distance getStoppingDistance(SpeedLevel speedLevel) { return STOPPING_DISTANCE[s
 
 bool lockAllLoopSensorNodes(TrainTrackState& ttState, TrainId trainId) {
   for (auto id : loopSensorNodeIds) {
-    if (ttState.getTrackNodeById(id).owner != NO_TRAIN) {
+    if (ttState.getTrackNodeById(id).lock.canAcquire(trainId)) {
       return false;
     }
   }
   for (auto id : loopSensorNodeIds) {
-    ttState.getTrackNodeById(id).owner = trainId;
+    if (!ttState.getTrackNodeById(id).lock.tryAcquire(trainId)) {
+      logError("unexpected lock failure");
+    }
   }
   return true;
 }
 
-void unlockAllLoopSensorNodes(TrainTrackState& ttState) {
+void unlockAllLoopSensorNodes(TrainTrackState& ttState, TrainId trainId) {
   for (auto id : loopSensorNodeIds) {
-    ttState.getTrackNodeById(id).owner = NO_TRAIN;
+    ttState.getTrackNodeById(id).lock.release(trainId);
   }
 }
 
@@ -223,7 +263,8 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
 }
 
 void calibrateTrain(TrainTrackState& ttState, TrackNode& triggeredNode, uint32_t currentTicks) {
-  Train& train = ttState.getTrain(triggeredNode.owner);
+  TrainId trainId = triggeredNode.lock.owner();
+  Train& train = ttState.getTrain(trainId);
 
   // Update the train estimated speed.
   uint32_t dT = kit::max(1u, currentTicks - train.lastSpeedUpdateTicks);
@@ -235,11 +276,11 @@ void calibrateTrain(TrainTrackState& ttState, TrackNode& triggeredNode, uint32_t
     }
 
     // Remove all the missing nodes and sum up the distance.
-    last->owner = NO_TRAIN;
+    last->lock.release(trainId);
     Distance totalDist = 0;
     while (!train.path.empty()) {
       TrackNode* curr = train.path.popFront();
-      curr->owner = NO_TRAIN;
+      curr->lock.release(trainId);
       totalDist += getAdjacentDistance(*last, *curr);
       last = curr;
       if (curr->id == triggeredNode.id) {
@@ -262,7 +303,7 @@ void calibrateTrain(TrainTrackState& ttState, TrackNode& triggeredNode, uint32_t
 
   // Update the train last triggered sensor node.
   train.estimatedNode = &triggeredNode;
-  train.estimatedOffset = 0;
+  train.estimatedOffsetFromLast = 0;
   train.lastVisitedNode = &triggeredNode;
   train.lastSpeedUpdateTicks = currentTicks;
 }

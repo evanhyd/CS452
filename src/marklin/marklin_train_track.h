@@ -69,8 +69,8 @@ struct Train {
 
   // Motion State
   SpeedLevel speedLevel;
-  Speed estimatedSpeed;     // um/tick, calculated from the sensor
-  Distance estimatedOffset; // position offset away from the last triggered track node.
+  Speed estimatedSpeed;             // um/tick, calculated from the sensor
+  Distance estimatedOffsetFromLast; // position offset away from the last triggered track node.
   TrackNode* estimatedNode;
   TrackNode* lastVisitedNode;
   uint32_t lastSpeedUpdateTicks;
@@ -145,13 +145,48 @@ struct TrackNode {
     Enter,  // Ahead
     Exit,   // None
   };
+
+  class NodeLock {
+  public:
+    NodeLock() : owner_(NO_TRAIN), count_(0) {}
+
+    bool tryAcquire(TrainId trainId) {
+      if (canAcquire(trainId)) {
+        owner_ = trainId;
+        ++count_;
+        return true;
+      }
+      return false;
+    }
+
+    bool canAcquire(TrainId trainId) const { return count_ == 0 || owner_ == trainId; }
+
+    void release(TrainId trainId) {
+      if (count_ > 0 && owner_ == trainId) {
+        --count_;
+        if (count_ == 0) {
+          owner_ = NO_TRAIN;
+        }
+      }
+      logError("release failed");
+    }
+
+    bool hasOwner() const { return count_ == 0; }
+
+    TrainId owner() const { return owner_; }
+
+  private:
+    TrainId owner_;
+    unsigned count_;
+  };
+
   const char* name;
   Type type;
   TrackNodeNum num;   // sensor or switch number
   TrackNodeId id;     // TrackSet index
   TrackNode* reverse; // same location, but opposite direction
   TrackEdge edges[2];
-  TrainId owner; // the train ID that has exclusive access
+  NodeLock lock; // the train ID that has exclusive access
 };
 
 /**********************************
