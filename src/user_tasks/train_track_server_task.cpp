@@ -46,15 +46,14 @@ void sendSensorHistoryToUI(int uiTid, const History<SensorHistoryEntry, SENSOR_H
   notify(uiTid, ui);
 }
 
-void sendTrainHistoryToUI(int uiTid, RingBuffer<TrainStatesEntry, TRAIN_HISTORY_SIZE>& trainStates) {
+void sendTrainHistoryToUI(int uiTid, const RingBuffer<TrainStatesEntry, TRAIN_HISTORY_SIZE>& trainStates) {
   UIMsg ui;
   ui.type = UIMsgType::TrainStates;
-  unsigned count = 0;
-  while (!trainStates.empty()) {
-    ui.trainStates.entries[count] = trainStates.popFront();
-    ++count;
+  unsigned idx = 0;
+  for (const auto& e : trainStates) {
+    ui.trainStates.entries[idx++] = e;
   }
-  ui.trainStates.count = count;
+  ui.trainStates.count = idx;
   notify(uiTid, ui);
 }
 
@@ -87,8 +86,6 @@ void trainTrackTask() {
   marklin::TrainTrackState ttState{};
   History<SensorHistoryEntry, SENSOR_HISTORY_SIZE> sensorHistory;
   RingBuffer<TrainStatesEntry, TRAIN_HISTORY_SIZE> trainStates;
-  marklin::TrackNodeId locatingNodeId1 = marklin::sensorToTrackNodeId({'B', 1});
-  marklin::TrackNodeId locatingNodeId2 = marklin::sensorToTrackNodeId({'B', 2});
 
   sendAllSwitchesToUI(uiTid, ttState);
 
@@ -170,8 +167,6 @@ void trainTrackTask() {
       }
 
       // Get the train track and the owner train info.
-      marklin::TrackNodeId trackNodeId = msg.sensorEvent.id;
-      //   marklin::TrackNode* trackNode = &ttState.getTrackNodeById(trackNodeId);
       // Calculate the error for the previous sensor history.
       //   marklin::Speed estSpeed = ttState.getTrainRef(trackNode->trainOwnerId).estimatedSpeed;
       //   if (!sensorHistory.empty()) {
@@ -187,14 +182,6 @@ void trainTrackTask() {
       //       lastEntry.distErrorMm = lastEntry.timeErrorTicks * estSpeed / 1000;
       //     }
       //   }
-
-      // Calculate the next sensor history.
-      SensorHistoryEntry newEntry{};
-      newEntry.event = msg.sensorEvent;
-      newEntry.ticks = currentTicks;
-      newEntry.hasPrediction = false;
-      newEntry.timeErrorTicks = 0;
-      newEntry.distErrorMm = 0;
       //   {
       //     // Find the next sensor.
       //     marklin::Distance outDist = 0;
@@ -205,11 +192,22 @@ void trainTrackTask() {
       //       static_cast<uint32_t>(estSpeed); newEntry.hasPrediction = true;
       //     }
       //   }
+
+      // Calculate the next sensor history.
+      SensorHistoryEntry newEntry{};
+      newEntry.event = msg.sensorEvent;
+      newEntry.ticks = currentTicks;
+      newEntry.hasPrediction = false;
+      newEntry.timeErrorTicks = 0;
+      newEntry.distErrorMm = 0;
       sensorHistory.push(newEntry);
       sendSensorHistoryToUI(uiTid, sensorHistory);
 
-      // Recalibrate train's motion state.
-      marklin::calibrateTrainFromTrackNode(ttState, trackNodeId, currentTicks);
+      // Calibrate train's motion state.
+      marklin::TrackNode& triggeredNode = ttState.getTrackNodeById(msg.sensorEvent.id);
+      if (triggeredNode.owner != marklin::NO_TRAIN) {
+        marklin::calibrateTrain(ttState, triggeredNode, currentTicks);
+      }
       break;
     }
     case TrainTrackMsgType::GotoCmd: {
@@ -218,7 +216,7 @@ void trainTrackTask() {
         notifyStatusToUI(uiTid, "Invalid train id for goto.");
         break;
       }
-      marklin::TrackNode* dest = ttState.getTrackNode(msg.gotoCmd.location);
+      marklin::TrackNode* dest = ttState.getTrackNodeByName(msg.gotoCmd.location);
       if (!dest) {
         notifyStatusToUI(uiTid, "Invalid track node name for goto.");
         break;
@@ -231,11 +229,16 @@ void trainTrackTask() {
         notifyStatusToUI(uiTid, "Train %u is busy right now.", trainId);
         break;
       }
-      notifyStatusToUI(uiTid, "Locating train %u.", trainId);
 
       // Locate the train location by first entering the loop and listen to the sensor.
+      if (!marklin::lockAllLoopSensorNodes(ttState, trainId)) {
+        notifyStatusToUI(uiTid, "Train %u can not acquire an occupied loop.", trainId);
+        break;
+      }
       train.stateMachine.type = marklin::TrainStateMachine::Type::Locating;
       train.stateMachine.locating.dest = dest->id;
+
+      // Guide the train to enter the loop.
       static constexpr marklin::SwitchId toCurved[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
       static constexpr marklin::SwitchId toStraight[] = {1, 2, 4, 6, 7, 10, 13, 16, 17, 153, 156};
       for (marklin::SwitchId id : toCurved) {
@@ -248,8 +251,7 @@ void trainTrackTask() {
         sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
         sendSwitchToUI(uiTid, id, marklin::SwitchState::Straight);
       }
-      ttState.getTrackNodeById(locatingNodeId1).trainOwnerId = trainId;
-      ttState.getTrackNodeById(locatingNodeId2).trainOwnerId = trainId;
+      notifyStatusToUI(uiTid, "Locating train %u.", trainId);
       break;
     }
     case TrainTrackMsgType::TimerTick: {
@@ -260,9 +262,6 @@ void trainTrackTask() {
         if (!train.touched) {
           continue;
         }
-
-        // Update train's motion.
-        train.estimatedOffset += train.estimatedSpeed;
 
         // Update train's state machine.
         switch (train.stateMachine.type) {
@@ -282,50 +281,77 @@ void trainTrackTask() {
           break;
         }
         case marklin::TrainStateMachine::Type::Locating: {
-          if (train.lastVisitedNode) {
-            ttState.getTrackNodeById(locatingNodeId1).trainOwnerId = 0;
-            ttState.getTrackNodeById(locatingNodeId2).trainOwnerId = 0;
-
-            train.stateMachine.type = marklin::TrainStateMachine::Type::Pathing;
-            if (marklin::planPath(ttState, trainId, train.stateMachine.pathing.dest)) {
-              notifyStatusToUI(uiTid, "train %u found path with length %u.", trainId, train.path.size());
-            } else {
-              notifyStatusToUI(uiTid, "train %u failed to find a path.", trainId);
-            }
-
-            // Set up the switch and ownership.
-            marklin::TrackNode* curr = train.lastVisitedNode;
-            while (!train.path.empty()) {
-              marklin::TrackNode* next = train.path.popFront();
-
-              // Check if needs to change switch direction.
-              if (curr->type == marklin::TrackNode::Type::Branch) {
-                marklin::SwitchState sw = ttState.getSwitchState(curr->num);
-                marklin::TrackDirection td =
-                    (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
-                if (curr->edges[td].dest != next) {
-                  sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved
-                                                             : marklin::SwitchState::Straight);
-                  ttState.setSwitchState(curr->num, sw);
-                  sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(curr->num, sw));
-                  sendSwitchToUI(uiTid, curr->num, sw);
-                }
-              }
-
-              curr = next;
-            }
-            train.stateMachine.type = marklin::TrainStateMachine::Type::Pathing;
+          // Waiting for the train to get located.
+          if (!train.lastVisitedNode) {
+            break;
           }
+
+          // Find the path to the destination.
+          marklin::unlockAllLoopSensorNodes(ttState);
+          marklin::Distance totalPathDist = 0;
+          if (!marklin::planPath(ttState, trainId, train.stateMachine.pathing.dest, totalPathDist)) {
+            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
+            notifyStatusToUI(uiTid, "train %u failed to find any path.", trainId);
+            break;
+          }
+
+          // Update the switches directions.
+          marklin::TrackNode* last = train.lastVisitedNode;
+          for (marklin::TrackNode* curr : train.path) {
+            if (last->type != marklin::TrackNode::Type::Branch) {
+              continue;
+            }
+
+            marklin::SwitchState sw = ttState.getSwitchState(last->num);
+            marklin::TrackDirection td = (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
+            if (last->edges[td].dest != curr) {
+              sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved
+                                                         : marklin::SwitchState::Straight);
+              ttState.setSwitchState(last->num, sw);
+              sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(last->num, sw));
+              sendSwitchToUI(uiTid, last->num, sw);
+            }
+            last = curr;
+          }
+
+          train.stateMachine.type = marklin::TrainStateMachine::Type::Pathing;
+          train.stateMachine.pathing.pathDistance = totalPathDist;
+          notifyStatusToUI(uiTid, "train %u found path[%u].", trainId, train.path.size());
           break;
         }
         case marklin::TrainStateMachine::Type::Pathing: {
+          // Check if the pathing is completed.
           if (train.path.empty()) {
-            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             notifyStatusToUI(uiTid, "train %u arrived at destination.", trainId);
             break;
           }
 
-          break;
+          // Update train position.
+          train.estimatedOffset += train.estimatedSpeed;
+
+          // Update estimated node position.
+          marklin::Distance estOffset = train.estimatedOffset;
+          marklin::TrackNode* last = train.lastVisitedNode;
+          for (marklin::TrackNode* curr : train.path) {
+            marklin::Distance dist = getAdjacentDistance(*last, *curr);
+            if (estOffset < dist) {
+              break;
+            }
+            estOffset -= dist;
+            train.estimatedNode = curr;
+            last = curr;
+          }
+
+          // Stop the train if close to safe stopping distance.
+          marklin::Distance estimatedRemainingPathDist =
+              train.stateMachine.pathing.pathDistance - train.estimatedOffset;
+          if (estimatedRemainingPathDist <= marklin::getStoppingDistance(train.speedLevel)) {
+            train.speedLevel = 0;
+            sendToDispatcher(dispatcherTid,
+                             marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
+            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
+            notifyStatusToUI(uiTid, "stopping train %u.", trainId);
+          }
         }
         }
 
@@ -334,7 +360,7 @@ void trainTrackTask() {
           trainStates.pushBack(TrainStatesEntry{
               .trainId = trainId,
               .lastTrackNode = train.lastVisitedNode,
-              .estimatedTrackNode = train.lastVisitedNode,
+              .estimatedTrackNode = train.estimatedNode,
               .estimatedOffset = train.estimatedOffset,
               .estimatedSpeed = train.estimatedSpeed,
           });
@@ -345,6 +371,7 @@ void trainTrackTask() {
       if (currentTicks - lastTrainUIRefreshTicks >= 10) {
         lastTrainUIRefreshTicks = currentTicks;
         sendTrainHistoryToUI(uiTid, trainStates);
+        trainStates.clear();
       }
       break;
     }

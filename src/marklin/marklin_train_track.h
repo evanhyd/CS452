@@ -27,6 +27,7 @@ static constexpr size_t MAX_SPEED_LEVEL = 14;
 static constexpr size_t NUM_TRAINS = 60;
 static constexpr size_t NUM_TRACK_NODES = 144;
 static constexpr size_t NUM_SWITCHES = 22;
+static constexpr TrainId NO_TRAIN = 0;
 
 /**********************************
 Train Definition
@@ -49,6 +50,7 @@ struct TrainStateMachine {
   };
   struct PathingState {
     TrackNodeId dest;
+    Distance pathDistance;
   };
 
   union {
@@ -69,8 +71,9 @@ struct Train {
   SpeedLevel speedLevel;
   Speed estimatedSpeed;     // um/tick, calculated from the sensor
   Distance estimatedOffset; // position offset away from the last triggered track node.
+  TrackNode* estimatedNode;
   TrackNode* lastVisitedNode;
-  uint32_t lastVisitedTicks;
+  uint32_t lastSpeedUpdateTicks;
   RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
 };
 
@@ -148,7 +151,7 @@ struct TrackNode {
   TrackNodeId id;     // TrackSet index
   TrackNode* reverse; // same location, but opposite direction
   TrackEdge edges[2];
-  TrainId trainOwnerId; // the train ID that has exclusive access
+  TrainId owner; // the train ID that has exclusive access
 };
 
 /**********************************
@@ -172,11 +175,11 @@ public:
 
   // Set the current track (0 - A, 1 - B).
   void setCurrentTrack(TrackId id);
+
   TrackNode& getTrackNodeById(TrackNodeId id);
 
-  // Perform a linear scan to get track node by its name.
-  // Very bad performance.
-  TrackNode* getTrackNode(const char* name);
+  // Perform a linear scan to get track node by its name. Very bad performance.
+  TrackNode* getTrackNodeByName(const char* name);
 };
 
 } // namespace marklin

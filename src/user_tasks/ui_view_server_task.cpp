@@ -181,15 +181,14 @@ void uiViewServerTask() {
       for (unsigned row = 0; row < msg.trainStates.count; ++row) {
         const auto& entry = msg.trainStates.entries[row];
         console.moveCursor(ROW_TRAINS + 1 + row, COL_TRAINS);
-        marklin::TrainId trainId = entry.trainId;
         marklin::Sensor lastSensor =
             (entry.lastTrackNode ? marklin::trackNodeIdToSensor(entry.lastTrackNode->id) : marklin::Sensor{'?', 0});
         marklin::Sensor estSensor =
             (entry.estimatedTrackNode ? marklin::trackNodeIdToSensor(entry.estimatedTrackNode->id)
                                       : marklin::Sensor{'?', 0});
-        console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Offset %d um, Est Speed %d um/t", trainId,
-                       lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number, entry.estimatedOffset,
-                       entry.estimatedSpeed);
+        console.printf("Train %d, Last Sensor %c%d, Est Sensor %c%d, Est Offset %d um, Est Speed %d um/t",
+                       entry.trainId, lastSensor.bank, lastSensor.number, estSensor.bank, estSensor.number,
+                       entry.estimatedOffset / 1000, entry.estimatedSpeed);
         console.clearToEol();
       }
       break;

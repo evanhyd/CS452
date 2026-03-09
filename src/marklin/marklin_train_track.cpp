@@ -14,7 +14,7 @@ TrainTrackState::TrainTrackState() {
     train.estimatedSpeed = 0;
     train.estimatedOffset = 0;
     train.lastVisitedNode = nullptr;
-    train.lastVisitedTicks = 0;
+    train.lastSpeedUpdateTicks = 0;
     train.path = {};
   }
 
@@ -2379,6 +2379,8 @@ TrainTrackState::TrainTrackState() {
     trackA[i].id = i;
     trackB[i].id = i;
   }
+
+  // Owner defaults to NO_TRAIN from aggregate initialization.
 }
 
 Train& TrainTrackState::getTrain(TrainId id) {
@@ -2410,10 +2412,10 @@ TrackNode& TrainTrackState::getTrackNodeById(TrackNodeId id) {
   }
 }
 
-TrackNode* TrainTrackState::getTrackNode(const char* name) {
+TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
   TrackSet& trackSet = (currentTrack == 0 ? trackA : trackB);
   for (TrackNode& trackNode : trackSet) {
-    if (!strncmp(trackNode.name, name, 5)) {
+    if (!strncmp(trackNode.name, name, 6)) {
       return &trackNode;
     }
   }
