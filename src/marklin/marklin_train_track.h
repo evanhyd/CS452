@@ -73,11 +73,16 @@ struct Train {
 
   // Motion State
   SpeedLevel speedLevel;
-  Speed estimatedSpeed;             // um/tick, calculated from the sensor
-  Distance estimatedOffsetFromLast; // position offset away from the last triggered track node.
-  TrackNode* estimatedNode;
-  TrackNode* lastVisitedNode;
+  Speed estimatedSpeed; // um/tick, calculated from the sensor
   uint32_t lastSpeedUpdateTicks;
+
+  TrackNode* lastVisitedNode;
+  Distance estimatedOffsetFromLast; // um away from the last visited node.
+
+  TrackNode* estimatedNode;
+  Distance estimatedOffsetFromEstimatedNode; // um away from the estimated node.
+  Distance estimatedPathDistance;            // um away form the destination.
+
   RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
 };
 
@@ -130,7 +135,7 @@ constexpr Sensor trackNodeIdToSensor(TrackNodeId id) {
 /**********************************
 Track Definition
 ***********************************/
-enum TrackDirection { Ahead = 0, Straight = 0, Curved = 1 };
+enum TrackDirection { Straight = 0, Curved = 1 };
 
 struct TrackEdge {
   TrackEdge* reverse;
@@ -143,18 +148,18 @@ struct TrackEdge {
 struct TrackNode {
   enum class Type {
     None,
-    Sensor, // Ahead
+    Sensor, // Straight
     Branch, // Straight, Curved
-    Merge,  // Ahead
+    Merge,  // Straight
     Enter,  // Ahead
-    Exit,   // None
+    Exit,   // Straight
   };
 
   class NodeLock {
   public:
     NodeLock() : owner_(NO_TRAIN), directionStack_() {}
 
-    bool tryAcquire(TrainId trainId, TrackDirection direction = TrackDirection::Ahead) {
+    bool tryAcquire(TrainId trainId, TrackDirection direction = TrackDirection::Straight) {
       if (canAcquire(trainId)) {
         owner_ = trainId;
         directionStack_.push(direction);
@@ -180,7 +185,7 @@ struct TrackNode {
       if (hasOwner()) {
         return directionStack_.top();
       }
-      return TrackDirection::Ahead;
+      return TrackDirection::Straight;
     }
 
     bool hasOwner() const { return !directionStack_.empty(); }
@@ -216,6 +221,9 @@ private:
 
 public:
   TrainTrackState();
+
+  void reset();
+
   Train& getTrain(TrainId id);
   SwitchState getSwitchState(SwitchId id) const;
   void setSwitchState(SwitchId id, SwitchState switchState);

@@ -161,7 +161,7 @@ bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
 
   // Extract the path.
   if (isReachable) {
-    TrackDirection lastDirection = TrackDirection::Ahead;
+    TrackDirection lastDirection = TrackDirection::Straight;
     for (TrackNodeId u = dest; u != srce; u = parents[u]) {
       TrackNode& node = ttState.getTrackNodeById(u);
       TrackNode& parent = ttState.getTrackNodeById(parents[u]);
@@ -204,7 +204,7 @@ TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& o
   if (srce.type == TrackNode::Type::Exit) {
     return nullptr;
   }
-  size_t dir = TrackDirection::Ahead;
+  size_t dir = TrackDirection::Straight;
   if (srce.type == TrackNode::Type::Branch) {
     auto sw = state.getSwitchState(srce.num);
     dir = (sw == SwitchState::Straight ? TrackDirection::Straight : TrackDirection::Curved);
@@ -263,7 +263,7 @@ TrackDirection getAdjacentDirection(TrackNode& n1, TrackNode& n2) {
   case TrackNode::Type::Merge:
   case TrackNode::Type::Enter:
     if (TrackNode* u = n1.edges[0].dest; u && u->id == n2.id) {
-      return TrackDirection::Ahead;
+      return TrackDirection::Straight;
     }
     logError("n1 and n2 are not adjacent");
   default:
@@ -303,7 +303,7 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
     TrackNode* parent = (i == 0) ? startNode : loopArr[size_t(i - 1)];
 
     // The direction 'node' must take to reach the NEXT node in the train's path.
-    TrackDirection dir = TrackDirection::Ahead;
+    TrackDirection dir = TrackDirection::Straight;
     if (!train.path.empty()) {
       dir = getAdjacentDirection(*node, *train.path.front());
     }
@@ -316,7 +316,7 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
   }
 
   // Lock startNode
-  TrackDirection enterDir = TrackDirection::Ahead;
+  TrackDirection enterDir = TrackDirection::Straight;
   if (!train.path.empty()) {
     enterDir = getAdjacentDirection(*startNode, *train.path.front());
   }
@@ -343,10 +343,12 @@ void calibrateTrain(Train& train, TrackNode& triggeredNode, uint32_t currentTick
   }
 
   // Update the train last triggered sensor node.
-  train.estimatedNode = &triggeredNode;
-  train.estimatedOffsetFromLast = 0;
-  train.lastVisitedNode = &triggeredNode;
   train.lastSpeedUpdateTicks = currentTicks;
+  train.lastVisitedNode = &triggeredNode;
+  train.estimatedOffsetFromLast = 0;
+  train.estimatedNode = &triggeredNode;
+  train.estimatedOffsetFromEstimatedNode = 0;
+  train.estimatedPathDistance = train.stateMachine.pathing.pathDistance;
 }
 
 } // namespace marklin

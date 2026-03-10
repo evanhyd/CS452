@@ -1,5 +1,7 @@
 #include "train_track_server_task.h"
 
+#include "train_track_util.h"
+
 #include "message.h"
 
 #include "kernel/syscalls.h"
@@ -14,74 +16,7 @@
 
 namespace k4 {
 
-namespace {
-
-// Dispatcher Operations
-void sendToDispatcher(int dispatcherTid, const marklin::MMessage& mmsg) {
-  notify(dispatcherTid, DispatcherMsg{.type = DispatcherMsgType::SendMsg, .mmsg = mmsg});
-}
-
-// UI Operations
-void sendSwitchToUI(int uiTid, marklin::SwitchId switchId, marklin::SwitchState state) {
-  notify(uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = switchId, .state = state}});
-}
-
-void sendAllSwitchesToUI(int uiTid, marklin::TrainTrackState& ttState) {
-  for (marklin::SwitchId i = 1; i <= 18; ++i) {
-    sendSwitchToUI(uiTid, i, ttState.getSwitchState(i));
-  }
-  for (marklin::SwitchId i = 153; i <= 156; ++i) {
-    sendSwitchToUI(uiTid, i, ttState.getSwitchState(i));
-  }
-}
-
-void sendSensorHistoryToUI(int uiTid, const History<SensorHistoryEntry, SENSOR_HISTORY_SIZE>& history) {
-  UIMsg ui;
-  ui.type = UIMsgType::RedrawSensors;
-  unsigned idx = 0;
-  for (const auto& e : history) {
-    ui.sensorHistory.entries[idx++] = e;
-  }
-  ui.sensorHistory.count = idx;
-  notify(uiTid, ui);
-}
-
-void sendTrainHistoryToUI(int uiTid, const RingBuffer<TrainStatesEntry, TRAIN_HISTORY_SIZE>& trainStates) {
-  UIMsg ui;
-  ui.type = UIMsgType::TrainStates;
-  unsigned idx = 0;
-  for (const auto& e : trainStates) {
-    ui.trainStates.entries[idx++] = e;
-  }
-  ui.trainStates.count = idx;
-  notify(uiTid, ui);
-}
-
-// Utils
-void initTrain(int dispatcherTid, marklin::TrainTrackState& ttState, marklin::TrainId trainId) {
-  if (marklin::Train& t = ttState.getTrain(trainId); !t.touched) {
-    t.touched = true;
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(trainId, marklin::TrainFunction::F0, 1));
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainDirection(trainId, marklin::TrainDirection::Forward));
-  }
-}
-
-void setSwitchNodeState(int dispatcherTid, int uiTid, marklin::TrainTrackState& ttState,
-                        const marklin::TrackNode& node) {
-  if (node.type != marklin::TrackNode::Type::Branch || !node.lock.hasOwner()) {
-    return;
-  }
-  marklin::SwitchState sw = ttState.getSwitchState(node.num);
-  marklin::TrackDirection td = (sw == marklin::SwitchState::Straight ? marklin::Straight : marklin::Curved);
-  if (td != node.lock.topDirection()) {
-    sw = (sw == marklin::SwitchState::Straight ? marklin::SwitchState::Curved : marklin::SwitchState::Straight);
-    ttState.setSwitchState(node.num, sw);
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(node.num, sw));
-    sendSwitchToUI(uiTid, node.num, sw);
-  }
-}
-
-} // namespace
+namespace {} // namespace
 
 void trainTrackTask() {
   if (::RegisterAs(TRAIN_TRACK_SERVER_NAME) < 0) {
@@ -102,7 +37,7 @@ void trainTrackTask() {
   History<SensorHistoryEntry, SENSOR_HISTORY_SIZE> sensorHistory;
   RingBuffer<TrainStatesEntry, TRAIN_HISTORY_SIZE> trainStates;
 
-  sendAllSwitchesToUI(uiTid, ttState);
+  resetSystem(dispatcherTid, uiTid, ttState);
 
   for (;;) {
     // Receive a train track message.
@@ -132,13 +67,12 @@ void trainTrackTask() {
       }
 
       // Change speed.
-      train.speedLevel = speedLevel;
-      sendToDispatcher(dispatcherTid,
-                       marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
+      broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, speedLevel);
       notifyStatusToUI(uiTid, "Set train %u to speed %u.", trainId, speedLevel);
       break;
     }
     case TrainTrackMsgType::ReverseCmd: {
+      // Check argument ranges.
       marklin::TrainId trainId = msg.reverseCmd.trainId;
       if (!marklin::isValidTrainId(trainId)) {
         logError("invalid train id");
@@ -165,13 +99,14 @@ void trainTrackTask() {
       if (!marklin::isValidSwitchId(switchId)) {
         logError("invalid switch id");
       }
-
-      ttState.setSwitchState(switchId, switchState);
-      sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(switchId, switchState));
-      sendSwitchToUI(uiTid, switchId, switchState);
+      broadcastSwitchState(dispatcherTid, uiTid, ttState, switchId, switchState);
       break;
     }
     case TrainTrackMsgType::SetTrackCmd: {
+      if (msg.setTrackCmd.trackId != 0 && msg.setTrackCmd.trackId != 1) {
+        logError("invalid track id");
+      }
+      resetSystem(dispatcherTid, uiTid, ttState);
       ttState.setCurrentTrack(msg.setTrackCmd.trackId);
       notifyStatusToUI(uiTid, "Switched track to %c.", (msg.setTrackCmd.trackId == 0 ? 'A' : 'B'));
       break;
@@ -227,7 +162,7 @@ void trainTrackTask() {
         }
         marklin::calibrateTrainAndSetSwitches(
             ttState, triggeredNode, currentTicks,
-            [&](const marklin::TrackNode& node) { setSwitchNodeState(dispatcherTid, uiTid, ttState, node); });
+            [&](const marklin::TrackNode& node) { setSwitchNodeByLockState(dispatcherTid, uiTid, ttState, node); });
       } else {
         // TODO: If the sensor has no owner, attribute it to a train currently in Locating state?
       }
@@ -236,18 +171,15 @@ void trainTrackTask() {
     case TrainTrackMsgType::GotoCmd: {
       marklin::TrainId trainId = msg.gotoCmd.trainId;
       marklin::SpeedLevel speedLevel = msg.gotoCmd.speedLevel;
+      marklin::TrackNode* dest = ttState.getTrackNodeByName(msg.gotoCmd.location);
       if (!marklin::isValidTrainId(trainId)) {
-        notifyStatusToUI(uiTid, "Invalid train id for goto.");
-        break;
+        logError("Invalid train id for goto.");
       }
       if (!marklin::isValidSpeedLevel(speedLevel)) {
-        notifyStatusToUI(uiTid, "Invalid speed level for goto.");
-        break;
+        logError("Invalid speed level for goto.");
       }
-      marklin::TrackNode* dest = ttState.getTrackNodeByName(msg.gotoCmd.location);
       if (!dest) {
-        notifyStatusToUI(uiTid, "Invalid track node name for goto.");
-        break;
+        logError("Invalid track node name for goto.");
       }
 
       // Check busy status.
@@ -272,19 +204,12 @@ void trainTrackTask() {
       static constexpr marklin::SwitchId toCurved[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
       static constexpr marklin::SwitchId toStraight[] = {1, 2, 4, 6, 7, 10, 13, 16, 17, 153, 156};
       for (marklin::SwitchId id : toCurved) {
-        ttState.setSwitchState(id, marklin::SwitchState::Curved);
-        sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, marklin::SwitchState::Curved));
-        sendSwitchToUI(uiTid, id, marklin::SwitchState::Curved);
+        broadcastSwitchState(dispatcherTid, uiTid, ttState, id, marklin::SwitchState::Curved);
       }
       for (marklin::SwitchId id : toStraight) {
-        ttState.setSwitchState(id, marklin::SwitchState::Straight);
-        sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
-        sendSwitchToUI(uiTid, id, marklin::SwitchState::Straight);
+        broadcastSwitchState(dispatcherTid, uiTid, ttState, id, marklin::SwitchState::Straight);
       }
-      train.speedLevel = speedLevel;
-      sendToDispatcher(dispatcherTid,
-                       marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
-
+      broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, speedLevel);
       notifyStatusToUI(uiTid, "Locating train %u.", trainId);
       break;
     }
@@ -316,11 +241,7 @@ void trainTrackTask() {
         }
         case marklin::TrainStateMachine::Type::Locating: {
           // Waiting for the train to get located.
-          if (!train.lastVisitedNode) {
-            break;
-          }
-
-          if (!train.stateMachine.locating.hasHitFirstSensor) {
+          if (!train.lastVisitedNode || !train.stateMachine.locating.hasHitFirstSensor) {
             break;
           }
 
@@ -329,58 +250,47 @@ void trainTrackTask() {
           marklin::Distance totalPathDist = 0;
           if (!marklin::planPath(ttState, trainId, train.stateMachine.locating.dest, totalPathDist)) {
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
-            notifyStatusToUI(uiTid, "train %u failed to find any path.", trainId);
+            notifyStatusToUI(uiTid, "Train %u failed to find any path.", trainId);
             break;
           }
 
           // Update the switches directions.
           for (marklin::TrackNode* curr : train.path) {
-            setSwitchNodeState(dispatcherTid, uiTid, ttState, *curr);
+            setSwitchNodeByLockState(dispatcherTid, uiTid, ttState, *curr);
           }
 
           train.stateMachine.type = marklin::TrainStateMachine::Type::Pathing;
           train.stateMachine.pathing.dest = train.stateMachine.locating.dest;
           train.stateMachine.pathing.offset = train.stateMachine.locating.offset;
           train.stateMachine.pathing.pathDistance = totalPathDist + train.stateMachine.locating.offset;
-          notifyStatusToUI(uiTid, "train %u found path[%u].", trainId, train.path.size());
+          notifyStatusToUI(uiTid, "Train %u found path[%u]: %u um.", trainId, train.path.size(),
+                           train.stateMachine.pathing.pathDistance);
           break;
         }
         case marklin::TrainStateMachine::Type::Pathing: {
-          // Check if the pathing is completed.
-          // if (train.path.empty()) {
-          //   train.speedLevel = 0;
-          //   sendToDispatcher(dispatcherTid,
-          //                    marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
-          //   train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
-          //   notifyStatusToUI(uiTid, "train %u reached the last sensor.", trainId);
-          //   break;
-          // }
-
           // Update train position.
           train.estimatedOffsetFromLast += train.estimatedSpeed;
 
-          // Update estimated node position.
-          marklin::Distance estOffset = train.estimatedOffsetFromLast;
+          // Update estimated node, offset, and remaining distance.
+          marklin::Distance estOffsetFromEstNode = train.estimatedOffsetFromLast;
           marklin::TrackNode* last = train.lastVisitedNode;
           for (marklin::TrackNode* curr : train.path) {
             marklin::Distance dist = getAdjacentDistance(*last, *curr);
-            if (estOffset < dist) {
+            if (estOffsetFromEstNode < dist) {
               break;
             }
-            estOffset -= dist;
+            estOffsetFromEstNode -= dist;
             train.estimatedNode = curr;
             last = curr;
           }
+          train.estimatedOffsetFromEstimatedNode = estOffsetFromEstNode;
 
           // Stop the train if close to safe stopping distance.
-          marklin::Distance estimatedRemainingPathDist =
-              train.stateMachine.pathing.pathDistance - train.estimatedOffsetFromLast;
-          if (estimatedRemainingPathDist <= marklin::getStoppingDistance(train.speedLevel)) {
-            train.speedLevel = 0;
-            sendToDispatcher(dispatcherTid,
-                             marklin::MMessage::setTrainSpeed(trainId, marklin::convertSpeedLevelToCANSpeed(0)));
+          train.estimatedPathDistance = train.stateMachine.pathing.pathDistance - train.estimatedOffsetFromLast;
+          if (train.estimatedPathDistance <= marklin::getStoppingDistance(train.speedLevel)) {
+            broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, 0);
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
-            notifyStatusToUI(uiTid, "train %u arrived at destination (estimate).", trainId);
+            notifyStatusToUI(uiTid, "Train %u arrived at destination (estimate).", trainId);
           }
         }
         }
@@ -389,10 +299,13 @@ void trainTrackTask() {
         if (currentTicks - lastTrainUIRefreshTicks >= 10 && !trainStates.full()) {
           trainStates.pushBack(TrainStatesEntry{
               .trainId = trainId,
-              .lastTrackNode = train.lastVisitedNode,
-              .estimatedTrackNode = train.estimatedNode,
-              .estimatedOffset = train.estimatedOffsetFromLast,
               .estimatedSpeed = train.estimatedSpeed,
+              .lastVisitedNode = train.lastVisitedNode,
+              .estimatedOffsetFromLast = train.estimatedOffsetFromLast, // um away from the last visited node.
+              .estimatedNode = train.estimatedNode,
+              .estimatedOffsetFromEstimatedNode =
+                  train.estimatedOffsetFromEstimatedNode,           // um away from the estimated node.
+              .estimatedPathDistance = train.estimatedPathDistance, // um away form the destination.
           });
         }
       }

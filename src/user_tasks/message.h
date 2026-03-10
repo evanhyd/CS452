@@ -28,10 +28,12 @@ struct SensorHistoryEntry {
 
 struct TrainStatesEntry {
   marklin::TrainId trainId;
-  marklin::TrackNode* lastTrackNode;
-  marklin::TrackNode* estimatedTrackNode;
-  marklin::Distance estimatedOffset;
   marklin::Speed estimatedSpeed;
+  marklin::TrackNode* lastVisitedNode;
+  marklin::Distance estimatedOffsetFromLast; // um away from the last visited node.
+  marklin::TrackNode* estimatedNode;
+  marklin::Distance estimatedOffsetFromEstimatedNode; // um away from the estimated node.
+  marklin::Distance estimatedPathDistance;            // um away form the destination.
 };
 
 // Clock Server Message
@@ -90,7 +92,7 @@ struct TrainTrackMsg {
     marklin::TrainId trainId;
     marklin::SpeedLevel speedLevel;
     marklin::Distance offsetMm;
-    char location[16];
+    char location[8];
   };
   union {
     SetSpeedCmdData setSpeedCmd;

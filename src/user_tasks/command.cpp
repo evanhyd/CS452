@@ -136,7 +136,7 @@ ParsedCommand CommandBuffer::parse_impl() {
     ptr = next;
     skip_ws();
 
-    // 2. Parse Speed Level (New Parameter)
+    // 2. Parse Speed Level
     if (ptr == end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
@@ -157,10 +157,11 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     size_t locLen = static_cast<size_t>(ptr - locStart);
 
-    // Validate location length
-    if (locLen == 0 || locLen >= 16) {
+    // Validate location length.
+    if (locLen == 0 || locLen >= 8) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};
     }
+    skip_ws();
 
     // 4. Parse Offset
     if (ptr == end()) {
@@ -180,9 +181,8 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     marklin::Distance offsetMm = sign * static_cast<int32_t>(offsetMag);
     ptr = next;
-    skip_ws();
 
-    // 4. Ensure no extra garbage parameters exist after location
+    // 5. Ensure no extra garbage parameters exist after offset
     skip_ws();
     if (ptr != end()) {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_GOTO}};

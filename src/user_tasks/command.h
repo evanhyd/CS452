@@ -40,7 +40,7 @@ struct ParsedCommand {
     marklin::TrainId trainId;
     marklin::SpeedLevel speedLevel;
     marklin::Distance offsetMm;
-    char location[16];
+    char location[8];
   };
   struct InvalidData {
     const char* usage;
@@ -88,7 +88,8 @@ public:
   const char* data() const { return buffer_; }
 
   static constexpr bool isCmdChar(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ';
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == '+' ||
+           c == '-';
   }
 
 private:

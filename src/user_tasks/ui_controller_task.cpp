@@ -111,7 +111,7 @@ void uiControllerTask() {
         TrainTrackMsg tm{.type = TrainTrackMsgType::GotoCmd, .gotoCmd{}};
         tm.gotoCmd.trainId = parsed.gotoData.trainId;
         tm.gotoCmd.speedLevel = parsed.gotoData.speedLevel;
-        for (int i = 0; i < 16; ++i) {
+        for (size_t i = 0; i < sizeof(tm.gotoCmd.location); ++i) {
           tm.gotoCmd.location[i] = parsed.gotoData.location[i];
         }
         tm.gotoCmd.offsetMm = parsed.gotoData.offsetMm;

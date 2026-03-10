@@ -123,17 +123,6 @@ void marklinDispatcherServerTask() {
   state.canServerTid = canServerTid;
   notifyStatusToUI(uiServerTid, "Ready.");
 
-  // Enable the system and set all the switches to straight.
-  state.sendCommand(marklin::MMessage::systemHaltAll());
-  state.sendCommand(marklin::MMessage::systemGoAll());
-  for (marklin::SwitchId id = 1; id <= 18; ++id) {
-    state.sendCommand(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
-  }
-  for (marklin::SwitchId id = 153; id <= 156; ++id) {
-    state.sendCommand(marklin::MMessage::setSwitchState(id, marklin::SwitchState::Straight));
-  }
-  state.notifyCmdHistoryToUI(uiServerTid);
-
   DispatcherMsg msg;
   for (;;) {
     int senderTid;
