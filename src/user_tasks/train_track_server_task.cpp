@@ -291,6 +291,10 @@ void trainTrackTask() {
             broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, 0);
             train.lastVisitedNode = nullptr;
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
+            for (marklin::TrackNode* node : train.path) {
+              node->lock.release(trainId);
+            }
+            train.path.clear();
             notifyStatusToUI(uiTid, "Train %u arrived at destination (estimate).", trainId);
           }
         }
