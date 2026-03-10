@@ -288,14 +288,25 @@ void trainTrackTask() {
           // Stop the train if close to safe stopping distance.
           train.estimatedPathDistance = train.stateMachine.pathing.pathDistance - train.estimatedOffsetFromLast;
           if (train.estimatedPathDistance <= marklin::getStoppingDistance(train.speedLevel)) {
+            notifyStatusToUI(uiTid, "Train %u arrived at destination %s[%u um].", trainId, train.path.back()->name,
+                             train.stateMachine.pathing.offset);
+
             broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, 0);
-            train.lastVisitedNode = nullptr;
-            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
+
+            // Unlock the remaining path.
+            train.lastVisitedNode->lock.release(trainId);
             for (marklin::TrackNode* node : train.path) {
               node->lock.release(trainId);
             }
+
+            // Clear the meta data.
+            train.lastVisitedNode = nullptr;
+            train.estimatedOffsetFromLast = 0;
+            train.estimatedNode = 0;
+            train.estimatedOffsetFromEstimatedNode = 0;
+            train.estimatedPathDistance = 0;
+            train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             train.path.clear();
-            notifyStatusToUI(uiTid, "Train %u arrived at destination (estimate).", trainId);
           }
         }
         }
