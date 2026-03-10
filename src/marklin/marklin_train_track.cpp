@@ -18,6 +18,12 @@ void TrainTrackState::reset() {
     train.lastVisitedNode = nullptr;
     train.lastCalibrateTicks = 0;
     train.path = {};
+    train.lastTrippedSensor = nullptr;
+    train.lastTrippedTicks = 0;
+    train.predictedNextSensor = nullptr;
+    train.predictedNextSensorTicks = 0;
+    train.lastTimeErrorTicks = 0;
+    train.lastDistErrorUm = 0;
   }
 
   switches = {};

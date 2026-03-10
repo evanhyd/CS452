@@ -34,6 +34,12 @@ struct TrainStatesEntry {
   marklin::TrackNode* estimatedNode;
   marklin::Distance estimatedOffsetFromEstimatedNode; // um away from the estimated node.
   marklin::Distance estimatedPathDistance;            // um away form the destination.
+
+  marklin::TrackNode* lastTrippedSensor;
+  marklin::TrackNode* predictedNextSensor;
+  uint32_t predictedNextSensorTicks;
+  int32_t lastTimeErrorTicks;
+  marklin::Distance lastDistErrorUm;
 };
 
 // Clock Server Message

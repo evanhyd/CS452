@@ -159,14 +159,6 @@ void uiViewServerTask() {
         console.putTicks(entry.ticks);
         auto [sensorBank, sensorNumber] = marklin::trackNodeIdToSensor(entry.event.id);
         console.printf(" %c%u ", sensorBank, sensorNumber); // need the extra space in the end
-        // if (entry.hasPrediction) {
-        //   auto [predictedBank, predictedNumber] = marklin::trackNodeIdToSensor(entry.predictedId);
-        //   console.printf(" -> Exp: %c%u @ ", predictedBank, predictedNumber);
-        //   console.putTicks(entry.predictedTicks);
-        //   if (entry.timeErrorTicks != 0 || entry.distErrorMm != 0) {
-        //     console.printf(" [Err: %dt, %dmm]", entry.timeErrorTicks, entry.distErrorMm);
-        //   }
-        // }
       }
       break;
     }
@@ -181,10 +173,23 @@ void uiViewServerTask() {
       for (unsigned row = 0; row < msg.trainStates.count; ++row) {
         const auto& entry = msg.trainStates.entries[row];
         console.moveCursor(ROW_TRAINS + 1 + row, COL_TRAINS);
-        console.printf("Train %u %u um/t | Last %s[%u um] Estimated %s[%u um] Remaining %u um", entry.trainId,
+        console.printf("Train %u %u um/t | Last %s[%u mm] Estimated %s[%u mm] Remaining %u mm", entry.trainId,
                        entry.estimatedSpeed, (entry.lastVisitedNode ? entry.lastVisitedNode->name : "N/A"),
-                       entry.estimatedOffsetFromLast, (entry.estimatedNode ? entry.estimatedNode->name : "N/A"),
-                       entry.estimatedOffsetFromEstimatedNode, entry.estimatedPathDistance);
+                       entry.estimatedOffsetFromLast / 1000, (entry.estimatedNode ? entry.estimatedNode->name : "N/A"),
+                       entry.estimatedOffsetFromEstimatedNode / 1000, entry.estimatedPathDistance / 1000);
+        if (entry.lastTrippedSensor) {
+          console.printf(" | Hit %s ", entry.lastTrippedSensor->name);
+          if (entry.lastTimeErrorTicks != 0 || entry.lastDistErrorUm != 0) {
+            console.printf(" [Err: %dt %dmm]", entry.lastTimeErrorTicks, entry.lastDistErrorUm / 1000);
+          }
+        }
+        if (entry.predictedNextSensor) {
+          console.printf(" | Exp: %s", entry.predictedNextSensor->name);
+          if (entry.predictedNextSensorTicks != 0) {
+            console.puts(" @ ");
+            console.putTicks(entry.predictedNextSensorTicks);
+          }
+        }
         console.clearToEol();
       }
       break;

@@ -116,34 +116,6 @@ void trainTrackTask() {
         break;
       }
 
-      // Get the train track and the owner train info.
-      // Calculate the error for the previous sensor history.
-      //   marklin::Speed estSpeed = ttState.getTrainRef(trackNode->trainOwnerId).estimatedSpeed;
-      //   if (!sensorHistory.empty()) {
-      //     auto& lastEntry = sensorHistory.back();
-      //     // Did we predict this specific sensor (msg.sensorEvent.id)?
-      //     if (lastEntry.hasPrediction && lastEntry.predictedId == msg.sensorEvent.id) {
-
-      //       // Calculate Time Error: Actual Time - Predicted Time
-      //       lastEntry.timeErrorTicks =
-      //           static_cast<int32_t>(currentTicks) - static_cast<int32_t>(lastEntry.predictedTicks);
-
-      //       // Calculate Distance Error: Error = TimeDelta * Speed
-      //       lastEntry.distErrorMm = lastEntry.timeErrorTicks * estSpeed / 1000;
-      //     }
-      //   }
-      //   {
-      //     // Find the next sensor.
-      //     marklin::Distance outDist = 0;
-      //     const marklin::TrackNode* nextSensor = marklin::getNextSensor(ttState, *trackNode, outDist);
-      //     if (nextSensor != nullptr) {
-      //       newEntry.predictedId = nextSensor->id;
-      //       newEntry.predictedTicks = currentTicks + static_cast<uint32_t>(outDist) /
-      //       static_cast<uint32_t>(estSpeed); newEntry.hasPrediction = true;
-      //     }
-      //   }
-
-      // Calculate the next sensor history.
       SensorHistoryEntry newEntry{};
       newEntry.event = msg.sensorEvent;
       newEntry.ticks = currentTicks;
@@ -159,8 +131,76 @@ void trainTrackTask() {
         marklin::calibrateTrainAndSetSwitches(
             ttState, triggeredNode, currentTicks,
             [&](const marklin::TrackNode& node) { setSwitchNodeByLockState(dispatcherTid, uiTid, ttState, node); });
+      }
+
+      marklin::TrainId ownerId = [&] -> marklin::TrainId {
+        if (triggeredNode.lock.hasOwner()) {
+          return triggeredNode.lock.owner();
+        }
+        // TC2 TODO: fix for multiple trains
+        for (marklin::TrainId id = 1; id <= marklin::NUM_TRAINS; ++id) {
+          if (ttState.getTrain(id).stateMachine.type == marklin::TrainStateMachine::Type::Locating) {
+            return id;
+          }
+        }
+        return marklin::NO_TRAIN;
+      }();
+      if (ownerId == marklin::NO_TRAIN) {
+        break;
+      }
+      marklin::Train& train = ttState.getTrain(ownerId);
+
+      if (train.predictedNextSensor && train.predictedNextSensor->id == triggeredNode.id) {
+        train.lastTimeErrorTicks =
+            static_cast<int32_t>(currentTicks) - static_cast<int32_t>(train.predictedNextSensorTicks);
+        train.lastDistErrorUm = train.lastTimeErrorTicks * train.estimatedSpeed;
       } else {
-        // TODO: If the sensor has no owner, attribute it to a train currently in Locating state?
+        train.lastTimeErrorTicks = 0;
+        train.lastDistErrorUm = 0;
+      }
+
+      if (train.stateMachine.type == marklin::TrainStateMachine::Type::Locating && train.lastTrippedSensor) {
+        uint32_t dT = kit::max(1u, currentTicks - train.lastTrippedTicks);
+
+        marklin::Distance dS = [&] -> marklin::Distance {
+          marklin::Distance totalDist = 0;
+          marklin::TrackNode* ptr = train.lastTrippedSensor;
+          static constexpr unsigned MAX_HOPS = 20;
+          for (unsigned hops = 0; ptr && hops < MAX_HOPS; ++hops) {
+            marklin::Distance hopDist = 0;
+            ptr = marklin::getNextSensor(ttState, *ptr, hopDist);
+            if (!ptr) {
+              break;
+            }
+            totalDist += hopDist;
+            if (ptr->id == triggeredNode.id) {
+              return totalDist;
+            }
+          }
+          notifyStatusToUI(uiTid, "Missing edge between %s and %s", train.lastTrippedSensor->name, triggeredNode.name);
+          return 0;
+        }();
+
+        if (dS != 0) {
+          marklin::Speed v = dS / marklin::Speed(dT);
+          if (train.estimatedSpeed == 0) {
+            train.estimatedSpeed = v;
+          } else {
+            constexpr int32_t EWMA_DENOMINATOR = 4;
+            train.estimatedSpeed = (train.estimatedSpeed * (EWMA_DENOMINATOR - 1) + v) / EWMA_DENOMINATOR;
+          }
+        }
+      }
+
+      train.lastTrippedSensor = &triggeredNode;
+      train.lastTrippedTicks = currentTicks;
+
+      marklin::Distance distToNext = 0;
+      train.predictedNextSensor = marklin::getNextSensor(ttState, triggeredNode, distToNext);
+      if (train.predictedNextSensor && train.estimatedSpeed > 0) {
+        train.predictedNextSensorTicks = currentTicks + static_cast<uint32_t>(distToNext / train.estimatedSpeed);
+      } else {
+        train.predictedNextSensorTicks = 0;
       }
       break;
     }
@@ -194,6 +234,7 @@ void trainTrackTask() {
       train.stateMachine.type = marklin::TrainStateMachine::Type::Locating;
       train.stateMachine.locating.dest = dest->id;
       train.stateMachine.locating.offset = msg.gotoCmd.offsetMm * 1000;
+      train.lastTrippedSensor = nullptr;
       if (!train.path.empty() || train.lastVisitedNode) {
         logError("train state is not cleared properly");
       }
@@ -249,6 +290,7 @@ void trainTrackTask() {
           if (!marklin::planPath(ttState, trainId, train.stateMachine.locating.dest, totalPathDist)) {
             broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, 0);
             train.lastVisitedNode = nullptr;
+            train.lastTrippedSensor = nullptr;
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             notifyStatusToUI(uiTid, "Train %u failed to find any path.", trainId);
             break;
@@ -305,6 +347,7 @@ void trainTrackTask() {
             train.estimatedNode = 0;
             train.estimatedOffsetFromEstimatedNode = 0;
             train.estimatedPathDistance = 0;
+            train.lastTrippedSensor = nullptr;
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             train.path.clear();
           }
@@ -322,6 +365,11 @@ void trainTrackTask() {
               .estimatedOffsetFromEstimatedNode =
                   train.estimatedOffsetFromEstimatedNode,           // um away from the estimated node.
               .estimatedPathDistance = train.estimatedPathDistance, // um away form the destination.
+              .lastTrippedSensor = train.lastTrippedSensor,
+              .predictedNextSensor = train.predictedNextSensor,
+              .predictedNextSensorTicks = train.predictedNextSensorTicks,
+              .lastTimeErrorTicks = train.lastTimeErrorTicks,
+              .lastDistErrorUm = train.lastDistErrorUm,
           });
         }
       }

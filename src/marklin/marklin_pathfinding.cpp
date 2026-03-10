@@ -10,7 +10,7 @@ namespace marklin {
 
 namespace {
 constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000,  95000,  131000,  198000, 264000,
-                                          378000, 427000, 579000, 766000, 980000, 1184000, 1523000};
+                                          378000, 427000, 579000, 766000, 980000, 1184000, 1503000};
 
 constexpr marklin::TrackNodeId loopSensorNodeIds[] = {
     marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'A', 4}),
@@ -27,24 +27,6 @@ constexpr marklin::TrackNodeId loopSensorNodeIds[] = {
     marklin::sensorToTrackNodeId({'C', 11}), marklin::sensorToTrackNodeId({'C', 12}),
 };
 
-constexpr marklin::TrackNodeId loopClockwiseSensorNodeIds[] = {
-    marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'C', 11}),
-    marklin::sensorToTrackNodeId({'B', 5}),  marklin::sensorToTrackNodeId({'D', 3}),
-    marklin::sensorToTrackNodeId({'E', 5}),  marklin::sensorToTrackNodeId({'D', 6}),
-    marklin::sensorToTrackNodeId({'E', 10}), marklin::sensorToTrackNodeId({'E', 13}),
-    marklin::sensorToTrackNodeId({'D', 13}), marklin::sensorToTrackNodeId({'B', 2}),
-    marklin::sensorToTrackNodeId({'C', 9}),  marklin::sensorToTrackNodeId({'B', 15}),
-};
-
-constexpr marklin::TrackNodeId loopCounterClockwiseSensorNodeIds[] = {
-    marklin::sensorToTrackNodeId({'A', 4}),  marklin::sensorToTrackNodeId({'B', 16}),
-    marklin::sensorToTrackNodeId({'C', 10}), marklin::sensorToTrackNodeId({'B', 1}),
-    marklin::sensorToTrackNodeId({'D', 14}), marklin::sensorToTrackNodeId({'E', 14}),
-    marklin::sensorToTrackNodeId({'E', 9}),  marklin::sensorToTrackNodeId({'D', 5}),
-    marklin::sensorToTrackNodeId({'E', 6}),  marklin::sensorToTrackNodeId({'D', 4}),
-    marklin::sensorToTrackNodeId({'B', 6}),  marklin::sensorToTrackNodeId({'C', 12}),
-};
-
 static_assert([] {
   std::array<bool, NUM_TRACK_NODES> isLoopSensorNode{};
   for (auto id : loopSensorNodeIds) {
@@ -52,18 +34,6 @@ static_assert([] {
       return false;
     }
     isLoopSensorNode[id] = true;
-  }
-  for (auto id : loopClockwiseSensorNodeIds) {
-    if (!isLoopSensorNode[id]) {
-      return false;
-    }
-    isLoopSensorNode[id] = false;
-  }
-  for (auto id : loopCounterClockwiseSensorNodeIds) {
-    if (!isLoopSensorNode[id]) {
-      return false;
-    }
-    isLoopSensorNode[id] = false;
   }
   return true;
 }());

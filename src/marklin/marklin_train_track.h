@@ -83,6 +83,13 @@ struct Train {
   Distance estimatedPathDistance;            // um away form the destination.
 
   RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
+
+  TrackNode* lastTrippedSensor;
+  uint32_t lastTrippedTicks;
+  TrackNode* predictedNextSensor;
+  uint32_t predictedNextSensorTicks;
+  int32_t lastTimeErrorTicks;
+  Distance lastDistErrorUm;
 };
 
 // Convert speed level to speed.
