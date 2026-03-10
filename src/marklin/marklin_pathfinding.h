@@ -40,7 +40,7 @@ void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggered
                                   const OnRelease& onRelease) {
   TrainId trainId = triggeredNode.lock.owner();
   Train& train = ttState.getTrain(trainId);
-  if (train.stateMachine.type != TrainStateMachine::Type::Locating ||
+  if (train.stateMachine.type != TrainStateMachine::Type::Locating &&
       train.stateMachine.type != TrainStateMachine::Type::Pathing) {
     logError("calibrated a train that's not in locating or pathing state.");
   }
@@ -53,6 +53,9 @@ void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggered
 
     Distance dS = [&] -> Distance {
       // First node guarantee outdated.
+      if (triggeredNode.id == train.lastVisitedNode->id) {
+        logError("sensor double triggered");
+      }
       TrackNode* last = train.lastVisitedNode;
       last->lock.release(trainId);
       onRelease(*last);
