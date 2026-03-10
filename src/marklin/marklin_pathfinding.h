@@ -84,6 +84,7 @@ void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggered
       train.estimatedSpeed = (train.estimatedSpeed * (EWMA_DENOMINATOR - 1) + v) / EWMA_DENOMINATOR;
     }
     train.stateMachine.pathing.pathDistance -= dS;
+    train.estimatedPathDistance = train.stateMachine.pathing.pathDistance;
   }
 
   // Update the train last triggered sensor node.
@@ -92,7 +93,6 @@ void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggered
   train.estimatedOffsetFromLast = 0;
   train.estimatedNode = &triggeredNode;
   train.estimatedOffsetFromEstimatedNode = 0;
-  train.estimatedPathDistance = train.stateMachine.pathing.pathDistance;
 }
 
 } // namespace marklin
