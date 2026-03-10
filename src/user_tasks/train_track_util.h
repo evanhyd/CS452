@@ -28,20 +28,22 @@ inline void sendTrainHistoryToUI(int uiTid, const RingBuffer<TrainStatesEntry, T
   notify(uiTid, ui);
 }
 
+inline void sendSwitchToUI(int uiTid, marklin::SwitchId id, marklin::SwitchState state) {
+  notify(uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
+}
+
 // Train Track Utils
 template <bool forceUpdate = false>
 void broadcastSwitchState(int dispatcherTid, int uiTid, marklin::TrainTrackState& ttState, marklin::SwitchId id,
                           marklin::SwitchState state) {
 
-  if (forceUpdate || ttState.getSwitchState(id) != state) {
-    ttState.setSwitchState(id, state);
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, state));
-    notify(uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
+  // If the switch is already in the desired state, do nothing
+  if (!forceUpdate && ttState.getSwitchState(id) == state) {
+    return;
   }
 
-  // Adjust central switch pair.
-  // TODO: veirfy to ensure this does not violate the ownership rule.
-  id = [id] -> marklin::SwitchId {
+  // Identify if this is a center switch and find its partner
+  marklin::SwitchId pairingId = [id] -> marklin::SwitchId {
     switch (id) {
     case 153:
       return 154;
@@ -55,15 +57,19 @@ void broadcastSwitchState(int dispatcherTid, int uiTid, marklin::TrainTrackState
       return 0;
     }
   }();
-  if (id == 0) {
-    return;
+
+  // Straight up the pairing switch first.
+  if (pairingId != 0 && state == marklin::SwitchState::Curved) {
+    if (forceUpdate || ttState.getSwitchState(pairingId) == marklin::SwitchState::Curved) {
+      ttState.setSwitchState(pairingId, marklin::SwitchState::Straight);
+      sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(pairingId, marklin::SwitchState::Straight));
+      sendSwitchToUI(uiTid, pairingId, marklin::SwitchState::Straight);
+    }
   }
-  state = (state == marklin::SwitchState::Straight ? marklin::SwitchState::Curved : marklin::SwitchState::Straight);
-  if (forceUpdate || ttState.getSwitchState(id) != state) {
-    ttState.setSwitchState(id, state);
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, state));
-    notify(uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
-  }
+
+  ttState.setSwitchState(id, state);
+  sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, state));
+  sendSwitchToUI(uiTid, id, state);
 }
 
 inline void broadcastTrainSpeedLevel(int dispatcherTid, [[maybe_unused]] int uiTid, marklin::TrainTrackState& ttState,
