@@ -73,7 +73,7 @@ void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggered
     }();
 
     // Update the train estimated speed.
-    uint32_t dT = kit::max(1u, currentTicks - train.lastSpeedUpdateTicks);
+    uint32_t dT = kit::max(1u, currentTicks - train.lastCalibrateTicks);
 
     // Update the time weighted speed.
     Speed v = dS / Speed(dT);
@@ -88,7 +88,7 @@ void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggered
   }
 
   // Update the train last triggered sensor node.
-  train.lastSpeedUpdateTicks = currentTicks;
+  train.lastCalibrateTicks = currentTicks;
   train.lastVisitedNode = &triggeredNode;
   train.estimatedOffsetFromLast = 0;
   train.estimatedNode = &triggeredNode;

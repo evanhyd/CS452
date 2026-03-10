@@ -16,7 +16,7 @@ void TrainTrackState::reset() {
     train.estimatedSpeed = 0;
     train.estimatedOffsetFromLast = 0;
     train.lastVisitedNode = nullptr;
-    train.lastSpeedUpdateTicks = 0;
+    train.lastCalibrateTicks = 0;
     train.path = {};
   }
 

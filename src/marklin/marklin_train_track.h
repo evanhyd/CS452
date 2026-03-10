@@ -73,7 +73,7 @@ struct Train {
   // Motion State
   SpeedLevel speedLevel;
   Speed estimatedSpeed; // um/tick, calculated from the sensor
-  uint32_t lastSpeedUpdateTicks;
+  uint32_t lastCalibrateTicks;
 
   TrackNode* lastVisitedNode;
   Distance estimatedOffsetFromLast; // um away from the last visited node.
