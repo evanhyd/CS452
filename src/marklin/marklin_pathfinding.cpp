@@ -9,7 +9,6 @@
 namespace marklin {
 
 namespace {
-constexpr int32_t EWMA_DENOMINATOR = 4;
 constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000,  95000,  131000,  198000, 264000,
                                           378000, 427000, 579000, 766000, 980000, 1184000, 1523000};
 
@@ -327,30 +326,6 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
   }
 
   return isReachable;
-}
-
-void calibrateTrain(Train& train, TrackNode& triggeredNode, uint32_t currentTicks, Distance dS) {
-  // Update the train estimated speed.
-  uint32_t dT = kit::max(1u, currentTicks - train.lastSpeedUpdateTicks);
-
-  // Update the time weighted speed.
-  if (dS != 0) {
-    Speed v = dS / Speed(dT);
-    if (train.estimatedSpeed == 0) {
-      train.estimatedSpeed = v;
-    } else {
-      train.estimatedSpeed = (train.estimatedSpeed * (EWMA_DENOMINATOR - 1) + v) / EWMA_DENOMINATOR;
-    }
-    train.stateMachine.pathing.pathDistance -= dS;
-  }
-
-  // Update the train last triggered sensor node.
-  train.lastSpeedUpdateTicks = currentTicks;
-  train.lastVisitedNode = &triggeredNode;
-  train.estimatedOffsetFromLast = 0;
-  train.estimatedNode = &triggeredNode;
-  train.estimatedOffsetFromEstimatedNode = 0;
-  train.estimatedPathDistance = train.stateMachine.pathing.pathDistance;
 }
 
 } // namespace marklin

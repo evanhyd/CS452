@@ -156,10 +156,6 @@ void trainTrackTask() {
       // Calibrate train's motion state.
       marklin::TrackNode& triggeredNode = ttState.getTrackNodeById(msg.sensorEvent.id);
       if (triggeredNode.lock.hasOwner()) {
-        marklin::TrainId ownerId = triggeredNode.lock.owner();
-        if (auto& st = ttState.getTrain(ownerId).stateMachine; st.type == marklin::TrainStateMachine::Type::Locating) {
-          st.locating.hasHitFirstSensor = true;
-        }
         marklin::calibrateTrainAndSetSwitches(
             ttState, triggeredNode, currentTicks,
             [&](const marklin::TrackNode& node) { setSwitchNodeByLockState(dispatcherTid, uiTid, ttState, node); });
@@ -198,8 +194,9 @@ void trainTrackTask() {
       train.stateMachine.type = marklin::TrainStateMachine::Type::Locating;
       train.stateMachine.locating.dest = dest->id;
       train.stateMachine.locating.offset = msg.gotoCmd.offsetMm * 1000;
-      train.stateMachine.locating.hasHitFirstSensor = false;
-      train.path.clear();
+      if (!train.path.empty() || train.lastVisitedNode) {
+        logError("train state is not cleared properly");
+      }
 
       // Guide the train to enter the loop.
       static constexpr marklin::SwitchId toCurved[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
@@ -242,7 +239,7 @@ void trainTrackTask() {
         }
         case marklin::TrainStateMachine::Type::Locating: {
           // Waiting for the train to get located.
-          if (!train.lastVisitedNode || !train.stateMachine.locating.hasHitFirstSensor) {
+          if (!train.lastVisitedNode) {
             break;
           }
 
@@ -250,6 +247,8 @@ void trainTrackTask() {
           marklin::unlockAllLoopSensorNodes(ttState, trainId);
           marklin::Distance totalPathDist = 0;
           if (!marklin::planPath(ttState, trainId, train.stateMachine.locating.dest, totalPathDist)) {
+            broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, 0);
+            train.lastVisitedNode = nullptr;
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             notifyStatusToUI(uiTid, "Train %u failed to find any path.", trainId);
             break;
@@ -290,6 +289,7 @@ void trainTrackTask() {
           train.estimatedPathDistance = train.stateMachine.pathing.pathDistance - train.estimatedOffsetFromLast;
           if (train.estimatedPathDistance <= marklin::getStoppingDistance(train.speedLevel)) {
             broadcastTrainSpeedLevel(dispatcherTid, uiTid, ttState, trainId, 0);
+            train.lastVisitedNode = nullptr;
             train.stateMachine.type = marklin::TrainStateMachine::Type::Idle;
             notifyStatusToUI(uiTid, "Train %u arrived at destination (estimate).", trainId);
           }

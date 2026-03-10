@@ -1,5 +1,7 @@
 #pragma once
 #include "marklin_train_track.h"
+#include "util/debug.h"
+#include "util/kit_algorithm.h"
 
 namespace marklin {
 
@@ -33,40 +35,64 @@ TrackDirection getAdjacentDirection(TrackNode& n1, TrackNode& n2);
 // Return true if a viable path is acquired.
 bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance& outTotalPathDist);
 
-// Estimate and update the train's motion data.
-void calibrateTrain(Train& train, TrackNode& triggeredNode, uint32_t currentTicks, Distance dS);
-
 template <typename OnRelease>
 void calibrateTrainAndSetSwitches(TrainTrackState& ttState, TrackNode& triggeredNode, uint32_t currentTicks,
                                   const OnRelease& onRelease) {
   TrainId trainId = triggeredNode.lock.owner();
   Train& train = ttState.getTrain(trainId);
+  if (train.stateMachine.type != TrainStateMachine::Type::Locating ||
+      train.stateMachine.type != TrainStateMachine::Type::Pathing) {
+    logError("calibrated a train that's not in locating or pathing state.");
+  }
 
-  Distance dS = [&] -> Distance {
-    // The train must be located first.
-    TrackNode* last = train.lastVisitedNode;
-    if (!last) {
-      return 0;
+  // Only calculate the train motion if already calibrated (Pathing).
+  if (train.stateMachine.type == TrainStateMachine::Type::Pathing) {
+    if (!train.lastVisitedNode) {
+      logError("last visited node is null");
     }
 
-    // Remove all the missing nodes and sum up the distance.
-    last->lock.release(trainId);
-    onRelease(*last);
-    Distance totalDist = 0;
-    while (!train.path.empty()) {
-      TrackNode* curr = train.path.popFront();
-      totalDist += getAdjacentDistance(*last, *curr);
-      if (curr->id == triggeredNode.id) {
-        break;
+    Distance dS = [&] -> Distance {
+      // First node guarantee outdated.
+      TrackNode* last = train.lastVisitedNode;
+      last->lock.release(trainId);
+      onRelease(*last);
+
+      // Remove all the missing nodes and sum up the distance.
+      Distance totalDist = 0;
+      while (!train.path.empty()) {
+        TrackNode* curr = train.path.popFront();
+        totalDist += getAdjacentDistance(*last, *curr);
+        if (curr->id == triggeredNode.id) {
+          break;
+        }
+        curr->lock.release(trainId);
+        onRelease(*curr);
+        last = curr;
       }
-      curr->lock.release(trainId);
-      onRelease(*curr);
-      last = curr;
-    }
-    return totalDist;
-  }();
+      return totalDist;
+    }();
 
-  calibrateTrain(train, triggeredNode, currentTicks, dS);
+    // Update the train estimated speed.
+    uint32_t dT = kit::max(1u, currentTicks - train.lastSpeedUpdateTicks);
+
+    // Update the time weighted speed.
+    Speed v = dS / Speed(dT);
+    if (train.estimatedSpeed == 0) {
+      train.estimatedSpeed = v;
+    } else {
+      constexpr int32_t EWMA_DENOMINATOR = 4;
+      train.estimatedSpeed = (train.estimatedSpeed * (EWMA_DENOMINATOR - 1) + v) / EWMA_DENOMINATOR;
+    }
+    train.stateMachine.pathing.pathDistance -= dS;
+  }
+
+  // Update the train last triggered sensor node.
+  train.lastSpeedUpdateTicks = currentTicks;
+  train.lastVisitedNode = &triggeredNode;
+  train.estimatedOffsetFromLast = 0;
+  train.estimatedNode = &triggeredNode;
+  train.estimatedOffsetFromEstimatedNode = 0;
+  train.estimatedPathDistance = train.stateMachine.pathing.pathDistance;
 }
 
 } // namespace marklin
