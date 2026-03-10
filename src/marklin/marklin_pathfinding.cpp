@@ -292,7 +292,9 @@ bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Dista
     curr = getNextTrackNode(ttState, *curr, dist);
     if (!curr) {
       logError("Loop trace hit a dead end!");
-      return false;
+    }
+    if (loopSize >= NUM_TRACK_NODES) {
+      logError("Loop trace exceeded max size!");
     }
     loopArr[loopSize++] = curr;
   } while (curr != startNode);

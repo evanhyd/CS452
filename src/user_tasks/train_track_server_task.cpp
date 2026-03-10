@@ -199,6 +199,7 @@ void trainTrackTask() {
       train.stateMachine.locating.dest = dest->id;
       train.stateMachine.locating.offset = msg.gotoCmd.offsetMm * 1000;
       train.stateMachine.locating.hasHitFirstSensor = false;
+      train.path.clear();
 
       // Guide the train to enter the loop.
       static constexpr marklin::SwitchId toCurved[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
