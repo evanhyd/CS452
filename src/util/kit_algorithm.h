@@ -15,6 +15,8 @@ template <typename T> T min(const T& l, const T& r) { return l < r ? l : r; }
 
 template <typename T> T max(const T& l, const T& r) { return l < r ? r : l; }
 
+template <typename T> T clamp(const T& v, const T& lo, const T& hi) { return max(lo, min(v, hi)); }
+
 template <typename It, typename T> It find(It begin, It end, const T& value) {
   for (; begin != end; ++begin) {
     if (*begin == value) {

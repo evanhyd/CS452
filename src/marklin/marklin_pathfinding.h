@@ -3,6 +3,10 @@
 #include <array>
 
 namespace marklin {
+
+// Get the stopping distance based on the speed level.
+Distance getStoppingDistanceForLevel(SpeedLevel speedLevel);
+
 // Get the stopping distance based on the speed.
 Distance getStoppingDistance(Speed speed);
 
@@ -25,16 +29,12 @@ Distance getAdjacentDistance(TrackNode& n1, TrackNode& n2);
 // n1 and n2 must be adjacent to each other.
 TrackDirection getAdjacentDirection(TrackNode& n1, TrackNode& n2);
 
-// Path finding system. Responsible for plan and reserve a path for the train.
-// Reserving a path is different from locking a path.
-// Reserving ensures the train path won't lead to unavoidable collisions.
-// Locking ensures sole access when the train is physically passing.
+// Path finding system. Responsible for plan and lock a path for the train.
 class PathFindingSystem {
   struct Entry {
     TrainId id;
     int time;
   };
-  std::array<RingBuffer<Entry, NUM_TRAIN_IN_LAB>, NUM_TRACK_NODES> reservations_{};
   std::array<Entry, NUM_TRACK_NODES> locks_;
   std::array<RingBuffer<TrackNodeId, MAX_NODE_PER_TRAIN>, MAX_TRAIN_ID> ownedNodes_;
 
@@ -48,11 +48,6 @@ public:
   // Reserve a path for train to go to the destination.
   // Return true if a viable path is reserved.
   bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance& outTotalPathDist);
-
-  // Reservation
-  void reserve(TrackNodeId nodeId, TrainId trainId);
-  void unreserve(TrackNodeId nodeId, TrainId trainId, std::source_location loc = std::source_location::current());
-  bool canReserve(const TrackNode& node, TrainId trainId) const;
 
   // Locking
   void lock(TrackNodeId nodeId, TrainId trainId, std::source_location loc = std::source_location::current());

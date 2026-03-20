@@ -43,8 +43,10 @@ static_assert([] {
 
 } // namespace
 
+Distance getStoppingDistanceForLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+
 // https://www.desmos.com/calculator/v8t9qhygng
-Distance getStoppingDistance(Speed speed) { return speed * speed / 40 + 82 * speed + 18740; }
+Distance getStoppingDistance(Speed speed) { return speed == 0 ? 0 : speed * speed / 40 + 82 * speed + 18740; }
 
 Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
@@ -122,7 +124,6 @@ TrackDirection getAdjacentDirection(TrackNode& n1, TrackNode& n2) {
 PathFindingSystem::PathFindingSystem() { reset(); }
 
 void PathFindingSystem::reset() {
-  reservations_ = {};
   locks_ = {};
   ownedNodes_ = {};
 }
@@ -192,9 +193,6 @@ bool PathFindingSystem::dijkstra(TrainTrackState& ttState, TrainId trainId, Trac
     for (size_t i = 0; i < numEdges; ++i) {
       const TrackEdge& edge = uNode.edges[i];
       KIT_ASSERT(edge.dest, "edge destination is null");
-      if (!canReserve(*edge.dest, trainId)) {
-        continue;
-      }
 
       // Update distance and parent.
       TrackNodeId v = edge.dest->id;
@@ -257,69 +255,65 @@ bool PathFindingSystem::planPath(TrainTrackState& ttState, TrainId trainId, Trac
     outTotalPathDist += getAdjacentDistance(*parent, *node);
   }
 
-  // Reserve all.
-  for (TrackNode* node : train.nav.path) {
-    reserve(node->id, trainId);
-  }
-  train.nav.nodeAheadReserved = int(train.nav.path.size());
-
   return isReachable;
 }
 
-void PathFindingSystem::reserve(TrackNodeId nodeId, TrainId trainId) {
-  auto& reservation = reservations_[nodeId];
-  auto it =
-      kit::find_if(reservation.begin(), reservation.end(), [&](const Entry& entry) { return entry.id == trainId; });
-  if (it == reservation.end()) {
-    reservation.pushBack(Entry{.id = trainId, .time = 1});
-  } else {
-    ++it->time;
-  }
-}
-
-void PathFindingSystem::unreserve(TrackNodeId nodeId, TrainId trainId, std::source_location loc) {
-  auto& reservation = reservations_[nodeId];
-  auto it =
-      kit::find_if(reservation.begin(), reservation.end(), [&](const Entry& entry) { return entry.id == trainId; });
-  KIT_ASSERT(it != reservation.end(), "train did not reserve this node", loc);
-  --it->time;
-  if (it->time == 0) {
-    *it = reservation.back();
-    reservation.popBack();
-  }
-}
-
-bool PathFindingSystem::canReserve(const TrackNode& node, TrainId trainId) const {
-  auto& reservation = reservations_[node.reverse->id];
-  return reservation.empty() || (reservation.size() == 1 && reservation.front().id == trainId);
-}
-
 void PathFindingSystem::lock(TrackNodeId nodeId, TrainId trainId, std::source_location loc) {
-  auto& lock = locks_[nodeId];
-  KIT_ASSERT(lock.id == NO_TRAIN || lock.id == trainId, "track node is locked by other train", loc);
-  lock.id = trainId;
-  ++lock.time;
-  ownedNodes_[trainId].pushBack(nodeId);
+  {
+    auto& lock = locks_[nodeId];
+    KIT_ASSERT(lock.id == NO_TRAIN || lock.id == trainId, "track node is locked by other train", loc);
+    lock.id = trainId;
+    ++lock.time;
+    ownedNodes_[trainId].pushBack(nodeId);
+  }
+
+  {
+    nodeId ^= 1;
+    auto& lock = locks_[nodeId];
+    KIT_ASSERT(lock.id == NO_TRAIN || lock.id == trainId, "track node is locked by other train", loc);
+    lock.id = trainId;
+    ++lock.time;
+    ownedNodes_[trainId].pushBack(nodeId);
+  }
 }
 
 void PathFindingSystem::unlock(TrackNodeId nodeId, TrainId trainId, std::source_location loc) {
-  auto& lock = locks_[nodeId];
-  KIT_ASSERT(lock.id == trainId, "track node is unlocked by non-owner", loc);
-  --lock.time;
-  if (lock.time == 0) {
-    lock.id = NO_TRAIN;
+  {
+    auto& lock = locks_[nodeId];
+    KIT_ASSERT(lock.id == trainId, "track node is unlocked by non-owner", loc);
+    --lock.time;
+    if (lock.time == 0) {
+      lock.id = NO_TRAIN;
+    }
+
+    auto& ownedNode = ownedNodes_[trainId];
+    auto it = kit::find(ownedNode.begin(), ownedNode.end(), nodeId);
+    KIT_ASSERT(it != ownedNode.end(), "missing track node");
+    *it = ownedNode.front();
+    ownedNode.popFront();
   }
 
-  auto& ownedNode = ownedNodes_[trainId];
-  auto it = kit::find(ownedNode.begin(), ownedNode.end(), nodeId);
-  KIT_ASSERT(it != ownedNode.end(), "missing track node");
-  *it = ownedNode.front();
-  ownedNode.popFront();
+  {
+    nodeId ^= 1;
+    auto& lock = locks_[nodeId];
+    KIT_ASSERT(lock.id == trainId, "track node is unlocked by non-owner", loc);
+    --lock.time;
+    if (lock.time == 0) {
+      lock.id = NO_TRAIN;
+    }
+
+    auto& ownedNode = ownedNodes_[trainId];
+    auto it = kit::find(ownedNode.begin(), ownedNode.end(), nodeId);
+    KIT_ASSERT(it != ownedNode.end(), "missing track node");
+    *it = ownedNode.front();
+    ownedNode.popFront();
+  }
 }
 
 bool PathFindingSystem::canLock(TrackNodeId nodeId, TrainId trainId) const {
-  auto& lock = locks_[nodeId];
-  return lock.id == trainId || lock.id == NO_TRAIN;
+  auto& lock1 = locks_[nodeId];
+  auto& lock2 = locks_[nodeId ^ 1];
+  return (lock1.id == trainId || lock1.id == NO_TRAIN) && (lock2.id == trainId || lock2.id == NO_TRAIN);
 }
 
 TrainId PathFindingSystem::getOwner(TrackNodeId nodeId) const { return locks_[nodeId].id; }

@@ -27,7 +27,7 @@ Magic Constant
 static constexpr size_t MAX_SPEED_LEVEL = 14;
 static constexpr size_t MAX_TRAIN_ID = 56;
 static constexpr size_t NUM_TRAIN_IN_LAB = 6;
-static constexpr size_t MAX_NODE_PER_TRAIN = 24;
+static constexpr size_t MAX_NODE_PER_TRAIN = 48;
 static constexpr size_t NUM_TRACK_NODES = 144;
 static constexpr size_t NUM_SWITCHES = 22;
 static constexpr TrainId NO_TRAIN = 0;
@@ -101,7 +101,6 @@ struct TrainNavigation {
   unsigned reverseCountdownTicks = 0;
   marklin::SpeedLevel resumeSpeed = 0;
   marklin::NavigationState resumeNavigationState = NavigationState::Manual;
-  int nodeAheadReserved = 0;
   int nodeAheadLocked = 0;
   RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
 
@@ -113,7 +112,6 @@ struct TrainNavigation {
     reverseCountdownTicks = 0;
     resumeSpeed = 0;
     resumeNavigationState = NavigationState::Manual;
-    nodeAheadReserved = 0;
     nodeAheadLocked = 0;
     path.clear();
   }
