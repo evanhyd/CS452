@@ -1,10 +1,10 @@
 #pragma once
 #include "util/debug.h"
 #include "util/ring_buffer.h"
-#include "util/static_stack.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <source_location>
 
 namespace marklin {
 /**********************************
@@ -13,19 +13,21 @@ Type Alias
 using Speed = int32_t;
 using SpeedLevel = uint16_t;
 using CANSpeed = uint16_t;
-using Distance = int32_t;
+using Distance = int32_t; // um
 using TrainId = uint8_t;
 using SensorNumber = uint8_t; // the "12" in A12
 using SwitchId = uint8_t;
 using TrackNodeId = uint8_t;  // Track Node array index, maps 1 to 1 to sensor id by coincidence.
 using TrackNodeNum = uint8_t; // Map to either a switch id or a sensor id or other special id.
-using TrackId = uint8_t;      // Track A or Track B
+using TrackId = uint8_t;      // Track A (0) or Track B (1)
 
 /**********************************
 Magic Constant
 ***********************************/
 static constexpr size_t MAX_SPEED_LEVEL = 14;
-static constexpr size_t NUM_TRAINS = 60;
+static constexpr size_t MAX_TRAIN_ID = 56;
+static constexpr size_t NUM_TRAIN_IN_LAB = 6;
+static constexpr size_t MAX_NODE_PER_TRAIN = 24;
 static constexpr size_t NUM_TRACK_NODES = 144;
 static constexpr size_t NUM_SWITCHES = 22;
 static constexpr TrainId NO_TRAIN = 0;
@@ -34,71 +36,116 @@ static constexpr TrainId NO_TRAIN = 0;
 Train Definition
 ***********************************/
 enum class TrainDirection { NoChange, Forward, Backward, Reverse };
-enum class TrainFunction { // clang-format off
-  F0, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31
-}; // clang-format on
+enum class TrainFunction { HeadLight, BoardingSound, F2, BazzingSound };
+enum class KinematicState { Lost, Tracked };
+enum class NavigationState { Manual, Routing, Halting, Reversing, Yielding };
 
-struct TrackNode;
+struct TrainHardware {
+  bool forward = true;
+  SpeedLevel speedLevel = 0;
+  Speed offlineSpeed = 0;
 
-struct TrainStateMachine {
-  enum class Type { Idle, Reversing, Locating, Pathing } type;
-  struct IdleState {};
-  struct ReversingState {
-    unsigned countdownTicks;
-  };
-  struct LocatingState {
-    TrackNodeId dest;
-    Distance offset;
-  };
-  struct PathingState {
-    TrackNodeId dest;
-    Distance offset;
-    Distance pathDistance;
-  };
+  void reset() {
+    forward = true;
+    speedLevel = 0;
+    offlineSpeed = 0;
+  }
+};
 
-  union {
-    IdleState idle;
-    ReversingState reversing;
-    LocatingState locating;
-    PathingState pathing;
-  };
+struct TrainKinematics {
+  Speed estimatedSpeed = 0;
+  uint32_t lastKnownTicks = 0;
+  struct TrackNode* lastKnownNode = nullptr;
+  Distance estimatedOffsetFromLast = 0;
+  struct TrackNode* estimatedNode = nullptr;
+  Distance estimatedOffsetFromEstimatedNode = 0;
+
+  void updateSpeed(Distance dS, uint32_t dT) {
+    static constexpr int32_t EWMA_DENOMINATOR = 4;
+    if (dT == 0) {
+      return;
+    }
+    Speed v = dS / Speed(dT);
+    estimatedSpeed = (estimatedSpeed * (EWMA_DENOMINATOR - 1) + v) / EWMA_DENOMINATOR;
+  }
+
+  void reset() {
+    estimatedSpeed = 0;
+    lastKnownTicks = 0;
+    lastKnownNode = nullptr;
+    estimatedOffsetFromLast = 0;
+    estimatedNode = nullptr;
+    estimatedOffsetFromEstimatedNode = 0;
+  }
+};
+
+struct TrainPrediction {
+  TrackNode* predictedNextSensor = nullptr;
+  uint32_t predictedNextSensorTicks = 0;
+  int32_t lastTimeErrorTicks = 0;
+  Distance lastDistErrorUm = 0;
+
+  void reset() {
+    predictedNextSensor = nullptr;
+    predictedNextSensorTicks = 0;
+    lastTimeErrorTicks = 0;
+    lastDistErrorUm = 0;
+  }
+};
+
+struct TrainNavigation {
+  TrackNodeId navDest = 0;
+  Distance navOffset = 0;
+  Distance navPathDistance = 0;
+  Distance estimatedPathDistance = 0;
+  unsigned reverseCountdownTicks = 0;
+  marklin::SpeedLevel resumeSpeed = 0;
+  RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
+
+  void reset() {
+    navDest = 0;
+    navOffset = 0;
+    navPathDistance = 0;
+    estimatedPathDistance = 0;
+    reverseCountdownTicks = 0;
+    resumeSpeed = 0;
+    path.clear();
+  }
 };
 
 struct Train {
-  bool touched;
-  bool forward;
+  KinematicState kinematicState = KinematicState::Lost;
+  NavigationState navigationState = NavigationState::Manual;
 
-  TrainStateMachine stateMachine{};
+  TrainHardware hw;
+  TrainKinematics kinematics;
+  TrainPrediction prediction;
+  TrainNavigation nav;
 
-  // Motion State
-  SpeedLevel speedLevel;
-  Speed estimatedSpeed; // um/tick, calculated from the sensor
-  uint32_t lastCalibrateTicks;
-
-  TrackNode* lastVisitedNode;
-  Distance estimatedOffsetFromLast; // um away from the last visited node.
-
-  TrackNode* estimatedNode;
-  Distance estimatedOffsetFromEstimatedNode; // um away from the estimated node.
-  Distance estimatedPathDistance;            // um away form the destination.
-
-  RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
-
-  TrackNode* lastTrippedSensor;
-  uint32_t lastTrippedTicks;
-  TrackNode* predictedNextSensor;
-  uint32_t predictedNextSensorTicks;
-  int32_t lastTimeErrorTicks;
-  Distance lastDistErrorUm;
+  void reset() {
+    kinematicState = KinematicState::Lost;
+    navigationState = NavigationState::Manual;
+    hw.reset();
+    kinematics.reset();
+    prediction.reset();
+    nav.reset();
+  }
 };
 
-// Convert speed level to speed.
+// Convert speed level to CAN speed.
 constexpr CANSpeed convertSpeedLevelToCANSpeed(SpeedLevel speedLevel) {
   return static_cast<CANSpeed>(speedLevel > 0 ? 1 + (speedLevel - 1) * 77 : 0);
 }
 
+// Convert speed level to offline data speed.
+constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) {
+  static constexpr Speed speeds[] = {0, 80, 250, 470, 670, 930, 1390, 1860, 2320, 2830, 3440, 4090, 4730, 5440, 6150};
+  return speeds[speedLevel];
+}
+
 constexpr bool isValidSpeedLevel(SpeedLevel speedLevel) { return speedLevel <= MAX_SPEED_LEVEL; }
-constexpr bool isValidTrainId(TrainId id) { return 1 <= id && id <= NUM_TRAINS; }
+constexpr bool isValidTrainId(TrainId id) { return 1 <= id && id <= MAX_TRAIN_ID; }
+void assertTrainState(Train& train, std::source_location loc = std::source_location::current());
 
 /**********************************
 Switch Definition
@@ -147,8 +194,7 @@ struct TrackEdge {
   TrackEdge* reverse;
   TrackNode* src;
   TrackNode* dest;
-  Distance dist; // micro-meters
-  int32_t speedCompPercentage;
+  Distance dist;
 };
 
 struct TrackNode {
@@ -161,55 +207,12 @@ struct TrackNode {
     Exit,   // Straight
   };
 
-  class NodeLock {
-  public:
-    NodeLock() : owner_(NO_TRAIN), directionStack_() {}
-
-    bool tryAcquire(TrainId trainId, TrackDirection direction = TrackDirection::Straight) {
-      if (canAcquire(trainId)) {
-        owner_ = trainId;
-        directionStack_.push(direction);
-        return true;
-      }
-      return false;
-    }
-
-    bool canAcquire(TrainId trainId) const { return directionStack_.empty() || owner_ == trainId; }
-
-    void release(TrainId trainId, std::source_location loc = std::source_location::current()) {
-      if (hasOwner() && owner_ == trainId) {
-        directionStack_.pop();
-        if (directionStack_.empty()) {
-          owner_ = NO_TRAIN;
-        }
-        return;
-      }
-      logError("release failed", loc);
-    }
-
-    TrackDirection topDirection() const {
-      if (hasOwner()) {
-        return directionStack_.top();
-      }
-      return TrackDirection::Straight;
-    }
-
-    bool hasOwner() const { return !directionStack_.empty(); }
-
-    TrainId owner() const { return owner_; }
-
-  private:
-    TrainId owner_;
-    StaticStack<TrackDirection, 4> directionStack_;
-  };
-
   const char* name;
   Type type;
   TrackNodeNum num;   // sensor or switch number
   TrackNodeId id;     // TrackSet index
   TrackNode* reverse; // same location, but opposite direction
   TrackEdge edges[2];
-  NodeLock lock; // the train ID that has exclusive access
 };
 
 /**********************************
@@ -217,10 +220,12 @@ Train Track Definition
 ***********************************/
 using TrackSet = std::array<TrackNode, NUM_TRACK_NODES>;
 
+constexpr bool isValidTrack(TrackId id) { return id == 0 || id == 1; };
+
 struct TrainTrackState {
 private:
-  std::array<Train, NUM_TRAINS> trains{};
   uint32_t currentTrack;
+  std::array<Train, MAX_TRAIN_ID> trains{};
   TrackSet trackA{};
   TrackSet trackB{};
   std::array<SwitchState, NUM_SWITCHES> switches{};
@@ -233,13 +238,9 @@ public:
   Train& getTrain(TrainId id);
   SwitchState getSwitchState(SwitchId id) const;
   void setSwitchState(SwitchId id, SwitchState switchState);
-
-  // Set the current track (0 - A, 1 - B).
   void setCurrentTrack(TrackId id);
 
   TrackNode& getTrackNodeById(TrackNodeId id);
-
-  // Perform a linear scan to get track node by its name. Very bad performance.
   TrackNode* getTrackNodeByName(const char* name);
 };
 

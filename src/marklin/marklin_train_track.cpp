@@ -1,37 +1,20 @@
 #include "marklin_train_track.h"
 #include "util/debug.h"
-#include "util/kit_algorithm.h"
+#include "util/kit_algorithm.h" // strncmp
 
 namespace marklin {
 
 TrainTrackState::TrainTrackState() { reset(); }
 
 void TrainTrackState::reset() {
-  // All trains to idle.
+  currentTrack = 1; // default to track B, because track A is broken half of the time.
   for (Train& train : trains) {
-    train.touched = false;
-    train.forward = true;
-    train.stateMachine.type = TrainStateMachine::Type::Idle;
-    train.speedLevel = 0;
-    train.estimatedSpeed = 0;
-    train.estimatedOffsetFromLast = 0;
-    train.lastVisitedNode = nullptr;
-    train.lastCalibrateTicks = 0;
-    train.path = {};
-    train.lastTrippedSensor = nullptr;
-    train.lastTrippedTicks = 0;
-    train.predictedNextSensor = nullptr;
-    train.predictedNextSensorTicks = 0;
-    train.lastTimeErrorTicks = 0;
-    train.lastDistErrorUm = 0;
+    train.reset();
   }
-
   switches = {};
 
   using enum TrackDirection;
   using enum TrackNode::Type;
-
-  currentTrack = 1; // default to track B, because track A is broken half of the time.
 
   // Init track A.
   trackA = {};
@@ -2384,14 +2367,10 @@ void TrainTrackState::reset() {
     trackA[i].id = i;
     trackB[i].id = i;
   }
-
-  // Owner defaults to NO_TRAIN from aggregate initialization.
 }
 
 Train& TrainTrackState::getTrain(TrainId id) {
-  if (!isValidTrainId(id)) {
-    logError("invalid train id");
-  }
+  KIT_ASSERT(isValidTrainId(id), "invalid train id");
   return trains[id - 1];
 }
 
@@ -2405,14 +2384,10 @@ void TrainTrackState::setCurrentTrack(TrackId trackId) { currentTrack = trackId;
 
 TrackNode& TrainTrackState::getTrackNodeById(TrackNodeId id) {
   if (currentTrack == 0) {
-    if (id >= 144) {
-      logError("invalid track node id");
-    }
+    KIT_ASSERT(id < 144, "invalid track node id");
     return trackA[id];
   } else {
-    if (id >= 140) {
-      logError("invalid track node id");
-    }
+    KIT_ASSERT(id < 140, "invalid track node id");
     return trackB[id];
   }
 }
@@ -2425,6 +2400,70 @@ TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
     }
   }
   return nullptr;
+}
+
+/*
+KinematicState
+  Lost: The train’s motion is completely unknown.
+    State Guarantee:
+      lastKnownNode == null
+  Tracked: The train triggers more than 1 sensor.
+    State Guarantee:
+      lastKnownNode != null
+      estimated kinetics state != null
+
+NavigationState
+  Manual: The train is running without a destination.
+    State Guarantee:
+      path == empty
+  Yielding: The train stops and waits to acquire the ownership of the track nodes ahead.
+    State Guarantee:
+  Routing: The train has a destination and the path to the destination.
+    State Guarantee:
+      path != empty
+  Halting: The train arrives at the destination and stops.
+    State Guarantee:
+  Reversing: The train is reversing the direction.
+    State Guarantee:
+*/
+void assertTrainState(Train& train, std::source_location loc) {
+  switch (train.kinematicState) {
+  case KinematicState::Lost: {
+    KIT_ASSERT(!train.kinematics.lastKnownNode, "", loc);
+    break;
+  }
+  case KinematicState::Tracked: {
+    KIT_ASSERT(train.kinematics.lastKnownNode, "", loc);
+    break;
+  }
+  default: {
+    logError("invalid kinematic state", loc);
+  }
+  }
+
+  switch (train.navigationState) {
+  case NavigationState::Manual: {
+    KIT_ASSERT(train.nav.path.empty(), "", loc);
+    break;
+  }
+  case NavigationState::Routing: {
+    KIT_ASSERT(train.kinematicState != KinematicState::Lost, "", loc);
+    KIT_ASSERT(!train.nav.path.empty(), "", loc);
+    break;
+  }
+  case NavigationState::Halting: {
+    break;
+  }
+  case NavigationState::Reversing: {
+    break;
+  }
+  case NavigationState::Yielding: {
+    break;
+  }
+  default: {
+    logError("invalid navigation state", loc);
+  }
+  }
 }
 
 } // namespace marklin

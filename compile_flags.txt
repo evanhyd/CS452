@@ -18,3 +18,4 @@
 -Wuninitialized
 -Wdouble-promotion
 -Wvirtual-move-assign
+-Wparentheses

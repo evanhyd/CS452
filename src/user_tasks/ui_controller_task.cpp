@@ -57,7 +57,7 @@ void uiControllerTask() {
         }
         if (!marklin::isValidTrainId(parsed.setSpeed.trainId)) {
           notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.setSpeed.trainId,
-                           marklin::NUM_TRAINS);
+                           marklin::MAX_TRAIN_ID);
           break;
         }
         TrainTrackMsg tm{.type = TrainTrackMsgType::SetSpeedCmd,
@@ -68,7 +68,7 @@ void uiControllerTask() {
       case cmd::CmdTag::Reverse: {
         if (!marklin::isValidTrainId(parsed.reverse.trainId)) {
           notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.reverse.trainId,
-                           marklin::NUM_TRAINS);
+                           marklin::MAX_TRAIN_ID);
           break;
         }
         TrainTrackMsg tm{.type = TrainTrackMsgType::ReverseCmd, .reverseCmd{.trainId = parsed.reverse.trainId}};
@@ -100,7 +100,7 @@ void uiControllerTask() {
       case cmd::CmdTag::Goto: {
         if (!marklin::isValidTrainId(parsed.gotoData.trainId)) {
           notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.gotoData.trainId,
-                           marklin::NUM_TRAINS);
+                           marklin::MAX_TRAIN_ID);
           break;
         }
         if (!marklin::isValidSpeedLevel(parsed.gotoData.speedLevel)) {
