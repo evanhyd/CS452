@@ -108,6 +108,8 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
       KIT_ASSERT(context.pfSystem.getOwner(tail->id) == ownerId, "train has no path ownership");
       context.pfSystem.unlock(tail->id, ownerId);
       context.pfSystem.unreserve(tail->id, ownerId);
+      --train.nav.nodeAheadLocked;
+      --train.nav.nodeAheadReserved;
 
       marklin::Distance dist = 0;
       tail = marklin::getNextTrackNode(context.ttState, *tail, dist);
@@ -124,8 +126,8 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
         break;
       }
     }
-    train.nav.navPathDistance -= dS;
-    train.nav.estimatedPathDistance = train.nav.navPathDistance;
+    train.nav.pathDistance -= dS;
+    train.nav.estimatedPathDistance = train.nav.pathDistance;
   }
 
   // Update kinematics values.
@@ -332,77 +334,91 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     }
 
     // Part C: Dynamic Lookahead Reservation.
-    if (train.kinematicState == marklin::KinematicState::Tracked) {
-      marklin::SpeedLevel lookaheadSpeed =
-          (train.navigationState == marklin::NavigationState::Yielding) ? train.nav.resumeSpeed : train.hw.speedLevel;
+    if (train.kinematicState == marklin::KinematicState::Tracked && train.hw.speedLevel > 0) {
+      marklin::Distance lookaheadRemaining =
+          marklin::getStoppingDistance(train.navigationState == marklin::NavigationState::Yielding
+                                           ? train.nav.resumeSpeed
+                                           : train.hw.speedLevel) +
+          100'000; // 10 cm
 
-      if (lookaheadSpeed > 0) {
-        static constexpr marklin::Distance safetyMargin = 100'000; // 10 cm
-        marklin::TrackNode* projectedNode = train.kinematics.lastKnownNode;
-        marklin::Distance lookaheadRemaining =
-            train.kinematics.estimatedOffsetFromLast + marklin::getStoppingDistance(lookaheadSpeed) + safetyMargin;
+      marklin::TrackNode* prev = train.kinematics.lastKnownNode;
+      auto pathIt = train.nav.path.begin();
+      bool isRouting = (train.navigationState == marklin::NavigationState::Routing);
+      bool pathClear = true;
 
-        bool pathClear = true;
-        auto pathIt = train.nav.path.begin();
-        while (projectedNode && lookaheadRemaining > 0) {
+      for (int depth = 0; lookaheadRemaining > 0; ++depth) {
+        marklin::Distance edgeDist = 0;
+        marklin::TrackNode* curr = nullptr;
 
-          // Check if the node can be reserved AND locked
-          if (!context.pfSystem.canReserve(*projectedNode, trainId) ||
-              !context.pfSystem.canLock(projectedNode->id, trainId)) {
-            pathClear = false;
-            if (train.navigationState != marklin::NavigationState::Yielding) {
-              train.navigationState = marklin::NavigationState::Yielding;
-              train.nav.resumeSpeed = train.hw.speedLevel;
-              broadcastTrainSpeedLevel(context, trainId, 0);
-              notifyStatusToUI(context.uiTid, "Train %u yielding at %s.", trainId, projectedNode->name);
-            }
-            break;
+        if (pathIt != train.nav.path.end()) {
+          // Routing mode uses the existing path.
+          curr = *pathIt++;
+          edgeDist = marklin::getAdjacentDistance(*prev, *curr);
+          if (prev->type == marklin::TrackNode::Type::Branch) {
+            marklin::SwitchState desiredState =
+                (marklin::getAdjacentDirection(*prev, *curr) == marklin::TrackDirection::Curved)
+                    ? marklin::SwitchState::Curved
+                    : marklin::SwitchState::Straight;
+            broadcastSwitchState(context, prev->num, desiredState);
+          }
+        } else {
+          // Run out of path in routing mode. Must halt at the destination.
+          if (isRouting) {
+            train.navigationState = marklin::NavigationState::Halting;
+            isRouting = false;
+            notifyStatusToUI(context.uiTid, "Train %u halt because close to destination.", trainId);
           }
 
-          context.pfSystem.reserve(projectedNode->id, trainId);
-          context.pfSystem.lock(projectedNode->id, trainId);
-
-          marklin::Distance dist = 0;
-          marklin::TrackNode* nextNode = nullptr;
-          if (!train.nav.path.empty() && pathIt != train.nav.path.end()) {
-            nextNode = *pathIt;
-            dist = marklin::getAdjacentDistance(*projectedNode, *nextNode);
-            if (projectedNode->type == marklin::TrackNode::Type::Branch) {
-              marklin::TrackDirection dir = marklin::getAdjacentDirection(*projectedNode, *nextNode);
-              marklin::SwitchState desiredState = (dir == marklin::TrackDirection::Curved)
-                                                      ? marklin::SwitchState::Curved
-                                                      : marklin::SwitchState::Straight;
-              broadcastSwitchState(context, projectedNode->num, desiredState);
-            }
-            ++pathIt;
-          } else {
-            if (train.navigationState == marklin::NavigationState::Routing) {
-              train.navigationState = marklin::NavigationState::Halting;
-              notifyStatusToUI(context.uiTid, "Train %u entering Halting mode.", trainId);
-            }
-            nextNode = marklin::getNextTrackNode(context.ttState, *projectedNode, dist);
-          }
-
-          if (nextNode == nullptr) {
-            pathClear = false;
-            if (train.navigationState != marklin::NavigationState::Halting) {
-              train.navigationState = marklin::NavigationState::Halting;
-              broadcastTrainSpeedLevel(context, trainId, 0);
-              notifyStatusToUI(context.uiTid, "Train %u halting: End of track detected.", trainId);
-            }
-            break;
-          }
-
-          projectedNode = nextNode;
-          lookaheadRemaining -= dist;
+          // Use the next node if in manual mode or run out of path in routing.
+          curr = marklin::getNextTrackNode(context.ttState, *prev, edgeDist);
         }
 
-        if (train.navigationState == marklin::NavigationState::Yielding && pathClear) {
-          train.navigationState =
-              train.nav.path.empty() ? marklin::NavigationState::Manual : marklin::NavigationState::Routing;
-          broadcastTrainSpeedLevel(context, trainId, train.nav.resumeSpeed);
-          notifyStatusToUI(context.uiTid, "Track cleared. Train %u resuming.", trainId);
+        // Reach the exit. Must halt.
+        if (!curr) {
+          pathClear = false;
+          if (train.navigationState != marklin::NavigationState::Halting) {
+            train.navigationState = marklin::NavigationState::Halting;
+            broadcastTrainSpeedLevel(context, trainId, 0);
+            notifyStatusToUI(context.uiTid, "Train %u hatl because close to end of track.", trainId);
+          }
+          break;
         }
+
+        lookaheadRemaining -= (depth == 0) ? (edgeDist - train.kinematics.estimatedOffsetFromLast) : edgeDist;
+
+        // Reserve and lock in manual mode. Switch to yield if fails.
+        bool needsReserve = (!isRouting && depth >= train.nav.nodeAheadReserved);
+        bool needsLock = (depth >= train.nav.nodeAheadLocked);
+        if ((needsReserve && !context.pfSystem.canReserve(*curr, trainId)) ||
+            (needsLock && !context.pfSystem.canLock(curr->id, trainId))) {
+          pathClear = false;
+          if (train.navigationState != marklin::NavigationState::Yielding) {
+            train.nav.resumeSpeed = train.hw.speedLevel;
+            train.nav.resumeNavigationState = train.navigationState;
+            train.navigationState = marklin::NavigationState::Yielding;
+            broadcastTrainSpeedLevel(context, trainId, 0);
+            notifyStatusToUI(context.uiTid, "Train %u yielding at %s.", trainId, curr->name);
+          }
+          break;
+        }
+
+        // Reserve and lock.
+        if (needsReserve) {
+          context.pfSystem.reserve(curr->id, trainId);
+          train.nav.nodeAheadReserved++;
+        }
+        if (needsLock) {
+          context.pfSystem.lock(curr->id, trainId);
+          train.nav.nodeAheadLocked++;
+        }
+        prev = curr;
+      }
+
+      // If the train was in yield but the path is clear now, then restore the old state.
+      if (train.navigationState == marklin::NavigationState::Yielding && pathClear) {
+        train.navigationState = train.nav.resumeNavigationState;
+        broadcastTrainSpeedLevel(context, trainId, train.nav.resumeSpeed);
+        notifyStatusToUI(context.uiTid, "Track cleared. Train %u resuming.", trainId);
       }
     }
 

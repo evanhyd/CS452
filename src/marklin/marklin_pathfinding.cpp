@@ -255,6 +255,7 @@ bool PathFindingSystem::planPath(TrainTrackState& ttState, TrainId trainId, Trac
   for (TrackNode* node : train.nav.path) {
     reserve(node->id, trainId);
   }
+  train.nav.nodeAheadReserved = int(train.nav.path.size());
 
   return isReachable;
 }

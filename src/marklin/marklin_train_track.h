@@ -94,21 +94,27 @@ struct TrainPrediction {
 };
 
 struct TrainNavigation {
-  TrackNodeId navDest = 0;
-  Distance navOffset = 0;
-  Distance navPathDistance = 0;
+  TrackNodeId dest = 0;
+  Distance offset = 0;
+  Distance pathDistance = 0;
   Distance estimatedPathDistance = 0;
   unsigned reverseCountdownTicks = 0;
   marklin::SpeedLevel resumeSpeed = 0;
+  marklin::NavigationState resumeNavigationState = NavigationState::Manual;
+  int nodeAheadReserved = 0;
+  int nodeAheadLocked = 0;
   RingBuffer<TrackNode*, NUM_TRACK_NODES> path;
 
   void reset() {
-    navDest = 0;
-    navOffset = 0;
-    navPathDistance = 0;
+    dest = 0;
+    offset = 0;
+    pathDistance = 0;
     estimatedPathDistance = 0;
     reverseCountdownTicks = 0;
     resumeSpeed = 0;
+    resumeNavigationState = NavigationState::Manual;
+    nodeAheadReserved = 0;
+    nodeAheadLocked = 0;
     path.clear();
   }
 };
