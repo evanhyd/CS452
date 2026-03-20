@@ -6,6 +6,7 @@
 #include "kernel/syscalls.h"
 #include "util/console.h"
 #include "util/debug.h"
+#include "util/history.h"
 
 namespace k4 {
 
@@ -21,9 +22,36 @@ constexpr unsigned ROW_TRAINS = 3;
 constexpr unsigned COL_TRAINS = 50;
 constexpr unsigned ROW_CMD_HISTORY = 20;
 constexpr unsigned ROW_STATUS = 40;
-constexpr unsigned ROW_PROMPT = 42;
+constexpr unsigned STATUS_HISTORY_SIZE = 16;
+constexpr unsigned ROW_PROMPT = ROW_STATUS + STATUS_HISTORY_SIZE + 2;
 
 constexpr unsigned CMD_HISTORY_DEBOUNCE_TICKS = 10;
+
+const char* toString(marklin::KinematicState state) {
+  switch (state) {
+  case marklin::KinematicState::Lost:
+    return "Lost";
+  case marklin::KinematicState::Tracked:
+    return "Tracked";
+  }
+  return "Unknown";
+}
+
+const char* toString(marklin::NavigationState state) {
+  switch (state) {
+  case marklin::NavigationState::Manual:
+    return "Manual";
+  case marklin::NavigationState::Routing:
+    return "Routing";
+  case marklin::NavigationState::Halting:
+    return "Halting";
+  case marklin::NavigationState::Reversing:
+    return "Reversing";
+  case marklin::NavigationState::Yielding:
+    return "Yielding";
+  }
+  return "Unknown";
+}
 
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
@@ -102,6 +130,13 @@ void uiViewServerTask() {
     }
   };
 
+  struct MessageWithTimestamp {
+    uint32_t ticks;
+    std::array<char, 128> msg;
+  };
+  History<MessageWithTimestamp, STATUS_HISTORY_SIZE> statusHistory;
+  uint32_t currentTicks = 0;
+
   UIMsg msg;
   for (;;) {
     int senderTid;
@@ -125,12 +160,22 @@ void uiViewServerTask() {
       break;
     }
     case UIMsgType::LogStatus: {
-      console.moveCursor(ROW_STATUS, 1);
-      console.puts(msg.status.msg);
-      console.clearToEol();
+      statusHistory.push({
+          .ticks = currentTicks,
+          .msg = msg.status.msg,
+      });
+      console.moveCursor(ROW_STATUS + static_cast<unsigned>(statusHistory.capacity - statusHistory.size()) + 1, 1);
+      for (const auto& entry : statusHistory) {
+        console.putTimestamp(entry.ticks);
+        console.puts(" ");
+        console.puts(entry.msg.data());
+        console.clearToEol();
+        console.nextLine();
+      }
       break;
     }
     case UIMsgType::DrawSystemTime: {
+      currentTicks = msg.time.ticks;
       console.moveCursor(ROW_SYSTEM_TIME, 1);
       console.putTimestamp(msg.time.ticks);
       maybeDrawCmdHistory(msg.time.ticks);
@@ -170,24 +215,41 @@ void uiViewServerTask() {
     case UIMsgType::TrainStates: {
       console.moveCursor(ROW_TRAINS, COL_TRAINS);
       console.puts("Trains:");
-      for (unsigned row = 0; row < msg.trainStates.count; ++row) {
-        const auto& entry = msg.trainStates.entries[row];
-        console.moveCursor(ROW_TRAINS + 1 + row, COL_TRAINS);
-        console.printf("Train %u %u um/t | Last %s[%u mm] Estimated %s[%u mm] Remaining %u mm", entry.trainId,
-                       entry.estimatedSpeed, (entry.lastVisitedNode ? entry.lastVisitedNode->name : "N/A"),
-                       entry.estimatedOffsetFromLast / 1000, (entry.estimatedNode ? entry.estimatedNode->name : "N/A"),
-                       entry.estimatedOffsetFromEstimatedNode / 1000, entry.estimatedPathDistance / 1000);
-        if (entry.lastTrippedSensor) {
-          console.printf(" | Hit %s ", entry.lastTrippedSensor->name);
-          if (entry.lastTimeErrorTicks != 0 || entry.lastDistErrorUm != 0) {
-            console.printf(" [Err: %dt %dmm]", entry.lastTimeErrorTicks, entry.lastDistErrorUm / 1000);
+      for (unsigned i = 0; i < msg.trainStates.count; ++i) {
+        const auto& entry = msg.trainStates.entries[i];
+        unsigned baseRow = ROW_TRAINS + 1 + (i * 2);
+
+        // Row 1: Kinematics and Predictions
+        console.moveCursor(baseRow, COL_TRAINS);
+        console.printf("Train %u [%s/%s] %u um/t | Last %s[%u mm] Est %s[%u mm] Rem %u mm", entry.trainId,
+                       toString(entry.train->kinematicState), toString(entry.train->navigationState),
+                       entry.train->kinematics.estimatedSpeed,
+                       (entry.train->kinematics.lastKnownNode ? entry.train->kinematics.lastKnownNode->name : "N/A"),
+                       entry.train->kinematics.estimatedOffsetFromLast / 1000,
+                       (entry.train->kinematics.estimatedNode ? entry.train->kinematics.estimatedNode->name : "N/A"),
+                       entry.train->kinematics.estimatedOffsetFromEstimatedNode / 1000,
+                       entry.train->nav.estimatedPathDistance / 1000);
+        if (entry.train->prediction.lastTimeErrorTicks != 0 || entry.train->prediction.lastDistErrorUm != 0) {
+          console.printf(" [Err: %dt %dmm]", entry.train->prediction.lastTimeErrorTicks,
+                         entry.train->prediction.lastDistErrorUm / 1000);
+        }
+        if (entry.train->prediction.predictedNextSensor) {
+          console.printf(" | Exp: %s", entry.train->prediction.predictedNextSensor->name);
+          if (entry.train->prediction.predictedNextSensorTicks != 0) {
+            console.puts(" @ ");
+            console.putTicks(entry.train->prediction.predictedNextSensorTicks);
           }
         }
-        if (entry.predictedNextSensor) {
-          console.printf(" | Exp: %s", entry.predictedNextSensor->name);
-          if (entry.predictedNextSensorTicks != 0) {
-            console.puts(" @ ");
-            console.putTicks(entry.predictedNextSensorTicks);
+        console.clearToEol();
+
+        // Row 2: Locks
+        console.moveCursor(baseRow + 1, COL_TRAINS);
+        console.puts("  Locks: ");
+        if (entry.lockedNodeCount == 0) {
+          console.puts("None");
+        } else {
+          for (unsigned j = 0; j < entry.lockedNodeCount; ++j) {
+            console.printf("%s ", entry.lockedNodes[j]->name);
           }
         }
         console.clearToEol();

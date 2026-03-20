@@ -14,8 +14,8 @@ inline void notify(int tid, const auto& msg) {
 
 // Send a status message to the UI-view server.
 template <typename... Args> void notifyStatusToUI(int uiTid, kit::FormatSpec<Args...> fmt, const Args&... args) {
-  UIMsg ui{.type = UIMsgType::LogStatus, .status{.msg = ""}};
-  kit::formatString(ui.status.msg, fmt, args...);
+  UIMsg ui{.type = UIMsgType::LogStatus, .status{.msg = {}}};
+  kit::formatString(ui.status.msg.data(), fmt, args...);
   notify(uiTid, ui);
 }
 

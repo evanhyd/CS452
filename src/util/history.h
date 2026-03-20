@@ -75,6 +75,8 @@ public:
     }
   }
 
+  static constexpr std::integral_constant<size_t, N> capacity{};
+
 private:
   std::array<Entry, N> entries_;
   size_t head_;

@@ -3,42 +3,41 @@
 #include "marklin/marklin_train_track.h"
 #include "message.h"
 #include "send_util.h"
-#include "util/history.h"
-#include "util/ring_buffer.h"
+#include "train_track_server_context.h"
+#include "util/kit_algorithm.h"
 
 namespace k4 {
 // UI Utils.
-inline void sendSensorHistoryToUI(int uiTid, const History<SensorHistoryEntry, SENSOR_HISTORY_SIZE>& history) {
+inline void sendSensorHistoryToUI(TrainTrackServerContext& context) {
   UIMsg ui{.type = UIMsgType::RedrawSensors, .sensorHistory{}};
   unsigned idx = 0;
-  for (const auto& e : history) {
+  for (const auto& e : context.sensorHistory) {
     ui.sensorHistory.entries[idx++] = e;
   }
   ui.sensorHistory.count = idx;
-  notify(uiTid, ui);
+  notify(context.uiTid, ui);
 }
 
-inline void sendTrainHistoryToUI(int uiTid, const RingBuffer<TrainStatesEntry, TRAIN_HISTORY_SIZE>& trainStates) {
+inline void sendTrainHistoryToUI(TrainTrackServerContext& context) {
   UIMsg ui{.type = UIMsgType::TrainStates, .trainStates{}};
   unsigned idx = 0;
-  for (const auto& e : trainStates) {
+  for (const auto& e : context.trainStates) {
     ui.trainStates.entries[idx++] = e;
   }
   ui.trainStates.count = idx;
-  notify(uiTid, ui);
+  notify(context.uiTid, ui);
 }
 
-inline void sendSwitchToUI(int uiTid, marklin::SwitchId id, marklin::SwitchState state) {
-  notify(uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
+inline void sendSwitchToUI(TrainTrackServerContext& context, marklin::SwitchId id, marklin::SwitchState state) {
+  notify(context.uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
 }
 
 // Train Track Utils
 template <bool forceUpdate = false>
-void broadcastSwitchState(int dispatcherTid, int uiTid, marklin::TrainTrackState& ttState, marklin::SwitchId id,
-                          marklin::SwitchState state) {
+void broadcastSwitchState(TrainTrackServerContext& context, marklin::SwitchId id, marklin::SwitchState state) {
 
   // If the switch is already in the desired state, do nothing
-  if (!forceUpdate && ttState.getSwitchState(id) == state) {
+  if (!forceUpdate && context.ttState.getSwitchState(id) == state) {
     return;
   }
 
@@ -60,55 +59,59 @@ void broadcastSwitchState(int dispatcherTid, int uiTid, marklin::TrainTrackState
 
   // Straight up the pairing switch first.
   if (pairingId != 0 && state == marklin::SwitchState::Curved) {
-    if (forceUpdate || ttState.getSwitchState(pairingId) == marklin::SwitchState::Curved) {
-      ttState.setSwitchState(pairingId, marklin::SwitchState::Straight);
-      sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(pairingId, marklin::SwitchState::Straight));
-      sendSwitchToUI(uiTid, pairingId, marklin::SwitchState::Straight);
+    if (forceUpdate || context.ttState.getSwitchState(pairingId) == marklin::SwitchState::Curved) {
+      context.ttState.setSwitchState(pairingId, marklin::SwitchState::Straight);
+      sendToDispatcher(context.dispatcherTid,
+                       marklin::MMessage::setSwitchState(pairingId, marklin::SwitchState::Straight));
+      sendSwitchToUI(context, pairingId, marklin::SwitchState::Straight);
     }
   }
 
-  ttState.setSwitchState(id, state);
-  sendToDispatcher(dispatcherTid, marklin::MMessage::setSwitchState(id, state));
-  sendSwitchToUI(uiTid, id, state);
+  context.ttState.setSwitchState(id, state);
+  sendToDispatcher(context.dispatcherTid, marklin::MMessage::setSwitchState(id, state));
+  sendSwitchToUI(context, id, state);
 }
 
-inline void broadcastTrainSpeedLevel(int dispatcherTid, [[maybe_unused]] int uiTid, marklin::TrainTrackState& ttState,
-                                     marklin::TrainId id, marklin::SpeedLevel speedLevel) {
-  marklin::Train& train = ttState.getTrain(id);
-  train.speedLevel = speedLevel;
-  sendToDispatcher(dispatcherTid,
+inline void broadcastTrainSpeedLevel(TrainTrackServerContext& context, marklin::TrainId id,
+                                     marklin::SpeedLevel speedLevel) {
+  marklin::Train& train = context.ttState.getTrain(id);
+  train.hw.speedLevel = speedLevel;
+  sendToDispatcher(context.dispatcherTid,
                    marklin::MMessage::setTrainSpeed(id, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
 }
 
-// Softreset. Doesn't affect the train speed as it doesn't send the speed message.
-inline void resetSystem(int dispatcherTid, int uiTid, marklin::TrainTrackState& ttState) {
-  ttState.reset();
-  sendToDispatcher(dispatcherTid, marklin::MMessage::systemHaltAll());
-  sendToDispatcher(dispatcherTid, marklin::MMessage::systemGoAll());
-  for (marklin::SwitchId id = 1; id <= 18; ++id) {
-    broadcastSwitchState<true>(dispatcherTid, uiTid, ttState, id, marklin::SwitchState::Straight);
-  }
-  for (marklin::SwitchId id = 153; id <= 156; ++id) {
-    broadcastSwitchState<true>(dispatcherTid, uiTid, ttState, id, marklin::SwitchState::Straight);
-  }
-}
-
-inline void initTrain(int dispatcherTid, marklin::TrainTrackState& ttState, marklin::TrainId trainId) {
-  if (marklin::Train& t = ttState.getTrain(trainId); !t.touched) {
-    t.touched = true;
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(trainId, marklin::TrainFunction::F0, 1));
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainDirection(trainId, marklin::TrainDirection::Forward));
-  }
-}
-
-inline void setSwitchNodeByLockState(int dispatcherTid, int uiTid, marklin::TrainTrackState& ttState,
-                                     const marklin::TrackNode& node) {
-  if (node.type != marklin::TrackNode::Type::Branch || !node.lock.hasOwner()) {
+inline void initTrain(TrainTrackServerContext& context, marklin::TrainId id) {
+  if (kit::contains(context.activeTrains.begin(), context.activeTrains.end(), id)) {
     return;
   }
-  marklin::SwitchState sw =
-      (node.lock.topDirection() == marklin::TrackDirection::Straight ? marklin::SwitchState::Straight
-                                                                     : marklin::SwitchState::Curved);
-  broadcastSwitchState<false>(dispatcherTid, uiTid, ttState, node.num, sw);
+  context.activeTrains.pushBack(id);
+  sendToDispatcher(context.dispatcherTid,
+                   marklin::MMessage::setTrainFunctionState(id, marklin::TrainFunction::HeadLight, 1));
+  sendToDispatcher(context.dispatcherTid, marklin::MMessage::setTrainDirection(id, marklin::TrainDirection::Forward));
 }
+
+// Soft reset.
+inline void resetContext(TrainTrackServerContext& context) {
+  context.ttState.reset();
+  context.pfSystem.reset();
+
+  // Reset the train states.
+  for (marklin::TrainId id : context.activeTrains) {
+    broadcastTrainSpeedLevel(context, id, 0);
+    context.ttState.getTrain(id).reset();
+  }
+  context.activeTrains.clear();
+
+  sendToDispatcher(context.dispatcherTid, marklin::MMessage::systemHaltAll());
+  sendToDispatcher(context.dispatcherTid, marklin::MMessage::systemGoAll());
+
+  // Reset the switches
+  for (marklin::SwitchId id = 1; id <= 18; ++id) {
+    broadcastSwitchState<true>(context, id, marklin::SwitchState::Straight);
+  }
+  for (marklin::SwitchId id = 153; id <= 156; ++id) {
+    broadcastSwitchState<true>(context, id, marklin::SwitchState::Straight);
+  }
+}
+
 } // namespace k4

@@ -41,6 +41,9 @@ public:
 
   void moveCursor(unsigned row, unsigned col) { kit::printf(tid_, "\033[%u;%uH", row, col); }
 
+  void nextLine() { puts("\033[E"); }
+  void prevLine() { puts("\033[F"); }
+
   void clearScreen() { puts("\033[2J"); }
   void clearLine() { puts("\033[2K"); }
   void clearToEol() { puts("\033[K"); }
