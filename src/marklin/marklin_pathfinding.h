@@ -3,8 +3,11 @@
 #include <array>
 
 namespace marklin {
-// Get the stopping distance based on the speed level.
-Distance getStoppingDistance(SpeedLevel speedLevel);
+// Get the stopping distance based on the speed.
+Distance getStoppingDistance(Speed speed);
+
+// Convert speed level to offline data speed.
+Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel);
 
 // Get the next track node by following the track at the current configuration.
 // Return nullptr if not found.

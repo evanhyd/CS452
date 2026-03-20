@@ -1,4 +1,5 @@
 #include "marklin/marklin_pathfinding.h"
+#include "marklin/marklin_message.h"
 #include "marklin/marklin_train_track.h"
 #include "util/debug.h"
 #include "util/kit_algorithm.h"
@@ -11,6 +12,8 @@ namespace marklin {
 namespace {
 constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000,  95000,  131000,  198000, 264000,
                                           378000, 427000, 579000, 766000, 980000, 1184000, 1503000};
+
+constexpr std::array OFFLINE_SPEED = {0, 80, 250, 470, 670, 930, 1390, 1860, 2320, 2830, 3440, 4090, 4730, 5440, 6150};
 
 constexpr marklin::TrackNodeId loopSensorNodeIds[] = {
     marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'A', 4}),
@@ -40,7 +43,10 @@ static_assert([] {
 
 } // namespace
 
-Distance getStoppingDistance(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+// https://www.desmos.com/calculator/v8t9qhygng
+Distance getStoppingDistance(Speed speed) { return speed * speed / 40 + 82 * speed + 18740; }
+
+Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
 TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
   if (srce.type == TrackNode::Type::Exit) {

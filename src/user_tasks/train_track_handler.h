@@ -164,6 +164,8 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   // Update kinematics state.
   if (train.kinematicState == marklin::KinematicState::Lost) {
     train.kinematicState = marklin::KinematicState::Tracked;
+    context.pfSystem.reserve(triggeredNode.id, ownerId);
+    context.pfSystem.lock(triggeredNode.id, ownerId);
     notifyStatusToUI(context.uiTid, "Train %u tracked at %s.", ownerId, triggeredNode.name);
   }
   marklin::assertTrainState(train);
@@ -276,26 +278,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       break;
     }
     case marklin::NavigationState::Halting: {
-      // TODO: add it back later.
-      //   // Stop the train if close to safe stopping distance.
-      //   train.nav.estimatedPathDistance = train.nav.navPathDistance - train.kinematics.estimatedOffsetFromLast;
-      //   if (train.nav.estimatedPathDistance <= marklin::getStoppingDistance(train.hw.speedLevel)) {
-      //     notifyStatusToUI(context.uiTid, "Train %u arrived at destination %s[%u um].", trainId,
-      //                      train.nav.path.back()->name, train.nav.navOffset);
-
-      //     broadcastTrainSpeedLevel(context, trainId, 0);
-
-      //     // Unlock the remaining path.
-      //     train.kinematics.lastKnownNode->lock.release(trainId);
-      //     for (marklin::TrackNode* node : train.nav.path) {
-      //       node->lock.release(trainId);
-      //     }
-
-      //     // Clear navigation meta data only; keep kinematic state intact.
-      //     train.nav.estimatedPathDistance = 0;
-      //     train.navigationState = marklin::NavigationState::Manual;
-      //     train.nav.path.clear();
-      //   }
       break;
     }
     }
@@ -310,6 +292,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
                                            : kit::max(-ACCEL_UM_PER_TICK_PER_TICK, speedDiff);
       train.hw.offlineSpeed += delta;
       train.kinematics.estimatedSpeed += delta;
+      train.kinematics.estimatedSpeed = kit::max(0, train.kinematics.estimatedSpeed);
     } else if (train.hw.offlineSpeed == 0) {
       train.kinematics.estimatedSpeed = 0;
     }
@@ -334,12 +317,12 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     }
 
     // Part C: Dynamic Lookahead Reservation.
-    if (train.kinematicState == marklin::KinematicState::Tracked && train.hw.speedLevel > 0) {
+    if (train.kinematicState == marklin::KinematicState::Tracked) {
       marklin::Distance lookaheadRemaining =
           marklin::getStoppingDistance(train.navigationState == marklin::NavigationState::Yielding
-                                           ? train.nav.resumeSpeed
-                                           : train.hw.speedLevel) +
-          100'000; // 10 cm
+                                           ? marklin::convertSpeedLevelToOfflineSpeed(train.nav.resumeSpeed)
+                                           : train.kinematics.estimatedSpeed) +
+          50'000; // 5 cm
 
       marklin::TrackNode* prev = train.kinematics.lastKnownNode;
       auto pathIt = train.nav.path.begin();

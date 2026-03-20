@@ -143,12 +143,6 @@ constexpr CANSpeed convertSpeedLevelToCANSpeed(SpeedLevel speedLevel) {
   return static_cast<CANSpeed>(speedLevel > 0 ? 1 + (speedLevel - 1) * 77 : 0);
 }
 
-// Convert speed level to offline data speed.
-constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) {
-  static constexpr Speed speeds[] = {0, 80, 250, 470, 670, 930, 1390, 1860, 2320, 2830, 3440, 4090, 4730, 5440, 6150};
-  return speeds[speedLevel];
-}
-
 constexpr bool isValidSpeedLevel(SpeedLevel speedLevel) { return speedLevel <= MAX_SPEED_LEVEL; }
 constexpr bool isValidTrainId(TrainId id) { return 1 <= id && id <= MAX_TRAIN_ID; }
 void assertTrainState(Train& train, std::source_location loc = std::source_location::current());
