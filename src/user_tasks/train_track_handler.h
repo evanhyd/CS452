@@ -343,43 +343,32 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
 
       marklin::TrackNode* prev = train.kinematics.lastKnownNode;
       auto pathIt = train.nav.path.begin();
-      bool isRouting = (train.navigationState == marklin::NavigationState::Routing);
+      bool isManual = (train.navigationState == marklin::NavigationState::Manual);
       bool pathClear = true;
 
       for (int depth = 0; lookaheadRemaining > 0; ++depth) {
         marklin::Distance edgeDist = 0;
         marklin::TrackNode* curr = nullptr;
 
-        if (pathIt != train.nav.path.end()) {
+        if (isManual) {
+          // Manual mode just get the next node.
+          curr = marklin::getNextTrackNode(context.ttState, *prev, edgeDist);
+        } else if (pathIt != train.nav.path.end()) {
           // Routing mode uses the existing path.
           curr = *pathIt++;
           edgeDist = marklin::getAdjacentDistance(*prev, *curr);
-          if (prev->type == marklin::TrackNode::Type::Branch) {
-            marklin::SwitchState desiredState =
-                (marklin::getAdjacentDirection(*prev, *curr) == marklin::TrackDirection::Curved)
-                    ? marklin::SwitchState::Curved
-                    : marklin::SwitchState::Straight;
-            broadcastSwitchState(context, prev->num, desiredState);
-          }
         } else {
-          // Run out of path in routing mode. Must halt at the destination.
-          if (isRouting) {
-            train.navigationState = marklin::NavigationState::Halting;
-            isRouting = false;
-            notifyStatusToUI(context.uiTid, "Train %u halt because close to destination.", trainId);
-          }
-
-          // Use the next node if in manual mode or run out of path in routing.
-          curr = marklin::getNextTrackNode(context.ttState, *prev, edgeDist);
+          // Route mode reaches destination. Must halt.
+          curr = nullptr;
         }
 
-        // Reach the exit. Must halt.
+        // Reach the exit or the end of the routed path. Must halt.
         if (!curr) {
           pathClear = false;
           if (train.navigationState != marklin::NavigationState::Halting) {
             train.navigationState = marklin::NavigationState::Halting;
             broadcastTrainSpeedLevel(context, trainId, 0);
-            notifyStatusToUI(context.uiTid, "Train %u hatl because close to end of track.", trainId);
+            notifyStatusToUI(context.uiTid, "Train %u halting at destination or end of track.", trainId);
           }
           break;
         }
@@ -387,8 +376,9 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         lookaheadRemaining -= (depth == 0) ? (edgeDist - train.kinematics.estimatedOffsetFromLast) : edgeDist;
 
         // Reserve and lock in manual mode. Switch to yield if fails.
-        bool needsReserve = (!isRouting && depth >= train.nav.nodeAheadReserved);
+        bool needsReserve = (isManual && depth >= train.nav.nodeAheadReserved);
         bool needsLock = (depth >= train.nav.nodeAheadLocked);
+
         if ((needsReserve && !context.pfSystem.canReserve(*curr, trainId)) ||
             (needsLock && !context.pfSystem.canLock(curr->id, trainId))) {
           pathClear = false;
@@ -410,6 +400,16 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         if (needsLock) {
           context.pfSystem.lock(curr->id, trainId);
           train.nav.nodeAheadLocked++;
+        }
+
+        // Set switch direction in routed mode.
+        // TODO: confirm this behavior with Ian. What do we want a manual train to do?
+        if (!isManual && prev->type == marklin::TrackNode::Type::Branch) {
+          marklin::SwitchState desiredState =
+              (marklin::getAdjacentDirection(*prev, *curr) == marklin::TrackDirection::Curved)
+                  ? marklin::SwitchState::Curved
+                  : marklin::SwitchState::Straight;
+          broadcastSwitchState(context, prev->num, desiredState);
         }
         prev = curr;
       }
