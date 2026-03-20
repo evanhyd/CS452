@@ -241,32 +241,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       break;
     }
     case marklin::NavigationState::Routing: {
-      // TODO: add it back later
-      //   marklin::assertTrainState(train);
-
-      //   if (train.kinematicState == marklin::KinematicState::Locating) {
-      //     marklin::unlockAllLoopSensorNodes(context.ttState, trainId);
-      //     train.kinematicState = marklin::KinematicState::Tracked;
-      //   }
-
-      //   // Find the path to the destination.
-      //   marklin::Distance totalPathDist = 0;
-      //   if (!marklin::planPath(context.ttState, trainId, train.nav.navDest, totalPathDist)) {
-      //     broadcastTrainSpeedLevel(context, trainId, 0);
-      //     train.navigationState = marklin::NavigationState::Manual;
-      //     notifyStatusToUI(context.uiTid, "Train %u failed to find any path.", trainId);
-      //     break;
-      //   }
-
-      //   // Update the switches directions.
-      //   for (marklin::TrackNode* curr : train.nav.path) {
-      //     setSwitchNodeByLockState(context, *curr);
-      //   }
-
-      //   train.navigationState = marklin::NavigationState::Halting;
-      //   train.nav.navPathDistance = totalPathDist + train.nav.navOffset;
-      //   notifyStatusToUI(context.uiTid, "Train %u found path[%u]: %u um.", trainId, train.nav.path.size(),
-      //                    train.nav.navPathDistance);
       break;
     }
     case marklin::NavigationState::Halting: {
@@ -309,10 +283,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
 
     // Part C: Dynamic Lookahead Reservation.
     if (train.kinematicState == marklin::KinematicState::Tracked) {
-      marklin::Distance lookaheadRemaining = (train.navigationState == marklin::NavigationState::Yielding
-                                                  ? marklin::getStoppingDistanceForLevel(train.nav.resumeSpeed)
-                                                  : marklin::getStoppingDistance(train.kinematics.estimatedSpeed)) +
-                                             50'000; // 5 cm
+      marklin::Distance lookaheadRemaining =
+          marklin::getStoppingDistance(train.kinematics.estimatedSpeed) + 50'000; // 5 cm
 
       marklin::TrackNode* prev = train.kinematics.lastKnownNode;
       auto pathIt = train.nav.path.begin();
@@ -361,7 +333,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
             train.nav.resumeNavigationState = train.navigationState;
             train.navigationState = marklin::NavigationState::Yielding;
             broadcastTrainSpeedLevel(context, trainId, 0);
-            notifyStatusToUI(context.uiTid, "Train %u yielding at %s.", trainId, curr->name);
+            // notifyStatusToUI(context.uiTid, "Train %u yielding at %s.", trainId, curr->name);
           }
           break;
         }
@@ -388,7 +360,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       if (train.navigationState == marklin::NavigationState::Yielding && pathClear) {
         train.navigationState = train.nav.resumeNavigationState;
         broadcastTrainSpeedLevel(context, trainId, train.nav.resumeSpeed);
-        notifyStatusToUI(context.uiTid, "Track cleared. Train %u resuming.", trainId);
+        // notifyStatusToUI(context.uiTid, "Track cleared. Train %u resuming.", trainId);
       }
     }
 

@@ -72,12 +72,15 @@ void broadcastSwitchState(TrainTrackServerContext& context, marklin::SwitchId id
   sendSwitchToUI(context, id, state);
 }
 
+template <bool forceUpdate = false>
 inline void broadcastTrainSpeedLevel(TrainTrackServerContext& context, marklin::TrainId id,
                                      marklin::SpeedLevel speedLevel) {
   marklin::Train& train = context.ttState.getTrain(id);
-  train.hw.speedLevel = speedLevel;
-  sendToDispatcher(context.dispatcherTid,
-                   marklin::MMessage::setTrainSpeed(id, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
+  if (forceUpdate || train.hw.speedLevel != speedLevel) {
+    train.hw.speedLevel = speedLevel;
+    sendToDispatcher(context.dispatcherTid,
+                     marklin::MMessage::setTrainSpeed(id, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
+  }
 }
 
 inline void initTrain(TrainTrackServerContext& context, marklin::TrainId id) {
