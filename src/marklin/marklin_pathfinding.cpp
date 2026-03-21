@@ -43,11 +43,11 @@ static_assert([] {
 
 } // namespace
 
-Distance getStoppingDistanceForLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
 
-// https://www.desmos.com/calculator/uktgt5mydm
+// https://www.desmos.com/calculator/banszqbetc
 Distance getStoppingDistance(Speed speed) {
-  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 253 / 10000 + speed * 815 / 10 + 18740);
+  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 25 / 1000 + speed * 80 + 18740);
 }
 
 Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
@@ -144,7 +144,7 @@ bool PathFindingSystem::dijkstra(TrainTrackState& ttState, TrainId trainId, Trac
                                  Distance& outTotalPathDist) {
   // Already at the destination.
   Train& train = ttState.getTrain(trainId);
-  KIT_ASSERT(!train.nav.path.empty(), "old path not released");
+  KIT_ASSERT(train.nav.path.empty(), "old path not released");
   train.nav.pathDistance = 0;
   outTotalPathDist = 0;
   TrackNodeId srce = train.kin.lastKnownNode->id;

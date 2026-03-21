@@ -282,8 +282,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
 
     // Part C: Dynamic Lookahead Reservation.
     if (train.kinematicState == marklin::KinematicState::Tracked) {
-      marklin::Distance lookaheadRemaining =
-          kit::max(200'000, train.kin.estimatedOffsetFromLast + marklin::getStoppingDistance(train.kin.estimatedSpeed));
+      marklin::Distance lookaheadRemaining = kit::max(
+          200'000, train.kin.estimatedOffsetFromLast + (train.hw.offlineSpeed == train.hw.speedLevel
+                                                            ? marklin::getStoppingDistanceFromLevel(train.hw.speedLevel)
+                                                            : marklin::getStoppingDistance(train.kin.estimatedSpeed)));
 
       marklin::TrackNode* prev = train.kin.lastKnownNode;
       auto pathIt = train.nav.path.begin();

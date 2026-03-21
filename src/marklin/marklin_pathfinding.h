@@ -5,7 +5,7 @@
 namespace marklin {
 
 // Get the stopping distance based on the speed level.
-Distance getStoppingDistanceForLevel(SpeedLevel speedLevel);
+Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel);
 
 // Get the stopping distance based on the speed.
 Distance getStoppingDistance(Speed speed);
