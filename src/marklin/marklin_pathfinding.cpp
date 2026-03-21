@@ -52,6 +52,15 @@ Distance getStoppingDistance(Speed speed) {
 
 Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
+SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {
+  for (SpeedLevel i = STOPPING_DISTANCE.size() - 1; i-- > 0;) {
+    if (STOPPING_DISTANCE[i] < stoppingDistance) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
   if (srce.type == TrackNode::Type::Exit) {
     return nullptr;
@@ -284,35 +293,27 @@ void PathFindingSystem::lock(TrackNodeId nodeId, TrainId trainId, std::source_lo
 }
 
 void PathFindingSystem::unlock(TrackNodeId nodeId, TrainId trainId, std::source_location loc) {
-  {
-    auto& lock = locks_[nodeId];
-    KIT_ASSERT(lock.id == trainId, "track node is unlocked by non-owner", loc);
-    --lock.time;
-    if (lock.time == 0) {
-      lock.id = NO_TRAIN;
-    }
+  auto& ownedNode = ownedNodes_[trainId];
+  KIT_ASSERT(ownedNode.size() >= 2, "not enough owned nodes to unlock", loc);
+  TrackNodeId first = ownedNode.popFront();
+  TrackNodeId second = ownedNode.popFront();
 
-    auto& ownedNode = ownedNodes_[trainId];
-    auto it = kit::find(ownedNode.begin(), ownedNode.end(), nodeId);
-    KIT_ASSERT(it != ownedNode.end(), "missing track node");
-    *it = ownedNode.front();
-    ownedNode.popFront();
+  TrackNodeId reverseId = nodeId ^ 1;
+  KIT_ASSERT((first == nodeId && second == reverseId) || (first == reverseId && second == nodeId),
+             "unlock in a non FIFO order", loc);
+
+  auto& lock1 = locks_[nodeId];
+  KIT_ASSERT(lock1.id == trainId, "track node is unlocked by non-owner", loc);
+  --lock1.time;
+  if (lock1.time == 0) {
+    lock1.id = NO_TRAIN;
   }
 
-  {
-    nodeId ^= 1;
-    auto& lock = locks_[nodeId];
-    KIT_ASSERT(lock.id == trainId, "track node is unlocked by non-owner", loc);
-    --lock.time;
-    if (lock.time == 0) {
-      lock.id = NO_TRAIN;
-    }
-
-    auto& ownedNode = ownedNodes_[trainId];
-    auto it = kit::find(ownedNode.begin(), ownedNode.end(), nodeId);
-    KIT_ASSERT(it != ownedNode.end(), "missing track node");
-    *it = ownedNode.front();
-    ownedNode.popFront();
+  auto& lock2 = locks_[reverseId];
+  KIT_ASSERT(lock2.id == trainId, "track node is unlocked by non-owner", loc);
+  --lock2.time;
+  if (lock2.time == 0) {
+    lock2.id = NO_TRAIN;
   }
 }
 

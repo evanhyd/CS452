@@ -2,6 +2,7 @@
 #include "util/debug.h"
 #include <cstddef>
 #include <iterator>
+#include <source_location>
 #include <type_traits>
 
 // A double-ended cyclic queue.
@@ -50,9 +51,9 @@ public:
   const_iterator end() const { return const_iterator(this, sz); }
 
   // Push to the back.
-  void pushBack(const T& value) {
+  void pushBack(const T& value, std::source_location src = std::source_location::current()) {
     if (sz == capacity) {
-      logError("ring buffer is full");
+      logError("ring buffer is full", src);
     }
     size_t tail = (head + sz) % capacity;
     data[tail] = value;
@@ -87,9 +88,9 @@ public:
   }
 
   // Push to the front.
-  void pushFront(const T& value) {
+  void pushFront(const T& value, std::source_location src = std::source_location::current()) {
     if (sz == capacity) {
-      logError("ring buffer is full");
+      logError("ring buffer is full", src);
     }
     head = (head - 1 + capacity) % capacity;
     data[head] = value;

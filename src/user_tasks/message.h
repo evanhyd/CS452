@@ -5,8 +5,8 @@
 #include <cstdint>
 
 namespace k4 {
-inline constexpr size_t SENSOR_HISTORY_SIZE = 16;
-inline constexpr size_t CMD_HISTORY_SIZE = 16;
+inline constexpr size_t SENSOR_HISTORY_SIZE = 8;
+inline constexpr size_t CMD_HISTORY_SIZE = 8;
 inline constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 
 struct CmdHistoryEntry {

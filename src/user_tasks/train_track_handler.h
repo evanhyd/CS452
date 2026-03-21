@@ -3,6 +3,7 @@
 #include "marklin/marklin_train_track.h"
 #include "train_track_server_context.h"
 #include "train_track_util.h"
+#include "user_tasks/send_util.h"
 #include "util/debug.h"
 
 namespace k4 {
@@ -88,7 +89,7 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
     // Priority 3: Pair with the train in Lost state.
     for (marklin::TrainId id : context.activeTrains) {
       marklin::Train& train = context.ttState.getTrain(id);
-      if (train.kinematicState == marklin::KinematicState::Lost && train.hw.speedLevel > 0) {
+      if (train.kinematicState == marklin::KinematicState::Lost) {
         return id;
       }
     }
@@ -104,15 +105,17 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   // Tail clearance and calculate the tail path length.
   marklin::Distance dS = 0;
   if (train.kinematicState == marklin::KinematicState::Tracked) {
-    for (marklin::TrackNode* tail = train.kin.lastKnownNode; tail->id != triggeredNode.id;) {
-      KIT_ASSERT(context.pfSystem.getOwner(tail->id) == ownerId, "train has no path ownership");
-      context.pfSystem.unlock(tail->id, ownerId);
-      --train.nav.nodeAheadLocked;
+    KIT_ASSERT(triggeredNode.id != train.kin.lastKnownNode->id, "hit the same sensor twice in a row");
 
+    marklin::TrackNode* tail = train.kin.lastKnownNode;
+    while (tail->id != triggeredNode.id) {
       marklin::Distance dist = 0;
       tail = marklin::getNextTrackNode(context.ttState, *tail, dist);
       dS += dist;
-      KIT_ASSERT(tail, "tail must lead to triggered node");
+      KIT_ASSERT(tail, "tail must not be null");
+      KIT_ASSERT(context.pfSystem.getOwner(tail->id) == ownerId, "train has no path ownership");
+      context.pfSystem.unlock(tail->id, ownerId);
+      --train.nav.nodeAheadLocked;
     }
   }
 
@@ -130,7 +133,6 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
 
   // Update kinematics values.
   if (train.kinematicState == marklin::KinematicState::Tracked) {
-    KIT_ASSERT(dS > 0, "tail to triggered node path length is 0");
     uint32_t dT = kit::max(1u, context.currentTicks - train.kin.lastKnownTicks);
     train.kin.updateSpeed(dS, dT);
   }
@@ -162,7 +164,6 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   // Update kinematics state.
   if (train.kinematicState == marklin::KinematicState::Lost) {
     train.kinematicState = marklin::KinematicState::Tracked;
-    context.pfSystem.lock(triggeredNode.id, ownerId);
     notifyStatusToUI(context.uiTid, "Train %u tracked at %s.", ownerId, triggeredNode.name);
   }
   marklin::assertTrainState(train);
@@ -231,11 +232,11 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       }
 
       // Unlock all owned nodes.
-      for (marklin::TrackNodeId id : context.pfSystem.getOwned(trainId)) {
-        context.pfSystem.unlock(id, trainId);
-      }
-      train.nav.path.clear();
+      for (auto& ownedNodes = context.pfSystem.getOwned(trainId); !ownedNodes.empty();
+           context.pfSystem.unlock(ownedNodes.front(), trainId))
+        ;
       train.nav.nodeAheadLocked = 0;
+      train.nav.path.clear();
       train.navigationState = marklin::NavigationState::Routed;
       if (!context.pfSystem.planPath(context.ttState, trainId, train.nav.dest, train.nav.pathDistance)) {
         logError("Train failed to find a path.");
@@ -282,7 +283,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     // Part C: Dynamic Lookahead Reservation.
     if (train.kinematicState == marklin::KinematicState::Tracked) {
       marklin::Distance lookaheadRemaining =
-          train.kin.estimatedOffsetFromLast + marklin::getStoppingDistance(train.kin.estimatedSpeed) + 50'000; // 5cm
+          train.kin.estimatedOffsetFromLast + marklin::getStoppingDistanceForLevel(train.nav.resumeSpeed);
 
       marklin::TrackNode* prev = train.kin.lastKnownNode;
       auto pathIt = train.nav.path.begin();
@@ -334,6 +335,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
 
         // Reserve and lock.
         if (needsLock) {
+          // Severe train desync. It needs to hit a sensor and clear the locks before acquiring more.
+          if (context.pfSystem.getOwned(trainId).full()) {
+            break;
+          }
           context.pfSystem.lock(curr->id, trainId);
           train.nav.nodeAheadLocked++;
         }

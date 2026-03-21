@@ -13,6 +13,9 @@ Distance getStoppingDistance(Speed speed);
 // Convert speed level to offline data speed.
 Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel);
 
+// Return the maximum safe speed level that can be stopped within the stopping distance.
+SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance);
+
 // Get the next track node by following the track at the current configuration.
 // Return nullptr if not found.
 TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance);
