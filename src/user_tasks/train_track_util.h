@@ -100,8 +100,8 @@ inline void resetContext(TrainTrackServerContext& context) {
 
   // Reset the train states.
   for (marklin::TrainId id : context.activeTrains) {
-    broadcastTrainSpeedLevel(context, id, 0);
     context.ttState.getTrain(id).reset();
+    broadcastTrainSpeedLevel<true>(context, id, 0);
   }
   context.activeTrains.clear();
 

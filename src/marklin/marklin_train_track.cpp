@@ -2429,11 +2429,11 @@ NavigationState
 void assertTrainState(Train& train, std::source_location loc) {
   switch (train.kinematicState) {
   case KinematicState::Lost: {
-    KIT_ASSERT(!train.kinematics.lastKnownNode, "", loc);
+    KIT_ASSERT(!train.kin.lastKnownNode, "", loc);
     break;
   }
   case KinematicState::Tracked: {
-    KIT_ASSERT(train.kinematics.lastKnownNode, "", loc);
+    KIT_ASSERT(train.kin.lastKnownNode, "", loc);
     break;
   }
   default: {
@@ -2446,12 +2446,9 @@ void assertTrainState(Train& train, std::source_location loc) {
     KIT_ASSERT(train.nav.path.empty(), "", loc);
     break;
   }
-  case NavigationState::Routing: {
+  case NavigationState::Routed: {
     KIT_ASSERT(train.kinematicState != KinematicState::Lost, "", loc);
     KIT_ASSERT(!train.nav.path.empty(), "", loc);
-    break;
-  }
-  case NavigationState::Halting: {
     break;
   }
   case NavigationState::Reversing: {

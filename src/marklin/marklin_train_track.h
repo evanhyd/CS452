@@ -38,7 +38,7 @@ Train Definition
 enum class TrainDirection { NoChange, Forward, Backward, Reverse };
 enum class TrainFunction { HeadLight, BoardingSound, F2, BazzingSound };
 enum class KinematicState { Lost, Tracked };
-enum class NavigationState { Manual, Routing, Halting, Reversing, Yielding };
+enum class NavigationState { Manual, FindingPath, Routed, Yielding, Reversing };
 
 struct TrainHardware {
   bool forward = true;
@@ -122,7 +122,7 @@ struct Train {
   NavigationState navigationState = NavigationState::Manual;
 
   TrainHardware hw;
-  TrainKinematics kinematics;
+  TrainKinematics kin;
   TrainPrediction prediction;
   TrainNavigation nav;
 
@@ -130,7 +130,7 @@ struct Train {
     kinematicState = KinematicState::Lost;
     navigationState = NavigationState::Manual;
     hw.reset();
-    kinematics.reset();
+    kin.reset();
     prediction.reset();
     nav.reset();
   }

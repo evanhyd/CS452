@@ -45,8 +45,10 @@ static_assert([] {
 
 Distance getStoppingDistanceForLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
 
-// https://www.desmos.com/calculator/v8t9qhygng
-Distance getStoppingDistance(Speed speed) { return speed == 0 ? 0 : speed * speed / 40 + 82 * speed + 18740; }
+// https://www.desmos.com/calculator/uktgt5mydm
+Distance getStoppingDistance(Speed speed) {
+  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 253 / 10000 + speed * 815 / 10 + 18740);
+}
 
 Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
@@ -134,8 +136,9 @@ bool PathFindingSystem::dijkstra(TrainTrackState& ttState, TrainId trainId, Trac
   // Already at the destination.
   Train& train = ttState.getTrain(trainId);
   KIT_ASSERT(!train.nav.path.empty(), "old path not released");
+  train.nav.pathDistance = 0;
   outTotalPathDist = 0;
-  TrackNodeId srce = train.kinematics.lastKnownNode->id;
+  TrackNodeId srce = train.kin.lastKnownNode->id;
   if (srce == dest) {
     return true;
   }
@@ -228,34 +231,37 @@ bool PathFindingSystem::planPath(TrainTrackState& ttState, TrainId trainId, Trac
   }
 
   Train& train = ttState.getTrain(trainId);
-  TrackNode* startNode = train.kinematics.lastKnownNode;
-
-  // Trace one full lap around the captive loop.
-  // Because Locating set the switches, getNextTrackNode will naturally follow the loop.
-  std::array<TrackNode*, NUM_TRACK_NODES> loopArr;
-  size_t loopSize = 0;
-  TrackNode* curr = startNode;
-  do {
-    Distance dist = 0;
-    curr = getNextTrackNode(ttState, *curr, dist);
-    if (!curr) {
-      logError("Loop trace hit a dead end!");
-    }
-    if (loopSize >= NUM_TRACK_NODES) {
-      logError("Loop trace exceeded max size!");
-    }
-    loopArr[loopSize++] = curr;
-  } while (curr != startNode);
-
-  // Prepend the loop nodes to the train's path
-  for (int i = static_cast<int>(loopSize) - 1; i >= 0; --i) {
-    TrackNode* node = loopArr[size_t(i)];
-    TrackNode* parent = (i == 0) ? startNode : loopArr[size_t(i - 1)];
-    train.nav.path.pushFront(node);
-    outTotalPathDist += getAdjacentDistance(*parent, *node);
-  }
-
+  train.nav.pathDistance = outTotalPathDist;
+  train.nav.estimatedPathDistance = outTotalPathDist;
   return isReachable;
+
+  //   TrackNode* startNode = train.kinematics.lastKnownNode;
+  //   // Trace one full lap around the captive loop.
+  //   // Because Locating set the switches, getNextTrackNode will naturally follow the loop.
+  //   std::array<TrackNode*, NUM_TRACK_NODES> loopArr;
+  //   size_t loopSize = 0;
+  //   TrackNode* curr = startNode;
+  //   do {
+  //     Distance dist = 0;
+  //     curr = getNextTrackNode(ttState, *curr, dist);
+  //     if (!curr) {
+  //       logError("Loop trace hit a dead end!");
+  //     }
+  //     if (loopSize >= NUM_TRACK_NODES) {
+  //       logError("Loop trace exceeded max size!");
+  //     }
+  //     loopArr[loopSize++] = curr;
+  //   } while (curr != startNode);
+
+  //   // Prepend the loop nodes to the train's path
+  //   for (int i = static_cast<int>(loopSize) - 1; i >= 0; --i) {
+  //     TrackNode* node = loopArr[size_t(i)];
+  //     TrackNode* parent = (i == 0) ? startNode : loopArr[size_t(i - 1)];
+  //     train.nav.path.pushFront(node);
+  //     outTotalPathDist += getAdjacentDistance(*parent, *node);
+  //     train.nav.pathDistance = outTotalPathDist;
+  //     train.nav.estimatedPathDistance = outTotalPathDist;
+  //   }
 }
 
 void PathFindingSystem::lock(TrackNodeId nodeId, TrainId trainId, std::source_location loc) {
