@@ -57,8 +57,6 @@ struct TrainKinematics {
   uint32_t lastKnownTicks = 0;
   struct TrackNode* lastKnownNode = nullptr;
   Distance estimatedOffsetFromLast = 0;
-  struct TrackNode* estimatedNode = nullptr;
-  Distance estimatedOffsetFromEstimatedNode = 0;
 
   void updateSpeed(Distance dS, uint32_t dT) {
     static constexpr int32_t EWMA_DENOMINATOR = 4;
@@ -74,8 +72,6 @@ struct TrainKinematics {
     lastKnownTicks = 0;
     lastKnownNode = nullptr;
     estimatedOffsetFromLast = 0;
-    estimatedNode = nullptr;
-    estimatedOffsetFromEstimatedNode = 0;
   }
 };
 

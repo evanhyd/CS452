@@ -45,7 +45,7 @@ static_assert([] {
 
 Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
 
-// https://www.desmos.com/calculator/banszqbetc
+// https://www.desmos.com/calculator/5zhi1xf291
 Distance getStoppingDistance(Speed speed) {
   return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 25 / 1000 + speed * 80 + 18740);
 }
@@ -137,6 +137,7 @@ PathFindingSystem::PathFindingSystem() { reset(); }
 void PathFindingSystem::reset() {
   locks_ = {};
   ownedNodes_ = {};
+  coOwnedNodes_ = {};
 }
 
 // Run dijkstra to find the shortest AND viable path between srce and dest.
@@ -288,19 +289,17 @@ void PathFindingSystem::lock(TrackNodeId nodeId, TrainId trainId, std::source_lo
     KIT_ASSERT(lock.id == NO_TRAIN || lock.id == trainId, "track node is locked by other train", loc);
     lock.id = trainId;
     ++lock.time;
-    ownedNodes_[trainId].pushBack(nodeId);
+    coOwnedNodes_[trainId].pushBack(nodeId);
   }
 }
 
 void PathFindingSystem::unlock(TrackNodeId nodeId, TrainId trainId, std::source_location loc) {
-  auto& ownedNode = ownedNodes_[trainId];
-  KIT_ASSERT(ownedNode.size() >= 2, "not enough owned nodes to unlock", loc);
-  TrackNodeId first = ownedNode.popFront();
-  TrackNodeId second = ownedNode.popFront();
-
   TrackNodeId reverseId = nodeId ^ 1;
-  KIT_ASSERT((first == nodeId && second == reverseId) || (first == reverseId && second == nodeId),
-             "unlock in a non FIFO order", loc);
+  auto& ownedNode = ownedNodes_[trainId];
+  auto& coOwnedNode = coOwnedNodes_[trainId];
+  TrackNodeId first = ownedNode.popFront();
+  TrackNodeId second = coOwnedNode.popFront();
+  KIT_ASSERT(first == nodeId && second == reverseId, "unlock in a non FIFO order", loc);
 
   auto& lock1 = locks_[nodeId];
   KIT_ASSERT(lock1.id == trainId, "track node is unlocked by non-owner", loc);

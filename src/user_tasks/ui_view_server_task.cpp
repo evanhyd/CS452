@@ -221,14 +221,11 @@ void uiViewServerTask() {
 
         // Row 1: Kinematics and Predictions
         console.moveCursor(baseRow, COL_TRAINS);
-        console.printf("Train %u [%s/%s] %u um/t | Last %s[%u mm] Est %s[%u mm] Rem %u mm", entry.trainId,
+        console.printf("Train %u [%s/%s] Est %u um/t Off %u um/t | Last %s[%u mm] Path %u mm", entry.trainId,
                        toString(entry.train->kinematicState), toString(entry.train->navigationState),
-                       entry.train->kin.estimatedSpeed,
+                       entry.train->kin.estimatedSpeed, entry.train->hw.offlineSpeed,
                        (entry.train->kin.lastKnownNode ? entry.train->kin.lastKnownNode->name : "N/A"),
-                       entry.train->kin.estimatedOffsetFromLast / 1000,
-                       (entry.train->kin.estimatedNode ? entry.train->kin.estimatedNode->name : "N/A"),
-                       entry.train->kin.estimatedOffsetFromEstimatedNode / 1000,
-                       entry.train->nav.estimatedPathDistance / 1000);
+                       entry.train->kin.estimatedOffsetFromLast / 1000, entry.train->nav.estimatedPathDistance / 1000);
         if (entry.train->prediction.lastTimeErrorTicks != 0 || entry.train->prediction.lastDistErrorUm != 0) {
           console.printf(" [Err: %dt %dmm]", entry.train->prediction.lastTimeErrorTicks,
                          entry.train->prediction.lastDistErrorUm / 1000);

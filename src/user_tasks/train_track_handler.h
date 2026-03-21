@@ -107,20 +107,21 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   if (train.kinematicState == marklin::KinematicState::Tracked) {
     KIT_ASSERT(triggeredNode.id != train.kin.lastKnownNode->id, "hit the same sensor twice in a row");
 
-    marklin::TrackNode* tail = train.kin.lastKnownNode;
-    while (tail->id != triggeredNode.id) {
-      marklin::Distance dist = 0;
-      tail = marklin::getNextTrackNode(context.ttState, *tail, dist);
-      dS += dist;
-      KIT_ASSERT(tail, "tail must not be null");
-      KIT_ASSERT(context.pfSystem.getOwner(tail->id) == ownerId, "train has no path ownership");
-      context.pfSystem.unlock(tail->id, ownerId);
+    auto& ownedQueue = context.pfSystem.getOwned(ownerId);
+    for (marklin::TrackNode* tail = train.kin.lastKnownNode; tail->id != triggeredNode.id;) {
+      KIT_ASSERT(!ownedQueue.empty(), "Train triggered a node it never locked");
+      marklin::TrackNodeId lockedNodeId = ownedQueue.front();
+      marklin::TrackNode& lockedNode = context.ttState.getTrackNodeById(lockedNodeId);
+      dS += marklin::getAdjacentDistance(*tail, lockedNode);
+      tail = &lockedNode;
+      context.pfSystem.unlock(lockedNodeId, ownerId);
       --train.nav.nodeAheadLocked;
     }
   }
 
   // Clean up routed path.
-  if (train.navigationState == marklin::NavigationState::Routed) {
+  if (train.navigationState == marklin::NavigationState::Routed ||
+      train.nav.resumeNavigationState == marklin::NavigationState::Routed) {
     while (!train.nav.path.empty()) {
       marklin::TrackNode* curr = train.nav.path.popFront();
       if (curr->id == triggeredNode.id) {
@@ -139,8 +140,6 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   train.kin.lastKnownTicks = context.currentTicks;
   train.kin.lastKnownNode = &triggeredNode;
   train.kin.estimatedOffsetFromLast = 0;
-  train.kin.estimatedNode = &triggeredNode;
-  train.kin.estimatedOffsetFromEstimatedNode = 0;
 
   // Update the sensor prediction.
   if (train.prediction.predictedNextSensor && train.prediction.predictedNextSensor->id == triggeredNode.id) {
@@ -264,28 +263,15 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     // Apply the estimated speed to update the estimated position.
     if (train.kinematicState == marklin::KinematicState::Tracked) {
       train.kin.estimatedOffsetFromLast += train.kin.estimatedSpeed;
-      marklin::Distance offset = train.kin.estimatedOffsetFromLast;
-      marklin::TrackNode* last = train.kin.lastKnownNode;
-      KIT_ASSERT(last, "tracked train last known node must be non null");
-      for (;;) {
-        marklin::Distance dist = 0;
-        marklin::TrackNode* next = marklin::getNextTrackNode(context.ttState, *last, dist);
-        if (!next || offset < dist) {
-          train.kin.estimatedNode = last;
-          train.kin.estimatedOffsetFromEstimatedNode = offset;
-          break;
-        }
-        offset -= dist;
-        last = next;
-      }
+      marklin::Distance dist = 0;
+      marklin::getNextTrackNode(context.ttState, *train.kin.lastKnownNode, dist);
+      train.kin.estimatedOffsetFromLast = kit::max(train.kin.estimatedOffsetFromLast, dist);
     }
 
     // Part C: Dynamic Lookahead Reservation.
     if (train.kinematicState == marklin::KinematicState::Tracked) {
-      marklin::Distance lookaheadRemaining = kit::max(
-          200'000, train.kin.estimatedOffsetFromLast + (train.hw.offlineSpeed == train.hw.speedLevel
-                                                            ? marklin::getStoppingDistanceFromLevel(train.hw.speedLevel)
-                                                            : marklin::getStoppingDistance(train.kin.estimatedSpeed)));
+      marklin::Distance lookaheadRemaining =
+          train.kin.estimatedOffsetFromLast + marklin::getStoppingDistance(train.kin.estimatedSpeed);
 
       marklin::TrackNode* prev = train.kin.lastKnownNode;
       auto pathIt = train.nav.path.begin();
@@ -294,7 +280,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       for (int depth = 0; lookaheadRemaining > 0; ++depth) {
         marklin::Distance edgeDist = 0;
         marklin::TrackNode* curr = nullptr;
-
         if (train.navigationState == marklin::NavigationState::Manual ||
             (train.navigationState == marklin::NavigationState::Yielding &&
              train.nav.resumeNavigationState == marklin::NavigationState::Manual)) {
@@ -313,13 +298,18 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Reach the exit or the end of the routed path. Must stop.
         if (!curr) {
           pathClear = false;
+          for (auto& ownedNodes = context.pfSystem.getOwned(trainId); !ownedNodes.empty();
+               context.pfSystem.unlock(ownedNodes.front(), trainId))
+            ;
+          train.nav.nodeAheadLocked = 0;
+          train.nav.path.clear();
           train.navigationState = marklin::NavigationState::Manual;
           broadcastTrainSpeedLevel(context, trainId, 0);
           notifyStatusToUI(context.uiTid, "Train %u hatled at %s.", trainId, prev->name);
           break;
         }
 
-        lookaheadRemaining -= (depth == 0) ? (edgeDist - train.kin.estimatedOffsetFromLast) : edgeDist;
+        lookaheadRemaining -= edgeDist;
 
         // Reserve and lock in manual mode. Switch to yield if fails.
         bool needsLock = (depth >= train.nav.nodeAheadLocked);

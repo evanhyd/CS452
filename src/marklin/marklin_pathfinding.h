@@ -40,6 +40,7 @@ class PathFindingSystem {
   };
   std::array<Entry, NUM_TRACK_NODES> locks_;
   std::array<RingBuffer<TrackNodeId, MAX_NODE_PER_TRAIN>, MAX_TRAIN_ID> ownedNodes_;
+  std::array<RingBuffer<TrackNodeId, MAX_NODE_PER_TRAIN>, MAX_TRAIN_ID> coOwnedNodes_;
 
   bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance& outTotalPathDist);
 

@@ -2436,9 +2436,8 @@ void assertTrainState(Train& train, std::source_location loc) {
     KIT_ASSERT(train.kin.lastKnownNode, "", loc);
     break;
   }
-  default: {
-    logError("invalid kinematic state", loc);
-  }
+  default:
+    break;
   }
 
   switch (train.navigationState) {
@@ -2451,15 +2450,8 @@ void assertTrainState(Train& train, std::source_location loc) {
     KIT_ASSERT(!train.nav.path.empty(), "", loc);
     break;
   }
-  case NavigationState::Reversing: {
+  default:
     break;
-  }
-  case NavigationState::Yielding: {
-    break;
-  }
-  default: {
-    logError("invalid navigation state", loc);
-  }
   }
 }
 
