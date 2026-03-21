@@ -13,6 +13,7 @@ enum class CmdTag : uint8_t {
   SetSwitch,
   SetTrack,
   Goto,
+  SimulateSensor,
   Quit,
 };
 
@@ -42,6 +43,9 @@ struct ParsedCommand {
     marklin::Distance offsetMm;
     char location[8];
   };
+  struct SimulateSensorData {
+    marklin::TrackNodeId sensorId;
+  };
   struct InvalidData {
     const char* usage;
   };
@@ -52,6 +56,7 @@ struct ParsedCommand {
     SetSwitchData setSwitch;
     SetTrackData setTrack;
     GotoData gotoData;
+    SimulateSensorData simulateSensor;
     InvalidData invalid;
   };
 };

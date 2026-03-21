@@ -22,6 +22,7 @@ constexpr const char* USAGE_SW = "sw <switch id> <switch direction> - Set switch
 constexpr const char* USAGE_ST = "st <track id> - Set track to A or B";
 constexpr const char* USAGE_GOTO =
     "goto <train id> <speed level> <location> <offset> - Send train to a track node (e.g. A5, BR15)";
+constexpr const char* USAGE_HIT = "hit <sensor> - Simulate sensor hit (e.g. hit A5)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
 } // namespace
@@ -197,6 +198,36 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     result.gotoData.location[locLen] = '\0';
     return result;
+  }
+  if (length_ >= 3 && ptr[0] == 'h' && ptr[1] == 'i' && ptr[2] == 't') {
+    ptr += 3;
+    skip_ws();
+    if (ptr == end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_HIT}};
+    }
+
+    char bank = *ptr;
+    if (bank >= 'a' && bank <= 'z') {
+      bank = static_cast<char>(bank - ('a' - 'A'));
+    }
+    if (bank < 'A' || bank > 'E') {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_HIT}};
+    }
+    ++ptr;
+
+    unsigned sensorNumber;
+    next = a2ui(ptr, end(), sensorNumber);
+    if (next == ptr || sensorNumber < 1 || sensorNumber > 16) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_HIT}};
+    }
+    ptr = next;
+    skip_ws();
+    if (ptr != end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_HIT}};
+    }
+
+    marklin::Sensor sensor{.bank = bank, .number = static_cast<marklin::SensorNumber>(sensorNumber)};
+    return {.tag = CmdTag::SimulateSensor, .simulateSensor{marklin::sensorToTrackNodeId(sensor)}};
   }
   return {.tag = CmdTag::None, .empty{}};
 }

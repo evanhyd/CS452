@@ -15,6 +15,8 @@ OPT?=-O3
 
 CACHE?=b
 
+QEMU?=0
+
 # COMPILE OPTIONS
 ifeq ($(MMU),on)
 MMUFLAGS:=-DMMU
@@ -28,6 +30,10 @@ else ifeq ($(CACHE),i)
 MMUFLAGS+= -DENABLE_ICACHE
 else ifeq ($(CACHE),d)
 MMUFLAGS+= -DENABLE_DCACHE
+endif
+
+ifeq ($(QEMU),1)
+MMUFLAGS+= -DQEMU
 endif
 
 INCDIRS:=-I$(SRCDIR)

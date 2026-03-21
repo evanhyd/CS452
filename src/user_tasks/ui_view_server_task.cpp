@@ -25,7 +25,7 @@ constexpr unsigned ROW_STATUS = 40;
 constexpr unsigned STATUS_HISTORY_SIZE = 16;
 constexpr unsigned ROW_PROMPT = ROW_STATUS + STATUS_HISTORY_SIZE + 2;
 
-constexpr unsigned CMD_HISTORY_DEBOUNCE_TICKS = 10;
+constexpr unsigned CMD_HISTORY_DEBOUNCE_TICKS = 50;
 
 const char* toString(marklin::KinematicState state) {
   switch (state) {

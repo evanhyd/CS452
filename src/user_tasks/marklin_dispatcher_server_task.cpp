@@ -18,7 +18,11 @@ namespace k4 {
 
 namespace {
 
+#ifdef QEMU
+constexpr unsigned ACK_TIMEOUT_TICKS = 1;
+#else
 constexpr unsigned ACK_TIMEOUT_TICKS = 100; // 1 second
+#endif
 
 // Responsible for queueing the commands,
 // tracking the acknowledge status,

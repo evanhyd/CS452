@@ -118,6 +118,17 @@ void uiControllerTask() {
         notify(trainTrackTid, tm);
         break;
       }
+      case cmd::CmdTag::SimulateSensor: {
+        marklin::SensorTriggeredEvent sensorEvent{};
+        sensorEvent.id = static_cast<uint8_t>(parsed.simulateSensor.sensorId);
+        sensorEvent.state = marklin::SensorState::Occupied;
+        TrainTrackMsg tm{.type = TrainTrackMsgType::SensorEvent, .sensorEvent = sensorEvent};
+        notify(trainTrackTid, tm);
+
+        auto [bank, number] = marklin::trackNodeIdToSensor(parsed.simulateSensor.sensorId);
+        notifyStatusToUI(uiTid, "Simulated sensor hit %c%u.", bank, number);
+        break;
+      }
       case cmd::CmdTag::Invalid: {
         notifyStatusToUI(uiTid, "Usage: %s", parsed.invalid.usage);
         break;
