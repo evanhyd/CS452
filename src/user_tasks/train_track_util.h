@@ -95,7 +95,7 @@ inline void initTrain(TrainTrackServerContext& context, marklin::TrainId id) {
 
 // Soft reset.
 inline void resetContext(TrainTrackServerContext& context) {
-  context.ttState = {};
+  context.ttState.reset();
   context.pfSystem = {};
 
   // Reset the train states.

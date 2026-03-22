@@ -27,27 +27,25 @@ constexpr unsigned ROW_PROMPT = ROW_STATUS + STATUS_HISTORY_SIZE + 2;
 
 constexpr unsigned CMD_HISTORY_DEBOUNCE_TICKS = 50;
 
-const char* toString(marklin::KinematicState state) {
+const char* toString(marklin::KinematicsSystem::State state) {
   switch (state) {
-  case marklin::KinematicState::Lost:
+  case marklin::KinematicsSystem::State::Lost:
     return "Lost";
-  case marklin::KinematicState::Tracked:
+  case marklin::KinematicsSystem::State::Tracked:
     return "Tracked";
   }
   return "Unknown";
 }
 
-const char* toString(marklin::NavigationState state) {
+const char* toString(marklin::NavigationSystem::State state) {
   switch (state) {
-  case marklin::NavigationState::Manual:
+  case marklin::NavigationSystem::State::Manual:
     return "Manual";
-  case marklin::NavigationState::FindingPath:
+  case marklin::NavigationSystem::State::FindingPath:
     return "FindingPath";
-  case marklin::NavigationState::Routed:
+  case marklin::NavigationSystem::State::Routed:
     return "Routed";
-  case marklin::NavigationState::Yielding:
-    return "Yielding";
-  case marklin::NavigationState::Reversing:
+  case marklin::NavigationSystem::State::Reversing:
     return "Reversing";
   }
   return "Unknown";
@@ -221,20 +219,22 @@ void uiViewServerTask() {
 
         // Row 1: Kinematics and Predictions
         console.moveCursor(baseRow, COL_TRAINS);
-        console.printf("Train %u [%s/%s] Est %u um/t Off %u um/t | Last %s[%u mm] Path %u mm", entry.trainId,
-                       toString(entry.train->kinematicState), toString(entry.train->navigationState),
-                       entry.train->kin.estimatedSpeed, entry.train->hw.offlineSpeed,
-                       (entry.train->kin.lastKnownNode ? entry.train->kin.lastKnownNode->name : "N/A"),
-                       entry.train->kin.estimatedOffsetFromLast / 1000, entry.train->nav.estimatedPathDistance / 1000);
+        console.printf("Train %u [%s/%s] Est %u um/t Off %u um/t | Last %s[%u mm] Est %s[%u mm]", entry.trainId,
+                       toString(entry.train->kinematics.state), toString(entry.train->navigation.state),
+                       entry.train->kinematics.estimatedSpeed, entry.train->kinematics.offlineSpeed,
+                       (entry.train->kinematics.lastSensor ? entry.train->kinematics.lastSensor->name : "N/A"),
+                       entry.train->kinematics.lastSensorOffset / 1000,
+                       (entry.train->kinematics.estimatedNode ? entry.train->kinematics.estimatedNode->name : "N/A"),
+                       entry.train->kinematics.estimatedNodeOffset / 1000);
         if (entry.train->prediction.lastTimeErrorTicks != 0 || entry.train->prediction.lastDistErrorUm != 0) {
           console.printf(" [Err: %dt %dmm]", entry.train->prediction.lastTimeErrorTicks,
                          entry.train->prediction.lastDistErrorUm / 1000);
         }
-        if (entry.train->prediction.predictedNextSensor) {
-          console.printf(" | Exp: %s", entry.train->prediction.predictedNextSensor->name);
-          if (entry.train->prediction.predictedNextSensorTicks != 0) {
+        if (entry.train->prediction.sensor) {
+          console.printf(" | Exp: %s", entry.train->prediction.sensor->name);
+          if (entry.train->prediction.predictedTicks != 0) {
             console.puts(" @ ");
-            console.putTicks(entry.train->prediction.predictedNextSensorTicks);
+            console.putTicks(entry.train->prediction.predictedTicks);
           }
         }
         console.clearToEol();

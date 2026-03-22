@@ -1,4 +1,5 @@
 #pragma once
+#include "marklin/marklin_def.h"
 #include "marklin/marklin_train_track.h"
 #include "marklin_measured_data.h"
 #include "util/debug.h"
@@ -8,24 +9,6 @@
 #include <numeric>
 
 namespace marklin {
-
-constexpr Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
-
-// https://www.desmos.com/calculator/5zhi1xf291
-constexpr Distance getStoppingDistance(Speed speed) {
-  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 25 / 1000 + speed * 80 + 18740);
-}
-
-constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
-
-constexpr SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {
-  for (SpeedLevel i = STOPPING_DISTANCE.size() - 1; i-- > 0;) {
-    if (STOPPING_DISTANCE[i] < stoppingDistance) {
-      return i;
-    }
-  }
-  return 0;
-}
 
 constexpr TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
   if (srce.type == TrackNode::Type::Exit) {
@@ -63,30 +46,32 @@ constexpr Distance getDistanceBetweenSensor(TrackId trackId, TrackNode& sensor1,
   }
 }
 
-class PathFindingSystem {
-  static constexpr size_t NUM_RESERVATION_NODES = NUM_TRACK_NODES / 2;
-  static constexpr size_t MAX_PATH_NODES = NUM_TRACK_NODES;
+static constexpr size_t NUM_RESERVATION_NODES = NUM_TRACK_NODES / 2;
+static constexpr size_t MAX_PATH_NODES = NUM_TRACK_NODES;
 
+struct TrainPath {
+  struct Node {
+    TrackNode* srce;
+    TrackDirection direction;
+  };
+  TrackNodeId destination = NO_TRACK_NODE;
+  Distance offset = 0;
+  Distance distance = 0;
+  RingBuffer<Node, MAX_PATH_NODES> nodes{};
+};
+
+class PathFindingSystem {
+public:
   enum class State {
     IDLING,   // stationary without destination
     MOVING,   // moving with destination
     YIELDING, // statinary with destination
   };
 
-  struct Path {
-    struct Node {
-      TrackNode* srce;
-      TrackDirection direction;
-    };
-    TrackNodeId destination = NO_TRACK_NODE;
-    Distance offset = 0;
-    Distance distance = 0;
-    RingBuffer<Node, MAX_PATH_NODES> nodes{};
-  };
-
+private:
   std::array<RingBuffer<TrainId, NUM_TRAIN_IN_LAB>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
   std::array<TrainId, NUM_RESERVATION_NODES> destination{};
-  std::array<Path, MAX_TRAIN_ID> paths{};
+  std::array<TrainPath, MAX_TRAIN_ID> paths{};
   std::array<State, MAX_TRAIN_ID> pathingStates{};
 
   void reserve(TrackNodeId nodeId, TrainId trainId) { nodeOwners[nodeId / 2].pushBack(trainId); }
@@ -95,7 +80,9 @@ class PathFindingSystem {
     KIT_ASSERT(nodeOwners[nodeId / 2].popFront() == trainId, "unreserved by the wrong train");
   }
 
-  bool isPassable(TrackNodeId nodeId) { return destination[nodeId / 2] == NO_TRAIN; }
+  bool isPassable(TrackNodeId nodeId, TrainId trainId) {
+    return destination[nodeId / 2] == NO_TRAIN || destination[nodeId / 2] == trainId;
+  }
 
   bool canEnter(TrackNodeId nodeId, TrainId trainId) { return nodeOwners[nodeId / 2].front() == trainId; }
 
@@ -122,46 +109,80 @@ public:
     return nodeOwners[nodeId / 2].front();
   }
 
-  template <typename Callback> State updateState(TrainId trainId, TrackNode& currentLocation, Callback updateSwitch) {
+  const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
+
+  template <typename Callback>
+  State updateState(TrainId trainId, TrackNode& currentLocation, Distance currentOffset, Speed currentSpeed,
+                    Distance& outCanEnterDistance, Callback updateSwitch) {
+    outCanEnterDistance = 0;
+
     switch (pathingStates[trainId]) {
     case State::IDLING: {
       break;
     }
     case State::MOVING: {
+      // Unreserve and remove past nodes.
       while (!paths[trainId].nodes.empty()) {
         auto& node = paths[trainId].nodes.front();
-        if (node.srce->id != currentLocation.id) {
-          // Past nodes. Simply unreserve and remove.
-          unreserve(node.srce->id, trainId);
-          paths[trainId].distance -= node.srce->edges[node.direction].dist;
-          paths[trainId].nodes.popFront();
+        if (node.srce->id == currentLocation.id) {
+          break;
+        }
+        unreserve(node.srce->id, trainId);
+        paths[trainId].distance -= node.srce->edges[node.direction].dist;
+        paths[trainId].nodes.popFront();
+      }
+
+      // Reach the destination.
+      if (currentLocation.id == paths[trainId].destination) {
+        unreserve(currentLocation.id, trainId);
+        pathingStates[trainId] = State::IDLING;
+        break;
+      }
+
+      // Not reach the destination, calculate the reserved distance.
+      size_t notEntered = paths[trainId].nodes.size();
+      for (auto& node : paths[trainId].nodes) {
+        if (canEnter(node.srce->id, trainId)) {
+          updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          outCanEnterDistance += node.srce->edges[node.direction].dist;
+          --notEntered;
         } else {
-          // Current node. If can not enter, then yield.
-          if (canEnter(node.srce->id, trainId)) {
-            updateSwitch(node.srce->id, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
-          } else {
-            pathingStates[trainId] = State::YIELDING;
-          }
           break;
         }
       }
+      outCanEnterDistance -= currentOffset;
 
-      // Check if reach destination.
-      if (paths[trainId].nodes.empty()) {
-        if (canEnter(paths[trainId].destination, trainId)) {
-          unreserve(paths[trainId].destination, trainId);
-          pathingStates[trainId] = State::IDLING;
-        } else {
+      // If can enter all remaining path nodes, only yield if can not enter destination.
+      // If can not enter all remaining path nodes, then yield if the can-enter distance is not long enough.
+      if (notEntered == 0) {
+        if (!canEnter(paths[trainId].destination, trainId)) {
           pathingStates[trainId] = State::YIELDING;
         }
+      } else if (outCanEnterDistance <= getStoppingDistance(currentSpeed)) {
+        pathingStates[trainId] = State::YIELDING;
       }
       break;
     }
     case State::YIELDING: {
-      KIT_ASSERT(!paths[trainId].nodes.empty(), "yielding to nothing");
-      if (canEnter(paths[trainId].nodes.front().srce->id, trainId)) {
-        pathingStates[trainId] = State::MOVING;
+      outCanEnterDistance = -currentOffset;
+      size_t notEntered = paths[trainId].nodes.size();
+      for (auto& node : paths[trainId].nodes) {
+        if (canEnter(node.srce->id, trainId)) {
+          updateSwitch(node.srce->id, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          outCanEnterDistance += node.srce->edges[node.direction].dist;
+          --notEntered;
+        } else {
+          break;
+        }
       }
+
+      // Enough distance for train to move again.
+      if (outCanEnterDistance > getStoppingDistance(currentSpeed) ||
+          (notEntered == 0 && canEnter(paths[trainId].destination, trainId))) {
+        pathingStates[trainId] = State::MOVING;
+        break;
+      }
+
       break;
     }
     default:
@@ -171,11 +192,7 @@ public:
     return pathingStates[trainId];
   }
 
-  bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance offset) {
-    Train& train = ttState.getTrain(trainId);
-    KIT_ASSERT(train.kinematics.state == KinematicsSystem::State::Tracked, "train is not tracked");
-    TrackNodeId srce = ttState.getTrain(trainId).kinematics.lastSensor->id;
-
+  bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId srce, TrackNodeId dest, Distance offset) {
     // Track min distances.
     static constexpr Distance INFINITY = std::numeric_limits<Distance>::max();
     std::array<Distance, NUM_TRACK_NODES> minDistances;
@@ -227,9 +244,10 @@ public:
       // Explore neighbors.
       for (size_t i = 0; i < numEdges; ++i) {
         const TrackEdge& edge = uNode.edges[i];
+        KIT_ASSERT(edge.dest, "impossible");
         TrackNodeId v = edge.dest->id;
 
-        if (!isPassable(v)) {
+        if (!isPassable(v, trainId)) {
           continue;
         }
 
@@ -256,8 +274,9 @@ public:
       paths[trainId].destination = dest;
       paths[trainId].offset = offset;
       paths[trainId].distance = 0;
+      pathingStates[trainId] = State::MOVING;
 
-      for (TrackNode* curr = &ttState.getTrackNodeById(srce);;) {
+      for (TrackNode* curr = &ttState.getTrackNodeById(dest);;) {
         reserve(curr->id, trainId);
         TrackNodeId p = parents[curr->id];
         if (p == NO_PARENT) {
@@ -266,7 +285,7 @@ public:
         TrackNode* parent = &ttState.getTrackNodeById(p);
         TrackDirection direction = getAdjacentDirection(*parent, *curr);
         paths[trainId].distance += parent->edges[direction].dist;
-        paths[trainId].nodes.pushFront({curr, direction});
+        paths[trainId].nodes.pushFront({parent, direction});
         curr = parent;
       }
     }

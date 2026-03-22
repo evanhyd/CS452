@@ -1,37 +1,15 @@
 #pragma once
+#include "marklin/marklin_def.h"
 #include "util/debug.h"
-#include "util/ring_buffer.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <source_location>
+
+namespace k4 {
+struct TrainTrackServerContext;
+} // namespace k4
 
 namespace marklin {
-/**********************************
-Type Alias
-***********************************/
-using Speed = int32_t;
-using SpeedLevel = uint16_t;
-using CANSpeed = uint16_t;
-using Distance = int32_t; // um
-using TrainId = uint8_t;
-using SensorNumber = uint8_t; // the "12" in A12
-using SwitchId = uint8_t;
-using TrackNodeId = uint8_t;  // Track Node array index, maps 1 to 1 to sensor id by coincidence.
-using TrackNodeNum = uint8_t; // Map to either a switch id or a sensor id or other special id.
-using TrackId = uint32_t;     // Track A (0) or Track B (1)
-
-/**********************************
-Magic Constant
-***********************************/
-static constexpr size_t MAX_TRAIN_ID = 56;
-static constexpr size_t NUM_TRACK_NODES = 144;
-static constexpr size_t NUM_SWITCHES = 22;
-static constexpr size_t NUM_TRAIN_IN_LAB = 6;
-static constexpr size_t MAX_SPEED_LEVEL = 14;
-
-static constexpr TrainId NO_TRAIN = 0;
-static constexpr TrackNodeId NO_TRACK_NODE = NUM_TRACK_NODES;
 
 /**********************************
 Switch Definition
@@ -125,6 +103,8 @@ public:
   ReversingTask reversingTask{};
 };
 
+class PathFindingSystem;
+
 class KinematicsSystem {
 public:
   enum class State { Lost, Tracked };
@@ -157,6 +137,8 @@ public:
     estimatedNode = &sensor;
     estimatedNodeOffset = 0;
   }
+
+  void onTick(struct TrainTrackState& ttState, const struct TrainPath& path);
 };
 
 struct SensorPredictionSystem {

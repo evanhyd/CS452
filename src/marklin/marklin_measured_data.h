@@ -1,5 +1,5 @@
 #pragma once
-#include "marklin/marklin_train_track.h"
+#include "marklin/marklin_def.h"
 #include <array>
 
 namespace marklin {
@@ -11,6 +11,24 @@ inline constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000, 
 
 inline constexpr std::array OFFLINE_SPEED = {0,    80,   250,  470,  670,  930,  1390, 1860,
                                              2320, 2830, 3440, 4090, 4730, 5440, 6150};
+
+constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
+
+constexpr Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+
+// https://www.desmos.com/calculator/5zhi1xf291
+constexpr Distance getStoppingDistance(Speed speed) {
+  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 25 / 1000 + speed * 80 + 18740);
+}
+
+constexpr SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {
+  for (SpeedLevel i = STOPPING_DISTANCE.size() - 1; i-- > 0;) {
+    if (STOPPING_DISTANCE[i] < stoppingDistance) {
+      return i;
+    }
+  }
+  return 0;
+}
 
 inline constexpr std::array<std::array<Distance, 80>, 80> TRACK_A_SENSOR_DISTANCE = {
     {{0,       9369000, 4658000, 4711000, -1,      4036000, 4219000, -1,      4407000, -1,      -1,      4696000,
@@ -1053,19 +1071,19 @@ inline constexpr std::array<std::array<Distance, 80>, 80> TRACK_B_SENSOR_DISTANC
       4956000, 5352000, 4963000, 880000,  201000,  5642000, 2645000, 5850000, 3487000, 2356000, 3530000, 2530000,
       1451000, 4392000, 5674000, 4751000, 4674000, 1169000, 5843000, 0}}};
 
-inline constexpr std::array LOOP_SENSOR_NODE_IDS = {
-    marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'A', 4}),
-    marklin::sensorToTrackNodeId({'B', 15}), marklin::sensorToTrackNodeId({'B', 16}),
-    marklin::sensorToTrackNodeId({'C', 9}),  marklin::sensorToTrackNodeId({'C', 10}),
-    marklin::sensorToTrackNodeId({'B', 1}),  marklin::sensorToTrackNodeId({'B', 2}),
-    marklin::sensorToTrackNodeId({'D', 13}), marklin::sensorToTrackNodeId({'D', 14}),
-    marklin::sensorToTrackNodeId({'E', 13}), marklin::sensorToTrackNodeId({'E', 14}),
-    marklin::sensorToTrackNodeId({'E', 9}),  marklin::sensorToTrackNodeId({'E', 10}),
-    marklin::sensorToTrackNodeId({'D', 5}),  marklin::sensorToTrackNodeId({'D', 6}),
-    marklin::sensorToTrackNodeId({'E', 5}),  marklin::sensorToTrackNodeId({'E', 6}),
-    marklin::sensorToTrackNodeId({'D', 3}),  marklin::sensorToTrackNodeId({'D', 4}),
-    marklin::sensorToTrackNodeId({'B', 5}),  marklin::sensorToTrackNodeId({'B', 6}),
-    marklin::sensorToTrackNodeId({'C', 11}), marklin::sensorToTrackNodeId({'C', 12}),
-};
+// inline constexpr std::array LOOP_SENSOR_NODE_IDS = {
+//     marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'A', 4}),
+//     marklin::sensorToTrackNodeId({'B', 15}), marklin::sensorToTrackNodeId({'B', 16}),
+//     marklin::sensorToTrackNodeId({'C', 9}),  marklin::sensorToTrackNodeId({'C', 10}),
+//     marklin::sensorToTrackNodeId({'B', 1}),  marklin::sensorToTrackNodeId({'B', 2}),
+//     marklin::sensorToTrackNodeId({'D', 13}), marklin::sensorToTrackNodeId({'D', 14}),
+//     marklin::sensorToTrackNodeId({'E', 13}), marklin::sensorToTrackNodeId({'E', 14}),
+//     marklin::sensorToTrackNodeId({'E', 9}),  marklin::sensorToTrackNodeId({'E', 10}),
+//     marklin::sensorToTrackNodeId({'D', 5}),  marklin::sensorToTrackNodeId({'D', 6}),
+//     marklin::sensorToTrackNodeId({'E', 5}),  marklin::sensorToTrackNodeId({'E', 6}),
+//     marklin::sensorToTrackNodeId({'D', 3}),  marklin::sensorToTrackNodeId({'D', 4}),
+//     marklin::sensorToTrackNodeId({'B', 5}),  marklin::sensorToTrackNodeId({'B', 6}),
+//     marklin::sensorToTrackNodeId({'C', 11}), marklin::sensorToTrackNodeId({'C', 12}),
+// };
 
 } // namespace marklin

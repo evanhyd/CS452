@@ -1,4 +1,6 @@
 #include "marklin_train_track.h"
+#include "marklin/marklin_pathfinding.h"
+#include "marklin_pathfinding.h"
 #include "util/debug.h"
 #include "util/kit_algorithm.h" // strncmp
 
@@ -2404,4 +2406,40 @@ TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
   return nullptr;
 }
 
+void KinematicsSystem::onTick(TrainTrackState& ttState, const TrainPath& path) {
+  // Apply the acceleration to update the estimated speed.
+  if (Speed targetSpeed = marklin::convertSpeedLevelToOfflineSpeed(offlineSpeedLevel); offlineSpeed != targetSpeed) {
+    static constexpr Speed ACCEL_UM_PER_TICK_PER_TICK = 17;
+    Speed speedDiff = targetSpeed - offlineSpeed;
+    Speed delta = kit::clamp(speedDiff, -ACCEL_UM_PER_TICK_PER_TICK, ACCEL_UM_PER_TICK_PER_TICK);
+    if (offlineSpeed == 0) {
+      estimatedSpeed += delta;
+    } else {
+      estimatedSpeed = (estimatedSpeed * (offlineSpeed + delta)) / offlineSpeed;
+    }
+    offlineSpeed += delta;
+    estimatedSpeed = kit::max(0, estimatedSpeed);
+  } else if (offlineSpeed == 0) {
+    estimatedSpeed = 0;
+  }
+
+  // Apply the estimated speed to update the estimated position.
+  if (state == State::Tracked) {
+    KIT_ASSERT(lastSensor, "tracked train last sensor must be non-null");
+    lastSensorOffset += estimatedSpeed;
+    Distance offset = lastSensorOffset;
+    TrackNode* last = lastSensor;
+    for (;;) {
+      Distance dist = 0;
+      TrackNode* next = getNextTrackNode(ttState, *last, dist);
+      if (!next || offset < dist) {
+        estimatedNode = last;
+        estimatedNodeOffset = offset;
+        break;
+      }
+      offset -= dist;
+      last = next;
+    }
+  }
+}
 } // namespace marklin
