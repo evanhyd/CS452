@@ -241,7 +241,7 @@ void uiViewServerTask() {
 
         // Row 2: Locks
         console.moveCursor(baseRow + 1, COL_TRAINS);
-        console.puts("  Locks: ");
+        console.printf("  Locks[%u]: ", entry.lockedNodeCount);
         if (entry.lockedNodeCount == 0) {
           console.puts("None");
         } else {

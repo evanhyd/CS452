@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <source_location>
 
 namespace k4 {
 struct TrainTrackServerContext;
@@ -156,7 +157,8 @@ struct SensorPredictionSystem {
       lastTimeErrorTicks = 0;
       lastDistErrorUm = 0;
     }
-    if (sensor = nextSensor; sensor && estimatedSpeed > 0) {
+    sensor = nextSensor;
+    if (sensor && estimatedSpeed > 0) {
       predictedTicks = currentTicks + static_cast<uint32_t>(distToNext / estimatedSpeed);
     } else {
       predictedTicks = 0;

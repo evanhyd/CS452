@@ -1,6 +1,7 @@
 #pragma once
 #include "marklin/marklin_event.h"
 #include "marklin/marklin_message.h"
+#include "marklin/marklin_pathfinding.h"
 #include "marklin/marklin_train_track.h"
 #include <cstdint>
 
@@ -23,7 +24,7 @@ struct SensorHistoryEntry {
 struct TrainStatesEntry {
   marklin::TrainId trainId;
   marklin::Train* train;
-  marklin::TrackNode* lockedNodes[24];
+  marklin::TrackNode* lockedNodes[marklin::MAX_PATH_NODES];
   unsigned lockedNodeCount;
 };
 

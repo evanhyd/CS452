@@ -38,7 +38,7 @@ constexpr TrackNode* getNextSensor(TrainTrackState& state, TrackNode& srce, Dist
 }
 
 // Get the distance from sensor 1 to sensor 2. Order matters.
-constexpr Distance getDistanceBetweenSensor(TrackId trackId, TrackNode& sensor1, TrackNode& sensor2) {
+constexpr Distance getDistanceBetweenSensor(TrackId trackId, const TrackNode& sensor1, const TrackNode& sensor2) {
   if (trackId == 0) {
     return TRACK_A_SENSOR_DISTANCE[sensor1.id][sensor2.id];
   } else {
@@ -69,7 +69,7 @@ public:
   };
 
 private:
-  std::array<RingBuffer<TrainId, NUM_TRAIN_IN_LAB>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
+  std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
   std::array<TrainId, NUM_RESERVATION_NODES> destination{};
   std::array<TrainPath, MAX_TRAIN_ID> paths{};
   std::array<State, MAX_TRAIN_ID> pathingStates{};
@@ -77,6 +77,7 @@ private:
   void reserve(TrackNodeId nodeId, TrainId trainId) { nodeOwners[nodeId / 2].pushBack(trainId); }
 
   void unreserve(TrackNodeId nodeId, TrainId trainId) {
+    KIT_ASSERT(!nodeOwners[nodeId / 2].empty(), "no reservation");
     KIT_ASSERT(nodeOwners[nodeId / 2].popFront() == trainId, "unreserved by the wrong train");
   }
 
@@ -84,7 +85,10 @@ private:
     return destination[nodeId / 2] == NO_TRAIN || destination[nodeId / 2] == trainId;
   }
 
-  bool canEnter(TrackNodeId nodeId, TrainId trainId) { return nodeOwners[nodeId / 2].front() == trainId; }
+  bool canEnter(TrackNodeId nodeId, TrainId trainId) {
+    KIT_ASSERT(!nodeOwners[nodeId / 2].empty(), "no reservation");
+    return nodeOwners[nodeId / 2].front() == trainId;
+  }
 
   Distance getEdgeWeight(const TrackEdge& edge) {
     static constexpr Distance PENALTY_PER_WAITER = 200'000; // 20 cm
@@ -113,7 +117,7 @@ public:
 
   template <typename Callback>
   State updateState(TrainId trainId, TrackNode& currentLocation, Distance currentOffset, Speed currentSpeed,
-                    Distance& outCanEnterDistance, Callback updateSwitch) {
+                    Distance& outCanEnterDistance, const Callback& updateSwitch) {
     outCanEnterDistance = 0;
 
     switch (pathingStates[trainId]) {
@@ -143,7 +147,9 @@ public:
       size_t notEntered = paths[trainId].nodes.size();
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
-          updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          if (node.srce->type == TrackNode::Type::Branch) {
+            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          }
           outCanEnterDistance += node.srce->edges[node.direction].dist;
           --notEntered;
         } else {
@@ -168,7 +174,9 @@ public:
       size_t notEntered = paths[trainId].nodes.size();
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
-          updateSwitch(node.srce->id, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          if (node.srce->type == TrackNode::Type::Branch) {
+            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          }
           outCanEnterDistance += node.srce->edges[node.direction].dist;
           --notEntered;
         } else {
@@ -244,7 +252,6 @@ public:
       // Explore neighbors.
       for (size_t i = 0; i < numEdges; ++i) {
         const TrackEdge& edge = uNode.edges[i];
-        KIT_ASSERT(edge.dest, "impossible");
         TrackNodeId v = edge.dest->id;
 
         if (!isPassable(v, trainId)) {
