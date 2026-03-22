@@ -16,7 +16,7 @@ inline void setSpeedCmdHandler(TrainTrackServerContext& context, marklin::TrainI
   // Check busy status.
   initTrain(context, trainId);
   marklin::Train& train = context.ttState.getTrain(trainId);
-  if (train.navigationState != marklin::NavigationState::Manual) {
+  if (train.navigation.state != marklin::NavigationSystem::State::Idling) {
     notifyStatusToUI(context.uiTid, "Train %u is busy right now.", trainId);
     return;
   }
@@ -32,16 +32,16 @@ inline void reverseCmdHandler(TrainTrackServerContext& context, marklin::TrainId
   // Check busy status.
   initTrain(context, trainId);
   marklin::Train& train = context.ttState.getTrain(trainId);
-  if (train.navigationState != marklin::NavigationState::Manual) {
+  if (train.navigation.state != marklin::NavigationSystem::State::Idling) {
     notifyStatusToUI(context.uiTid, "Train %u is busy right now.", trainId);
     return;
   }
 
   // Perform reversing.
-  train.navigationState = marklin::NavigationState::Reversing;
-  train.nav.reverseCountdownTicks = 50 + static_cast<unsigned>(train.hw.speedLevel) * 25;
+  train.navigation.state = marklin::NavigationSystem::State::Reversing;
+  train.navigation.reversingTask.preReversingSpeedLevel = train.kinematics.offlineSpeedLevel;
   sendToDispatcher(context.dispatcherTid, marklin::MMessage::setTrainSpeed(trainId, 0));
-  notifyStatusToUI(context.uiTid, "Reversing train %u in %u ticks.", trainId, train.nav.reverseCountdownTicks);
+  notifyStatusToUI(context.uiTid, "Reversing train %u.", trainId);
 }
 
 inline void setSwitchCmdHandler(TrainTrackServerContext& context, marklin::SwitchId switchId,
@@ -73,7 +73,7 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   marklin::TrackNode& triggeredNode = context.ttState.getTrackNodeById(sensorEvent.id);
   marklin::TrainId ownerId = [&] -> marklin::TrainId {
     // Priority 1: Explicit Lock Ownership.
-    marklin::TrainId trainId = context.pfSystem.getOwner(triggeredNode.id);
+    marklin::TrainId trainId = context.pfSystem.getReserver(triggeredNode.id);
     if (trainId != marklin::NO_TRAIN) {
       return trainId;
     }
@@ -81,7 +81,7 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
     // Priority 2: Prediction Matching.
     for (marklin::TrainId id : context.activeTrains) {
       marklin::Train& train = context.ttState.getTrain(id);
-      if (train.prediction.predictedNextSensor && train.prediction.predictedNextSensor->id == triggeredNode.id) {
+      if (train.prediction.sensor && train.prediction.sensor->id == triggeredNode.id) {
         return id;
       }
     }
@@ -89,7 +89,7 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
     // Priority 3: Pair with the train in Lost state.
     for (marklin::TrainId id : context.activeTrains) {
       marklin::Train& train = context.ttState.getTrain(id);
-      if (train.kinematicState == marklin::KinematicState::Lost) {
+      if (train.kinematics.state == marklin::KinematicsSystem::State::Lost) {
         return id;
       }
     }
@@ -98,74 +98,25 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   if (ownerId == marklin::NO_TRAIN) {
     return;
   }
-
   marklin::Train& train = context.ttState.getTrain(ownerId);
-  marklin::assertTrainState(train);
 
-  // Tail clearance and calculate the tail path length.
-  marklin::Distance dS = 0;
-  if (train.kinematicState == marklin::KinematicState::Tracked) {
-    KIT_ASSERT(triggeredNode.id != train.kin.lastKnownNode->id, "hit the same sensor twice in a row");
-
-    auto& ownedQueue = context.pfSystem.getOwned(ownerId);
-    for (marklin::TrackNode* tail = train.kin.lastKnownNode; tail->id != triggeredNode.id;) {
-      KIT_ASSERT(!ownedQueue.empty(), "Train triggered a node it never locked");
-      marklin::TrackNodeId lockedNodeId = ownedQueue.front();
-      marklin::TrackNode& lockedNode = context.ttState.getTrackNodeById(lockedNodeId);
-      dS += marklin::getAdjacentDistance(*tail, lockedNode);
-      tail = &lockedNode;
-      context.pfSystem.unlock(lockedNodeId, ownerId);
-      --train.nav.nodeAheadLocked;
+  marklin::Distance dS = [&] -> marklin::Distance {
+    if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked) {
+      KIT_ASSERT(train.kinematics.lastSensor, "tracked train last sensor is null");
+      return marklin::getDistanceBetweenSensor(context.ttState.getCurrentTrackId(), *train.kinematics.lastSensor,
+                                               triggeredNode);
     }
-  }
-
-  // Clean up routed path.
-  if (train.navigationState == marklin::NavigationState::Routed ||
-      train.nav.resumeNavigationState == marklin::NavigationState::Routed) {
-    while (!train.nav.path.empty()) {
-      marklin::TrackNode* curr = train.nav.path.popFront();
-      if (curr->id == triggeredNode.id) {
-        break;
-      }
-    }
-    train.nav.pathDistance -= dS;
-    train.nav.estimatedPathDistance = train.nav.pathDistance;
-  }
+    return 0;
+  }();
 
   // Update kinematics values.
-  if (train.kinematicState == marklin::KinematicState::Tracked) {
-    uint32_t dT = kit::max(1u, context.currentTicks - train.kin.lastKnownTicks);
-    train.kin.updateSpeed(dS, dT);
-  }
-  train.kin.lastKnownTicks = context.currentTicks;
-  train.kin.lastKnownNode = &triggeredNode;
-  train.kin.estimatedOffsetFromLast = 0;
+  train.kinematics.triggerSensor(triggeredNode, dS, context.currentTicks);
 
   // Update the sensor prediction.
-  if (train.prediction.predictedNextSensor && train.prediction.predictedNextSensor->id == triggeredNode.id) {
-    train.prediction.lastTimeErrorTicks =
-        static_cast<int32_t>(context.currentTicks) - static_cast<int32_t>(train.prediction.predictedNextSensorTicks);
-    train.prediction.lastDistErrorUm = train.prediction.lastTimeErrorTicks * train.kin.estimatedSpeed;
-  } else {
-    train.prediction.lastTimeErrorTicks = 0;
-    train.prediction.lastDistErrorUm = 0;
-  }
-
   marklin::Distance distToNext = 0;
-  train.prediction.predictedNextSensor = marklin::getNextSensor(context.ttState, triggeredNode, distToNext);
-  if (train.prediction.predictedNextSensor && train.kin.estimatedSpeed > 0) {
-    train.prediction.predictedNextSensorTicks =
-        context.currentTicks + static_cast<uint32_t>(distToNext / train.kin.estimatedSpeed);
-  } else {
-    train.prediction.predictedNextSensorTicks = 0;
-  }
-
-  // Update kinematics state.
-  if (train.kinematicState == marklin::KinematicState::Lost) {
-    train.kinematicState = marklin::KinematicState::Tracked;
-    notifyStatusToUI(context.uiTid, "Train %u tracked at %s.", ownerId, triggeredNode.name);
-  }
-  marklin::assertTrainState(train);
+  marklin::TrackNode* nextSensor = marklin::getNextSensor(context.ttState, triggeredNode, distToNext);
+  train.prediction.triggerSensor(triggeredNode, nextSensor, distToNext, train.kinematics.estimatedSpeed,
+                                 context.currentTicks);
 }
 
 inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id, marklin::SpeedLevel speedLevel,
@@ -178,30 +129,16 @@ inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id
   // Check busy status.
   initTrain(context, id);
   marklin::Train& train = context.ttState.getTrain(id);
-  if (train.navigationState != marklin::NavigationState::Manual) {
+  if (train.navigation.state != marklin::NavigationSystem::State::Idling) {
     notifyStatusToUI(context.uiTid, "Train %u is busy right now.", id);
     return;
   }
 
-  train.nav.dest = dest->id;
-  train.nav.offset = offset;
-  train.navigationState = marklin::NavigationState::FindingPath;
-  broadcastTrainSpeedLevel(context, id, speedLevel);
+  train.navigation.findingPathTask = {dest->id, offset, speedLevel};
+  train.navigation.state = marklin::NavigationSystem::State::FindingPath;
+  broadcastTrainSpeedLevel(context, id, 0);
   notifyStatusToUI(context.uiTid, "Route train %u to %s.", id, dest->name);
-  //   {
-  //     // Guide the train to enter the loop.
-  //     static constexpr marklin::SwitchId toCurved[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
-  //     static constexpr marklin::SwitchId toStraight[] = {1, 2, 4, 6, 7, 10, 13, 16, 17, 153, 156};
-  //     for (marklin::SwitchId switchId : toCurved) {
-  //       broadcastSwitchState(context, switchId, marklin::SwitchState::Curved);
-  //     }
-  //     for (marklin::SwitchId switchId : toStraight) {
-  //       broadcastSwitchState(context, switchId, marklin::SwitchState::Straight);
-  //     }
-  //     broadcastTrainSpeedLevel(context, id, speedLevel);
-  //     notifyStatusToUI(context.uiTid, "Locating train %u.", id);
-  //   }
-}
+} // namespace k4
 
 inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
   context.currentTicks = ticks;
@@ -211,7 +148,22 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     marklin::Train& train = context.ttState.getTrain(trainId);
 
     // Part A: Navigation Block.
-    switch (train.navigationState) {
+    switch (train.navigation.state) {
+    case marklin::NavigationSystem::State::Manual: {
+      break;
+    }
+    case marklin::NavigationSystem::State::FindingPath: {
+      break;
+    }
+    case marklin::NavigationSystem::State::Routed: {
+      break;
+    }
+    case marklin::NavigationSystem::State::Reversing: {
+      if (train.kinematics.estimatedSpeed == 0) {
+      }
+      break;
+    }
+
     case marklin::NavigationState::Reversing: {
       --train.nav.reverseCountdownTicks;
       if (train.nav.reverseCountdownTicks == 0) {

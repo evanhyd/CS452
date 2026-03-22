@@ -23,7 +23,7 @@ struct SensorHistoryEntry {
 struct TrainStatesEntry {
   marklin::TrainId trainId;
   marklin::Train* train;
-  marklin::TrackNode* lockedNodes[marklin::MAX_NODE_PER_TRAIN];
+  marklin::TrackNode* lockedNodes[24];
   unsigned lockedNodeCount;
 };
 

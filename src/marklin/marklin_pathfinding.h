@@ -1,64 +1,277 @@
 #pragma once
-#include "marklin_train_track.h"
-#include <array>
+#include "marklin/marklin_train_track.h"
+#include "marklin_measured_data.h"
+#include "util/debug.h"
+#include "util/kit_algorithm.h"
+#include "util/ring_buffer.h"
+#include "util/static_priority_queue.h"
+#include <numeric>
 
 namespace marklin {
 
-// Get the stopping distance based on the speed level.
-Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel);
+constexpr Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
 
-// Get the stopping distance based on the speed.
-Distance getStoppingDistance(Speed speed);
+// https://www.desmos.com/calculator/5zhi1xf291
+constexpr Distance getStoppingDistance(Speed speed) {
+  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 25 / 1000 + speed * 80 + 18740);
+}
 
-// Convert speed level to offline data speed.
-Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel);
+constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
-// Return the maximum safe speed level that can be stopped within the stopping distance.
-SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance);
+constexpr SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {
+  for (SpeedLevel i = STOPPING_DISTANCE.size() - 1; i-- > 0;) {
+    if (STOPPING_DISTANCE[i] < stoppingDistance) {
+      return i;
+    }
+  }
+  return 0;
+}
 
-// Get the next track node by following the track at the current configuration.
-// Return nullptr if not found.
-TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance);
+constexpr TrackNode* getNextTrackNode(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
+  if (srce.type == TrackNode::Type::Exit) {
+    return nullptr;
+  }
+  size_t dir = TrackDirection::Straight;
+  if (srce.type == TrackNode::Type::Branch) {
+    auto sw = state.getSwitchState(srce.num);
+    dir = (sw == SwitchState::Straight ? TrackDirection::Straight : TrackDirection::Curved);
+  }
+  outDistance = srce.edges[dir].dist;
+  return srce.edges[dir].dest;
+}
 
-// Get the next sensor track node by following the track at the current configuration.
-// Return nullptr if not found.
-TrackNode* getNextSensor(TrainTrackState& state, TrackNode& srce, Distance& outDistance);
+constexpr TrackNode* getNextSensor(TrainTrackState& state, TrackNode& srce, Distance& outDistance) {
+  outDistance = 0;
+  TrackNode* node = &srce;
+  while (true) {
+    Distance dist = 0;
+    node = getNextTrackNode(state, *node, dist);
+    outDistance += dist;
+    if (!node || node->type == TrackNode::Type::Sensor) {
+      break;
+    }
+  }
+  return node;
+}
 
-// Get the distance from n1 to n2.
-// n1 and n2 must be adjacent to each other.
-Distance getAdjacentDistance(TrackNode& n1, TrackNode& n2);
+// Get the distance from sensor 1 to sensor 2. Order matters.
+constexpr Distance getDistanceBetweenSensor(TrackId trackId, TrackNode& sensor1, TrackNode& sensor2) {
+  if (trackId == 0) {
+    return TRACK_A_SENSOR_DISTANCE[sensor1.id][sensor2.id];
+  } else {
+    return TRACK_B_SENSOR_DISTANCE[sensor1.id][sensor2.id];
+  }
+}
 
-// Get the direction from n1 to n2.
-// n1 and n2 must be adjacent to each other.
-TrackDirection getAdjacentDirection(TrackNode& n1, TrackNode& n2);
-
-// Path finding system. Responsible for plan and lock a path for the train.
 class PathFindingSystem {
-  struct Entry {
-    TrainId id;
-    int time;
-  };
-  std::array<Entry, NUM_TRACK_NODES> locks_;
-  std::array<RingBuffer<TrackNodeId, MAX_NODE_PER_TRAIN>, MAX_TRAIN_ID> ownedNodes_;
-  std::array<RingBuffer<TrackNodeId, MAX_NODE_PER_TRAIN>, MAX_TRAIN_ID> coOwnedNodes_;
+  static constexpr size_t NUM_RESERVATION_NODES = NUM_TRACK_NODES / 2;
+  static constexpr size_t MAX_PATH_NODES = NUM_TRACK_NODES;
 
-  bool dijkstra(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance& outTotalPathDist);
+  enum class State {
+    IDLING,   // stationary without destination
+    MOVING,   // moving with destination
+    YIELDING, // statinary with destination
+  };
+
+  struct Path {
+    struct Node {
+      TrackNode* srce;
+      TrackDirection direction;
+    };
+    TrackNodeId destination = NO_TRACK_NODE;
+    Distance offset = 0;
+    Distance distance = 0;
+    RingBuffer<Node, MAX_PATH_NODES> nodes{};
+  };
+
+  std::array<RingBuffer<TrainId, NUM_TRAIN_IN_LAB>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
+  std::array<TrainId, NUM_RESERVATION_NODES> destination{};
+  std::array<Path, MAX_TRAIN_ID> paths{};
+  std::array<State, MAX_TRAIN_ID> pathingStates{};
+
+  void reserve(TrackNodeId nodeId, TrainId trainId) { nodeOwners[nodeId / 2].pushBack(trainId); }
+
+  void unreserve(TrackNodeId nodeId, TrainId trainId) {
+    KIT_ASSERT(nodeOwners[nodeId / 2].popFront() == trainId, "unreserved by the wrong train");
+  }
+
+  bool isPassable(TrackNodeId nodeId) { return destination[nodeId / 2] == NO_TRAIN; }
+
+  bool canEnter(TrackNodeId nodeId, TrainId trainId) { return nodeOwners[nodeId / 2].front() == trainId; }
+
+  Distance getEdgeWeight(const TrackEdge& edge) {
+    static constexpr Distance PENALTY_PER_WAITER = 200'000; // 20 cm
+    return edge.dist + Distance(nodeOwners[edge.dest->id / 2].size()) * PENALTY_PER_WAITER;
+  }
+
+  TrackDirection getAdjacentDirection(const TrackNode& n1, const TrackNode& n2) {
+    if (n1.edges[Straight].dest == &n2) {
+      return Straight;
+    }
+    if (n1.edges[Curved].dest == &n2) {
+      return Curved;
+    }
+    logError("n1 and n2 are not adjacent");
+  }
 
 public:
-  PathFindingSystem();
+  TrainId getReserver(TrackNodeId nodeId) const {
+    if (nodeOwners[nodeId / 2].empty()) {
+      return NO_TRAIN;
+    }
+    return nodeOwners[nodeId / 2].front();
+  }
 
-  void reset();
+  template <typename Callback> State updateState(TrainId trainId, TrackNode& currentLocation, Callback updateSwitch) {
+    switch (pathingStates[trainId]) {
+    case State::IDLING: {
+      break;
+    }
+    case State::MOVING: {
+      while (!paths[trainId].nodes.empty()) {
+        auto& node = paths[trainId].nodes.front();
+        if (node.srce->id != currentLocation.id) {
+          // Past nodes. Simply unreserve and remove.
+          unreserve(node.srce->id, trainId);
+          paths[trainId].distance -= node.srce->edges[node.direction].dist;
+          paths[trainId].nodes.popFront();
+        } else {
+          // Current node. If can not enter, then yield.
+          if (canEnter(node.srce->id, trainId)) {
+            updateSwitch(node.srce->id, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          } else {
+            pathingStates[trainId] = State::YIELDING;
+          }
+          break;
+        }
+      }
 
-  // Reserve a path for train to go to the destination.
-  // Return true if a viable path is reserved.
-  bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance& outTotalPathDist);
+      // Check if reach destination.
+      if (paths[trainId].nodes.empty()) {
+        if (canEnter(paths[trainId].destination, trainId)) {
+          unreserve(paths[trainId].destination, trainId);
+          pathingStates[trainId] = State::IDLING;
+        } else {
+          pathingStates[trainId] = State::YIELDING;
+        }
+      }
+      break;
+    }
+    case State::YIELDING: {
+      KIT_ASSERT(!paths[trainId].nodes.empty(), "yielding to nothing");
+      if (canEnter(paths[trainId].nodes.front().srce->id, trainId)) {
+        pathingStates[trainId] = State::MOVING;
+      }
+      break;
+    }
+    default:
+      logError("unhandled pathing state");
+    }
 
-  // Locking
-  void lock(TrackNodeId nodeId, TrainId trainId, std::source_location loc = std::source_location::current());
-  void unlock(TrackNodeId nodeId, TrainId trainId, std::source_location loc = std::source_location::current());
-  bool canLock(TrackNodeId nodeId, TrainId trainId) const;
-  TrainId getOwner(TrackNodeId nodeId) const;
-  const RingBuffer<TrackNodeId, MAX_NODE_PER_TRAIN>& getOwned(TrainId trainId) const;
+    return pathingStates[trainId];
+  }
+
+  bool planPath(TrainTrackState& ttState, TrainId trainId, TrackNodeId dest, Distance offset) {
+    Train& train = ttState.getTrain(trainId);
+    KIT_ASSERT(train.kinematics.state == KinematicsSystem::State::Tracked, "train is not tracked");
+    TrackNodeId srce = ttState.getTrain(trainId).kinematics.lastSensor->id;
+
+    // Track min distances.
+    static constexpr Distance INFINITY = std::numeric_limits<Distance>::max();
+    std::array<Distance, NUM_TRACK_NODES> minDistances;
+    kit::fill(minDistances.begin(), minDistances.end(), INFINITY);
+    minDistances[srce] = 0;
+
+    // Track parents.
+    static constexpr TrackNodeId NO_PARENT = NUM_TRACK_NODES;
+    std::array<TrackNodeId, NUM_TRACK_NODES> parents;
+    kit::fill(parents.begin(), parents.end(), NO_PARENT);
+
+    struct Edge {
+      Distance dist;
+      TrackNodeId id;
+      auto operator<=>(const Edge&) const = default;
+    };
+    StaticPriorityQueue<Edge, NUM_TRACK_NODES * 2> queue;
+    queue.push({0, srce});
+
+    bool isReachable = false;
+    while (!queue.empty()) {
+      Edge u = queue.top();
+      queue.pop();
+
+      if (u.id == dest) {
+        isReachable = true;
+        break;
+      }
+
+      if (u.dist > minDistances[u.id]) {
+        continue;
+      }
+
+      // Calculate number of edges.
+      const TrackNode& uNode = ttState.getTrackNodeById(u.id);
+      size_t numEdges = [&] -> size_t {
+        switch (uNode.type) {
+        case TrackNode::Type::Branch:
+          return 2;
+        case TrackNode::Type::Sensor:
+        case TrackNode::Type::Merge:
+        case TrackNode::Type::Enter:
+          return 1;
+        default:
+          return 0;
+        }
+      }();
+
+      // Explore neighbors.
+      for (size_t i = 0; i < numEdges; ++i) {
+        const TrackEdge& edge = uNode.edges[i];
+        TrackNodeId v = edge.dest->id;
+
+        if (!isPassable(v)) {
+          continue;
+        }
+
+        Distance dist = u.dist + getEdgeWeight(edge);
+        if (dist < minDistances[v]) {
+          minDistances[v] = dist;
+          parents[v] = u.id;
+          queue.push({dist, v});
+        }
+      }
+    }
+
+    // Extract the path.
+    if (isReachable) {
+      // Move the destination.
+      //   auto it = kit::find(destination.begin(), destination.end(), trainId);
+      //   if (it != destination.end()) {
+      //     *it = NO_TRAIN;
+      //   }
+      if (TrackNodeId oldDest = paths[trainId].destination; oldDest != NO_TRACK_NODE) {
+        destination[oldDest / 2] = NO_TRAIN;
+      }
+      destination[dest / 2] = trainId;
+      paths[trainId].destination = dest;
+      paths[trainId].offset = offset;
+      paths[trainId].distance = 0;
+
+      for (TrackNode* curr = &ttState.getTrackNodeById(srce);;) {
+        reserve(curr->id, trainId);
+        TrackNodeId p = parents[curr->id];
+        if (p == NO_PARENT) {
+          break;
+        }
+        TrackNode* parent = &ttState.getTrackNodeById(p);
+        TrackDirection direction = getAdjacentDirection(*parent, *curr);
+        paths[trainId].distance += parent->edges[direction].dist;
+        paths[trainId].nodes.pushFront({curr, direction});
+        curr = parent;
+      }
+    }
+
+    return isReachable;
+  }
 };
-
 } // namespace marklin

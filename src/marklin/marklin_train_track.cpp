@@ -9,7 +9,7 @@ TrainTrackState::TrainTrackState() { reset(); }
 void TrainTrackState::reset() {
   currentTrack = 1; // default to track B, because track A is broken half of the time.
   for (Train& train : trains) {
-    train.reset();
+    train = {};
   }
   switches = {};
 
@@ -1560,7 +1560,7 @@ void TrainTrackState::reset() {
   trackB[44].edges[Straight].reverse = &trackB[71].edges[Straight];
   trackB[44].edges[Straight].src = &trackB[44];
   trackB[44].edges[Straight].dest = &trackB[70];
-  trackB[44].edges[Straight].dist = 780000;
+  trackB[44].edges[Straight].dist = 875000;
   trackB[45].name = "C14";
   trackB[45].type = Sensor;
   trackB[45].num = 45;
@@ -1776,7 +1776,7 @@ void TrainTrackState::reset() {
   trackB[71].edges[Straight].reverse = &trackB[44].edges[Straight];
   trackB[71].edges[Straight].src = &trackB[71];
   trackB[71].edges[Straight].dest = &trackB[45];
-  trackB[71].edges[Straight].dist = 780000;
+  trackB[71].edges[Straight].dist = 875000;
   trackB[72].name = "E9";
   trackB[72].type = Sensor;
   trackB[72].num = 72;
@@ -2382,12 +2382,14 @@ void TrainTrackState::setSwitchState(SwitchId id, SwitchState switchState) {
 
 void TrainTrackState::setCurrentTrack(TrackId trackId) { currentTrack = trackId; }
 
+TrackId TrainTrackState::getCurrentTrackId() const { return currentTrack; }
+
 TrackNode& TrainTrackState::getTrackNodeById(TrackNodeId id) {
   if (currentTrack == 0) {
-    KIT_ASSERT(id < 144, "invalid track node id");
+    KIT_ASSERT(id < 144, "invalid track A node");
     return trackA[id];
   } else {
-    KIT_ASSERT(id < 140, "invalid track node id");
+    KIT_ASSERT(id < 140, "invalid track B node ");
     return trackB[id];
   }
 }
@@ -2400,59 +2402,6 @@ TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
     }
   }
   return nullptr;
-}
-
-/*
-KinematicState
-  Lost: The train’s motion is completely unknown.
-    State Guarantee:
-      lastKnownNode == null
-  Tracked: The train triggers more than 1 sensor.
-    State Guarantee:
-      lastKnownNode != null
-      estimated kinetics state != null
-
-NavigationState
-  Manual: The train is running without a destination.
-    State Guarantee:
-      path == empty
-  Yielding: The train stops and waits to acquire the ownership of the track nodes ahead.
-    State Guarantee:
-  Routing: The train has a destination and the path to the destination.
-    State Guarantee:
-      path != empty
-  Halting: The train arrives at the destination and stops.
-    State Guarantee:
-  Reversing: The train is reversing the direction.
-    State Guarantee:
-*/
-void assertTrainState(Train& train, std::source_location loc) {
-  switch (train.kinematicState) {
-  case KinematicState::Lost: {
-    KIT_ASSERT(!train.kin.lastKnownNode, "", loc);
-    break;
-  }
-  case KinematicState::Tracked: {
-    KIT_ASSERT(train.kin.lastKnownNode, "", loc);
-    break;
-  }
-  default:
-    break;
-  }
-
-  switch (train.navigationState) {
-  case NavigationState::Manual: {
-    KIT_ASSERT(train.nav.path.empty(), "", loc);
-    break;
-  }
-  case NavigationState::Routed: {
-    KIT_ASSERT(train.kinematicState != KinematicState::Lost, "", loc);
-    KIT_ASSERT(!train.nav.path.empty(), "", loc);
-    break;
-  }
-  default:
-    break;
-  }
 }
 
 } // namespace marklin

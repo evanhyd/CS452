@@ -76,8 +76,8 @@ template <bool forceUpdate = false>
 inline void broadcastTrainSpeedLevel(TrainTrackServerContext& context, marklin::TrainId id,
                                      marklin::SpeedLevel speedLevel) {
   marklin::Train& train = context.ttState.getTrain(id);
-  if (forceUpdate || train.hw.speedLevel != speedLevel) {
-    train.hw.speedLevel = speedLevel;
+  if (forceUpdate || train.kinematics.offlineSpeedLevel != speedLevel) {
+    train.kinematics.offlineSpeedLevel = speedLevel;
     sendToDispatcher(context.dispatcherTid,
                      marklin::MMessage::setTrainSpeed(id, marklin::convertSpeedLevelToCANSpeed(speedLevel)));
   }
@@ -95,12 +95,12 @@ inline void initTrain(TrainTrackServerContext& context, marklin::TrainId id) {
 
 // Soft reset.
 inline void resetContext(TrainTrackServerContext& context) {
-  context.ttState.reset();
-  context.pfSystem.reset();
+  context.ttState = {};
+  context.pfSystem = {};
 
   // Reset the train states.
   for (marklin::TrainId id : context.activeTrains) {
-    context.ttState.getTrain(id).reset();
+    context.ttState.getTrain(id) = {};
     broadcastTrainSpeedLevel<true>(context, id, 0);
   }
   context.activeTrains.clear();
