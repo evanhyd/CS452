@@ -135,7 +135,7 @@ inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id
     return;
   }
 
-  train.navigation.findingPathTask = {dest->id, offset, speedLevel};
+  train.navigation.findingPathTask = {dest->id, offset, speedLevel, false};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
   broadcastTrainSpeedLevel(context, id, speedLevel);
   notifyStatusToUI(context.uiTid, "Route train %u to %s.", id, dest->name);
@@ -149,7 +149,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     marklin::Train& train = context.ttState.getTrain(trainId);
 
     // Part A: Kinematics Block.
-    train.kinematics.onTick(context.ttState, context.pfSystem.getTrainPath(trainId));
+    train.kinematics.onTick(context.ttState);
 
     // Part B: Navigation Block.
     switch (train.navigation.state) {
@@ -160,15 +160,51 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       if (train.kinematics.state != marklin::KinematicsSystem::State::Tracked) {
         break;
       }
-      if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
-                                    train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
-        train.navigation.state = marklin::NavigationSystem::State::Routed;
-        notifyStatusToUI(context.uiTid, "Train %u enter routed state.", trainId);
-        break;
-      }
-      notifyStatusToUI(context.uiTid, "Train %u can not find a path.", trainId);
 
-      // TODO: add reverse logic here.
+      // First time checking reverse.
+      if (!train.navigation.findingPathTask.needToReverse) {
+        if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
+                                      train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
+          train.navigation.state = marklin::NavigationSystem::State::Routed;
+          notifyStatusToUI(context.uiTid, "Train %u enter routed state.", trainId);
+          break;
+        } else {
+          train.navigation.findingPathTask.needToReverse = true;
+          broadcastTrainSpeedLevel(context, trainId, 0);
+          break;
+        }
+      } else {
+        // Wait for the reverse to complete.
+        if (train.kinematics.estimatedSpeed != 0) {
+          break;
+        }
+
+        // Update the reversed kinematics state.
+        train.kinematics.direction =
+            (train.kinematics.direction == marklin::TrainDirection::Forward ? marklin::TrainDirection::Backward
+                                                                            : marklin::TrainDirection::Forward);
+        sendToDispatcher(context.dispatcherTid,
+                         marklin::MMessage::setTrainDirection(trainId, train.kinematics.direction));
+
+        train.kinematics.triggerSensor(*(train.kinematics.lastSensor->reverse), 0, context.currentTicks);
+        marklin::Distance distToNext = 0;
+        marklin::TrackNode* nextSensor =
+            marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
+        train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
+                                       train.kinematics.estimatedSpeed, context.currentTicks);
+        broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
+
+        if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
+                                      train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
+          train.navigation.state = marklin::NavigationSystem::State::Routed;
+          notifyStatusToUI(context.uiTid, "Train %u enter routed state.", trainId);
+          break;
+        } else {
+          train.navigation.state = marklin::NavigationSystem::State::Manual;
+          notifyStatusToUI(context.uiTid, "Train %u can not find a path.", trainId);
+          break;
+        }
+      }
       break;
     }
     case marklin::NavigationSystem::State::Routed: {

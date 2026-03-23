@@ -2406,7 +2406,7 @@ TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
   return nullptr;
 }
 
-void KinematicsSystem::onTick(TrainTrackState& ttState, const TrainPath& path) {
+void KinematicsSystem::onTick(TrainTrackState& ttState) {
   // Apply the acceleration to update the estimated speed.
   if (Speed targetSpeed = marklin::convertSpeedLevelToOfflineSpeed(offlineSpeedLevel); offlineSpeed != targetSpeed) {
     static constexpr Speed ACCEL_UM_PER_TICK_PER_TICK = 17;

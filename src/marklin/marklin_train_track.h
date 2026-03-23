@@ -68,7 +68,7 @@ struct TrackNode {
     Sensor, // Straight
     Branch, // Straight, Curved
     Merge,  // Straight
-    Enter,  // Ahead
+    Enter,  // Straight
     Exit,   // Straight
   };
 
@@ -91,6 +91,7 @@ class NavigationSystem {
     TrackNodeId dest = 0;
     Distance offset = 0;
     SpeedLevel maxSpeedLevel = 0;
+    bool needToReverse = false;
   };
 
   struct ReversingTask {
@@ -139,7 +140,7 @@ public:
     estimatedNodeOffset = 0;
   }
 
-  void onTick(struct TrainTrackState& ttState, const struct TrainPath& path);
+  void onTick(struct TrainTrackState& ttState);
 };
 
 struct SensorPredictionSystem {
