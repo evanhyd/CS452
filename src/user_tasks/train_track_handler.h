@@ -175,7 +175,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       marklin::Distance enterableDistance = 0;
       auto pathFindingState = context.pfSystem.updateState(
           trainId, *train.kinematics.estimatedNode, train.kinematics.estimatedNodeOffset,
-          train.kinematics.estimatedSpeed, enterableDistance,
+          train.kinematics.estimatedSpeed, train.navigation.findingPathTask.maxSpeedLevel, enterableDistance,
           [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); });
 
       switch (pathFindingState) {
@@ -230,6 +230,9 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       KIT_ASSERT(!context.trainStates.full(), "train state buffer overflow");
       TrainStatesEntry entry{.trainId = trainId, .train = &train, .lockedNodes = {}, .lockedNodeCount = 0};
       for (auto& node : context.pfSystem.getTrainPath(trainId).nodes) {
+        if (context.pfSystem.getReserver(node.srce->id) != trainId) {
+          break;
+        }
         entry.lockedNodes[entry.lockedNodeCount++] = &context.ttState.getTrackNodeById(node.srce->id);
       }
       context.trainStates.pushBack(entry);

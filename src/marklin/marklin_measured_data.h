@@ -14,11 +14,11 @@ inline constexpr std::array OFFLINE_SPEED = {0,    80,   250,  470,  670,  930, 
 
 constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
-constexpr Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+constexpr Distance getExactStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
 
-// https://www.desmos.com/calculator/5zhi1xf291
-constexpr Distance getStoppingDistance(Speed speed) {
-  return speed == 0 ? 0 : Distance(int64_t(speed) * speed * 25 / 1000 + speed * 80 + 18740);
+// https://www.desmos.com/calculator/lx4nslmckw
+constexpr Distance getUpperBoundStoppingDistance(Speed speed) {
+  return Distance(int64_t(speed) * speed * 26 / 1000 + speed * 85);
 }
 
 constexpr SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {
