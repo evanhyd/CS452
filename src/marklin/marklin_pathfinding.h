@@ -290,12 +290,15 @@ public:
     StaticPriorityQueue<Edge, NUM_TRACK_NODES * 2> queue;
     queue.push({0, srce});
 
+    TrackNodeId destRev = ttState.getTrackNodeById(dest).reverse->id;
+
     bool isReachable = false;
     while (!queue.empty()) {
       Edge u = queue.top();
       queue.pop();
 
-      if (u.id == dest) {
+      if (u.id == dest || u.id == destRev) {
+        dest = u.id;
         isReachable = true;
         break;
       }
