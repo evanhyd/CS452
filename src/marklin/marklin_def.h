@@ -29,6 +29,5 @@ static constexpr size_t NUM_TRAIN_IN_LAB = 6;
 static constexpr size_t MAX_SPEED_LEVEL = 14;
 
 static constexpr TrainId NO_TRAIN = 0;
-static constexpr TrackNodeId NO_TRACK_NODE = NUM_TRACK_NODES;
 
 } // namespace marklin

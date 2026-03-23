@@ -14,8 +14,9 @@ inline constexpr std::array OFFLINE_SPEED = {0,    80,   250,  470,  670,  930, 
                                              2320, 2830, 3440, 4090, 4730, 5440, 6150};
 
 constexpr Distance getTrainHeadLength(TrainDirection dir) {
+  // TODO: fix this value, because whatever I put, the train collide at the shared branch.
   if (dir == TrainDirection::Forward) {
-    return 40'000; // 4cm;
+    return 150'000; // 15 cm;
   }
   return 150'000; // 15cm;
 }

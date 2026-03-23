@@ -54,7 +54,7 @@ struct TrainPath {
     TrackNode* srce;
     TrackDirection direction;
   };
-  TrackNodeId destination = NO_TRACK_NODE;
+  TrackNode* destination;
   Distance offset = 0;
   Distance distance = 0;
   RingBuffer<Node, MAX_PATH_NODES> nodes{};
@@ -101,13 +101,17 @@ private:
     logError("n1 and n2 are not adjacent");
   }
 
+  bool isAdjacent(const TrackNode& n1, const TrackNode& n2) {
+    return (n1.edges[Straight].dest == &n2) || (n1.edges[Curved].dest == &n2);
+  }
+
   // Unreserve and remove past nodes.
-  void popPastNodes(TrainId trainId, TrackNode& currentLocation) {
+  void popPastNodes(TrainId trainId, TrackNodeId currentLocationId) {
     auto& nodes = paths[trainId].nodes;
 
-    bool inPath = kit::contains_if(nodes.begin(), nodes.end(),
-                                   [&](const TrainPath::Node& node) { return node.srce->id == currentLocation.id; }) ||
-                  paths[trainId].destination == currentLocation.id;
+    bool inPath = (paths[trainId].destination->id == currentLocationId) ||
+                  kit::contains_if(nodes.begin(), nodes.end(),
+                                   [&](const TrainPath::Node& node) { return node.srce->id == currentLocationId; });
     if (!inPath) {
       // Estimated node was too ahead and got corrected back to a past node.
       // Ignore it.
@@ -116,7 +120,7 @@ private:
 
     while (!nodes.empty()) {
       auto& node = nodes.front();
-      if (node.srce->id == currentLocation.id) {
+      if (node.srce->id == currentLocationId) {
         break;
       }
       unreserve(node.srce->id, trainId);
@@ -139,7 +143,7 @@ public:
   State updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance, const Callback& updateSwitch) {
 
     outEnterableDistance = 0;
-    popPastNodes(trainId, *train.kinematics.estimatedNode);
+    popPastNodes(trainId, train.kinematics.estimatedNode->id);
 
     switch (pathingStates[trainId]) {
     case State::IDLING: {
@@ -147,28 +151,45 @@ public:
     }
     case State::MOVING: {
       // Calculate the reserved distance.
+      Distance distToNextNode =
+          -(train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction));
+      //   {
+      //     // Add the remaining distance from the current node to the next node.
+      //     TrackNode* nextNode =
+      //         (!paths[trainId].nodes.empty() ? paths[trainId].nodes.front().srce : paths[trainId].destination);
+      //     if (isAdjacent(*train.kinematics.estimatedNode, *nextNode)) {
+      //       //   TrackDirection dir = getAdjacentDirection(*train.kinematics.estimatedNode, *nextNode);
+      //       //   distToNextNode = train.kinematics.estimatedNode->edges[dir].dist -
+      //       train.kinematics.estimatedNodeOffset -
+      //       //                    getTrainHeadLength(train.kinematics.direction);
+      //       distToNextNode -= train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction);
+      //     }
+      //   }
+
       size_t notEnterable = paths[trainId].nodes.size();
-      Distance previousDistance = 0;
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
           if (node.srce->type == TrackNode::Type::Branch) {
             updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
           }
-          outEnterableDistance += previousDistance;
-          previousDistance = node.srce->edges[node.direction].dist;
+          outEnterableDistance += distToNextNode;
+          distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
         } else {
           break;
         }
       }
-      outEnterableDistance -= train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction);
 
-      // Only consider the offset if it can enter the destination node.
-      Distance stoppingDistance = getUpperBoundStoppingDistance(train.kinematics.estimatedSpeed);
-      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination, trainId));
+      // Add the destination offset if it can enter the destination node.
+      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination->id, trainId));
       if (canArrive) {
-        outEnterableDistance += previousDistance + paths[trainId].offset;
+        outEnterableDistance += distToNextNode + paths[trainId].offset;
       }
+
+      Distance stoppingDistance =
+          (train.kinematics.offlineSpeed == convertSpeedLevelToOfflineSpeed(train.kinematics.offlineSpeedLevel))
+              ? getExactStoppingDistanceFromLevel(train.kinematics.offlineSpeedLevel)
+              : getUpperBoundStoppingDistance(train.kinematics.estimatedSpeed);
 
       if (canArrive && outEnterableDistance <= stoppingDistance) {
         pathingStates[trainId] = State::ARRIVING;
@@ -184,25 +205,38 @@ public:
     }
     case State::YIELDING: {
       // Calculate the reserved distance.
+      Distance distToNextNode =
+          -(train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction));
+      //   {
+      //     // Add the remaining distance from the current node to the next node.
+      //     TrackNode* nextNode =
+      //         (!paths[trainId].nodes.empty() ? paths[trainId].nodes.front().srce : paths[trainId].destination);
+      //     if (isAdjacent(*train.kinematics.estimatedNode, *nextNode)) {
+      //       //   TrackDirection dir = getAdjacentDirection(*train.kinematics.estimatedNode, *nextNode);
+      //       //   distToNextNode = train.kinematics.estimatedNode->edges[dir].dist -
+      //       train.kinematics.estimatedNodeOffset -
+      //       //                    getTrainHeadLength(train.kinematics.direction);
+      //       distToNextNode -= train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction);
+      //     }
+      //   }
+
       size_t notEnterable = paths[trainId].nodes.size();
-      Distance previousDistance = 0;
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
           if (node.srce->type == TrackNode::Type::Branch) {
             updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
           }
-          outEnterableDistance += previousDistance;
-          previousDistance = node.srce->edges[node.direction].dist;
+          outEnterableDistance += distToNextNode;
+          distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
         } else {
           break;
         }
       }
-      outEnterableDistance -= train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction);
 
       // YIELDING should not transit into ARRIVING.
       // Otherwise the train's speed level will remain 0.
-      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination, trainId));
+      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination->id, trainId));
       if (canArrive) {
         pathingStates[trainId] = State::MOVING;
         break;
@@ -217,14 +251,14 @@ public:
       break;
     }
     case State::ARRIVING: {
-      // Note: This doesn't work, because if the train stops a tiny bit early,
-      // then the estimated position will never reach the destination, and stuck in arriving mode.
-      //   if (currentLocation.id == paths[trainId].destination && currentOffset >= paths[trainId].offset) {
-      //     unreserve(currentLocation.id, trainId);
-      //     pathingStates[trainId] = State::IDLING;
-      //   }
+      // Must use estimated speed instead of estimated position.
+      // Otherwise if the train stops a tiny bit before the destination, then it will stuck in ARRIVING.
       if (train.kinematics.estimatedSpeed == 0) {
-        unreserve(paths[trainId].destination, trainId);
+        for (const auto& node : paths[trainId].nodes) {
+          unreserve(node.srce->id, trainId);
+        }
+        paths[trainId].nodes.clear();
+        unreserve(paths[trainId].destination->id, trainId);
         pathingStates[trainId] = State::IDLING;
       }
       break;
@@ -306,15 +340,12 @@ public:
     // Extract the path.
     if (isReachable) {
       // Move the destination.
-      //   auto it = kit::find(destination.begin(), destination.end(), trainId);
-      //   if (it != destination.end()) {
-      //     *it = NO_TRAIN;
-      //   }
-      if (TrackNodeId oldDest = paths[trainId].destination; oldDest != NO_TRACK_NODE) {
-        destination[oldDest / 2] = NO_TRAIN;
+      if (paths[trainId].destination) {
+        destination[paths[trainId].destination->id / 2] = NO_TRAIN;
       }
+
       destination[dest / 2] = trainId;
-      paths[trainId].destination = dest;
+      paths[trainId].destination = &ttState.getTrackNodeById(dest);
       paths[trainId].offset = offset;
       paths[trainId].distance = 0;
       pathingStates[trainId] = State::MOVING;
