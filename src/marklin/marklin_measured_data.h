@@ -1,5 +1,6 @@
 #pragma once
 #include "marklin/marklin_def.h"
+#include "marklin/marklin_train_track.h"
 #include <array>
 
 namespace marklin {
@@ -11,6 +12,13 @@ inline constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000, 
 
 inline constexpr std::array OFFLINE_SPEED = {0,    80,   250,  470,  670,  930,  1390, 1860,
                                              2320, 2830, 3440, 4090, 4730, 5440, 6150};
+
+constexpr Distance getTrainHeadLength(TrainDirection dir) {
+  if (dir == TrainDirection::Forward) {
+    return 40'000; // 4cm;
+  }
+  return 150'000; // 15cm;
+}
 
 constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 

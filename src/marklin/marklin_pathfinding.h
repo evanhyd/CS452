@@ -136,11 +136,10 @@ public:
   const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
 
   template <typename Callback>
-  State updateState(TrainId trainId, TrackNode& currentLocation, Distance currentOffset, Speed currentSpeed,
-                    SpeedLevel maxSpeedLevel, Distance& outEnterableDistance, const Callback& updateSwitch) {
+  State updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance, const Callback& updateSwitch) {
 
     outEnterableDistance = 0;
-    popPastNodes(trainId, currentLocation);
+    popPastNodes(trainId, *train.kinematics.estimatedNode);
 
     switch (pathingStates[trainId]) {
     case State::IDLING: {
@@ -162,10 +161,10 @@ public:
           break;
         }
       }
-      outEnterableDistance -= currentOffset;
+      outEnterableDistance -= train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction);
 
       // Only consider the offset if it can enter the destination node.
-      Distance stoppingDistance = getUpperBoundStoppingDistance(currentSpeed);
+      Distance stoppingDistance = getUpperBoundStoppingDistance(train.kinematics.estimatedSpeed);
       bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination, trainId));
       if (canArrive) {
         outEnterableDistance += previousDistance + paths[trainId].offset;
@@ -199,7 +198,7 @@ public:
           break;
         }
       }
-      outEnterableDistance -= currentOffset;
+      outEnterableDistance -= train.kinematics.estimatedNodeOffset + getTrainHeadLength(train.kinematics.direction);
 
       // YIELDING should not transit into ARRIVING.
       // Otherwise the train's speed level will remain 0.
@@ -209,7 +208,7 @@ public:
         break;
       }
 
-      Distance stoppingDistance = getExactStoppingDistanceFromLevel(maxSpeedLevel);
+      Distance stoppingDistance = getExactStoppingDistanceFromLevel(train.navigation.findingPathTask.maxSpeedLevel);
       if (outEnterableDistance > stoppingDistance) {
         pathingStates[trainId] = State::MOVING;
         break;
@@ -224,8 +223,8 @@ public:
       //     unreserve(currentLocation.id, trainId);
       //     pathingStates[trainId] = State::IDLING;
       //   }
-      if (currentSpeed == 0) {
-        unreserve(currentLocation.id, trainId);
+      if (train.kinematics.estimatedSpeed == 0) {
+        unreserve(paths[trainId].destination, trainId);
         pathingStates[trainId] = State::IDLING;
       }
       break;

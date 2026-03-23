@@ -174,8 +174,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     case marklin::NavigationSystem::State::Routed: {
       marklin::Distance enterableDistance = 0;
       auto pathFindingState = context.pfSystem.updateState(
-          trainId, *train.kinematics.estimatedNode, train.kinematics.estimatedNodeOffset,
-          train.kinematics.estimatedSpeed, train.navigation.findingPathTask.maxSpeedLevel, enterableDistance,
+          trainId, train, enterableDistance,
           [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); });
 
       switch (pathFindingState) {
