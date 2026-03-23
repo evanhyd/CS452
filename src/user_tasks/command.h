@@ -9,6 +9,7 @@ enum class CmdTag : uint8_t {
   None,
   Invalid,
   SetSpeed,
+  Wander,
   Reverse,
   SetSwitch,
   SetTrack,
@@ -21,6 +22,10 @@ struct ParsedCommand {
   CmdTag tag;
   struct Empty {};
   struct SetSpeedData {
+    marklin::TrainId trainId;
+    marklin::SpeedLevel speedLevel;
+  };
+  struct WanderData {
     marklin::TrainId trainId;
     marklin::SpeedLevel speedLevel;
   };
@@ -52,6 +57,7 @@ struct ParsedCommand {
   union {
     Empty empty;
     SetSpeedData setSpeed;
+    WanderData wander;
     ReverseData reverse;
     SetSwitchData setSwitch;
     SetTrackData setTrack;

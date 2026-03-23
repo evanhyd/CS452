@@ -103,6 +103,7 @@ public:
   State state = State::Manual;
   FindingPathTask findingPathTask{};
   ReversingTask reversingTask{};
+  bool isWandering = false;
 };
 
 class PathFindingSystem;

@@ -37,6 +37,9 @@ void trainTrackTask() {
     case TrainTrackMsgType::SetSpeedCmd:
       setSpeedCmdHandler(context, msg.setSpeedCmd.trainId, msg.setSpeedCmd.speedLevel);
       break;
+    case TrainTrackMsgType::WanderCmd:
+      wanderCmdHandler(context, msg.wanderCmd.trainId, msg.wanderCmd.speedLevel);
+      break;
     case TrainTrackMsgType::ReverseCmd:
       reverseCmdHandler(context, msg.reverseCmd.trainId);
       break;

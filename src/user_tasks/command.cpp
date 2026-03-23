@@ -17,6 +17,7 @@ const char* a2ui(const char* start, const char* end, unsigned& out) {
 }
 
 constexpr const char* USAGE_TR = "tr <train id> <speed level> - Set train speed level";
+constexpr const char* USAGE_WA = "wa <train id> <speed level> - Wander train forever";
 constexpr const char* USAGE_RV = "rv <train id> - Reverse train direction";
 constexpr const char* USAGE_SW = "sw <switch id> <switch direction> - Set switch to straight (S) or curved (C)";
 constexpr const char* USAGE_ST = "st <track id> - Set track to A or B";
@@ -73,6 +74,27 @@ ParsedCommand CommandBuffer::parse_impl() {
       return {.tag = CmdTag::Invalid, .invalid{USAGE_RV}};
     }
     return {.tag = CmdTag::Reverse, .reverse{marklin::TrainId(trainId)}};
+  }
+  if (length_ >= 2 && ptr[0] == 'w' && ptr[1] == 'a') {
+    ptr += 2;
+    skip_ws();
+    unsigned trainId, speedLevel;
+    next = a2ui(ptr, end(), trainId);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_WA}};
+    }
+    ptr = next;
+    skip_ws();
+    next = a2ui(ptr, end(), speedLevel);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_WA}};
+    }
+    ptr = next;
+    skip_ws();
+    if (ptr != end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_WA}};
+    }
+    return {.tag = CmdTag::Wander, .wander{marklin::TrainId(trainId), marklin::SpeedLevel(speedLevel)}};
   }
   if (length_ >= 2 && ptr[0] == 's' && ptr[1] == 'w') {
     ptr += 2;

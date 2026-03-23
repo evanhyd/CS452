@@ -55,6 +55,7 @@ struct DispatcherMsg {
 // Train Track Server Message
 enum class TrainTrackMsgType : int {
   SetSpeedCmd,
+  WanderCmd,
   ReverseCmd,
   SetSwitchCmd,
   SetTrackCmd,
@@ -67,6 +68,10 @@ struct TrainTrackMsg {
   TrainTrackMsgType type;
 
   struct SetSpeedCmdData {
+    marklin::TrainId trainId;
+    marklin::SpeedLevel speedLevel;
+  };
+  struct WanderCmdData {
     marklin::TrainId trainId;
     marklin::SpeedLevel speedLevel;
   };
@@ -88,6 +93,7 @@ struct TrainTrackMsg {
   };
   union {
     SetSpeedCmdData setSpeedCmd;
+    WanderCmdData wanderCmd;
     ReverseCmdData reverseCmd;
     SetSwitchCmdData setSwitchCmd;
     SetTrackCmdData setTrackCmd;

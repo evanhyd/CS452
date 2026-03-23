@@ -10,6 +10,28 @@
 
 namespace k4 {
 
+inline marklin::TrackNodeId pickWanderDestination(TrainTrackServerContext& context, marklin::TrainId trainId,
+                                                  marklin::TrackNodeId avoidNodeId) {
+  constexpr uint32_t NUM_SENSORS = 80;
+  uint32_t seed = context.currentTicks * 1664525u + trainId * 1013904223u;
+  if (avoidNodeId < NUM_SENSORS) {
+    uint32_t offset = seed % (NUM_SENSORS - 1) + 1;
+    return static_cast<marklin::TrackNodeId>((avoidNodeId + offset) % NUM_SENSORS);
+  }
+  return static_cast<marklin::TrackNodeId>(seed % NUM_SENSORS);
+}
+
+inline void scheduleWanderFindingPath(TrainTrackServerContext& context, marklin::TrainId trainId, marklin::Train& train,
+                                      marklin::SpeedLevel speedLevel) {
+  marklin::TrackNodeId avoidNodeId =
+      train.kinematics.estimatedNode ? train.kinematics.estimatedNode->id : marklin::NUM_TRACK_NODES;
+  marklin::TrackNodeId dest = pickWanderDestination(context, trainId, avoidNodeId);
+  train.navigation.findingPathTask = {dest, 0, speedLevel, false};
+  train.navigation.state = marklin::NavigationSystem::State::FindingPath;
+  notifyStatusToUI(context.uiTid, "Train %u wandering to sensor %s.", trainId,
+                   context.ttState.getTrackNodeById(dest).name);
+}
+
 inline void setSpeedCmdHandler(TrainTrackServerContext& context, marklin::TrainId trainId,
                                marklin::SpeedLevel speedLevel) {
   KIT_ASSERT(marklin::isValidTrainId(trainId), "invalid train id");
@@ -26,6 +48,30 @@ inline void setSpeedCmdHandler(TrainTrackServerContext& context, marklin::TrainI
   // Change speed.
   broadcastTrainSpeedLevel(context, trainId, speedLevel);
   notifyStatusToUI(context.uiTid, "Set train %u to speed %u.", trainId, speedLevel);
+}
+
+inline void wanderCmdHandler(TrainTrackServerContext& context, marklin::TrainId trainId,
+                             marklin::SpeedLevel speedLevel) {
+  KIT_ASSERT(marklin::isValidTrainId(trainId), "invalid train id");
+  KIT_ASSERT(marklin::isValidSpeedLevel(speedLevel), "invalid train speed level");
+
+  initTrain(context, trainId);
+  marklin::Train& train = context.ttState.getTrain(trainId);
+  if (train.navigation.state != marklin::NavigationSystem::State::Manual) {
+    notifyStatusToUI(context.uiTid, "Train %u is busy right now.", trainId);
+    return;
+  }
+
+  if (speedLevel == 0) {
+    train.navigation.isWandering = false;
+    notifyStatusToUI(context.uiTid, "Train %u stopped wandering.", trainId);
+    return;
+  }
+
+  train.navigation.isWandering = true;
+  scheduleWanderFindingPath(context, trainId, train, speedLevel);
+  broadcastTrainSpeedLevel(context, trainId, speedLevel);
+  notifyStatusToUI(context.uiTid, "Train %u is wandering at speed %u.", trainId, speedLevel);
 }
 
 inline void reverseCmdHandler(TrainTrackServerContext& context, marklin::TrainId trainId) {
@@ -135,6 +181,7 @@ inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id
     return;
   }
 
+  train.navigation.isWandering = false;
   train.navigation.findingPathTask = {dest->id, offset, speedLevel, false};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
   broadcastTrainSpeedLevel(context, id, speedLevel);
@@ -200,8 +247,13 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           notifyStatusToUI(context.uiTid, "Train %u enter routed state.", trainId);
           break;
         } else {
-          train.navigation.state = marklin::NavigationSystem::State::Manual;
-          notifyStatusToUI(context.uiTid, "Train %u can not find a path.", trainId);
+          if (train.navigation.isWandering) {
+            scheduleWanderFindingPath(context, trainId, train, train.navigation.findingPathTask.maxSpeedLevel);
+            broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
+          } else {
+            train.navigation.state = marklin::NavigationSystem::State::Manual;
+            notifyStatusToUI(context.uiTid, "Train %u can not find a path.", trainId);
+          }
           break;
         }
       }
@@ -216,7 +268,12 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       switch (pathFindingState) {
       case marklin::PathFindingSystem::State::IDLING: {
         // Train has no path finding task. Stationary.
-        train.navigation.state = marklin::NavigationSystem::State::Manual;
+        if (train.navigation.isWandering) {
+          scheduleWanderFindingPath(context, trainId, train, train.navigation.findingPathTask.maxSpeedLevel);
+          broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
+        } else {
+          train.navigation.state = marklin::NavigationSystem::State::Manual;
+        }
         break;
       }
       case marklin::PathFindingSystem::State::MOVING: {
