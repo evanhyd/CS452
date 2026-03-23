@@ -62,11 +62,7 @@ struct TrainPath {
 
 class PathFindingSystem {
 public:
-  enum class State {
-    IDLING,   // stationary without destination
-    MOVING,   // moving with destination
-    YIELDING, // statinary with destination
-  };
+  enum class State { IDLING, MOVING, YIELDING, ARRIVING };
 
 private:
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
@@ -91,7 +87,7 @@ private:
   }
 
   Distance getEdgeWeight(const TrackEdge& edge) {
-    static constexpr Distance PENALTY_PER_WAITER = 200'000; // 20 cm
+    static constexpr Distance PENALTY_PER_WAITER = 500'000; // 50 cm
     return edge.dist + Distance(nodeOwners[edge.dest->id / 2].size()) * PENALTY_PER_WAITER;
   }
 
@@ -103,6 +99,30 @@ private:
       return Curved;
     }
     logError("n1 and n2 are not adjacent");
+  }
+
+  // Unreserve and remove past nodes.
+  void popPastNodes(TrainId trainId, TrackNode& currentLocation) {
+    auto& nodes = paths[trainId].nodes;
+
+    bool inPath = kit::contains_if(nodes.begin(), nodes.end(),
+                                   [&](const TrainPath::Node& node) { return node.srce->id == currentLocation.id; }) ||
+                  paths[trainId].destination == currentLocation.id;
+    if (!inPath) {
+      // Estimated node was too ahead and got corrected back to a past node.
+      // Ignore it.
+      return;
+    }
+
+    while (!nodes.empty()) {
+      auto& node = nodes.front();
+      if (node.srce->id == currentLocation.id) {
+        break;
+      }
+      unreserve(node.srce->id, trainId);
+      paths[trainId].distance -= node.srce->edges[node.direction].dist;
+      nodes.popFront();
+    }
   }
 
 public:
@@ -117,80 +137,87 @@ public:
 
   template <typename Callback>
   State updateState(TrainId trainId, TrackNode& currentLocation, Distance currentOffset, Speed currentSpeed,
-                    Distance& outCanEnterDistance, const Callback& updateSwitch) {
-    outCanEnterDistance = 0;
+                    Distance& outEnterableDistance, const Callback& updateSwitch) {
+
+    outEnterableDistance = 0;
+    popPastNodes(trainId, currentLocation);
 
     switch (pathingStates[trainId]) {
     case State::IDLING: {
       break;
     }
     case State::MOVING: {
-      // Unreserve and remove past nodes.
-      while (!paths[trainId].nodes.empty()) {
-        auto& node = paths[trainId].nodes.front();
-        if (node.srce->id == currentLocation.id) {
+      // Calculate the reserved distance.
+      size_t notEnterable = paths[trainId].nodes.size();
+      for (auto& node : paths[trainId].nodes) {
+        if (canEnter(node.srce->id, trainId)) {
+          if (node.srce->type == TrackNode::Type::Branch) {
+            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          }
+          outEnterableDistance += node.srce->edges[node.direction].dist;
+          --notEnterable;
+        } else {
           break;
         }
-        unreserve(node.srce->id, trainId);
-        paths[trainId].distance -= node.srce->edges[node.direction].dist;
-        paths[trainId].nodes.popFront();
+      }
+      outEnterableDistance -= currentOffset;
+
+      // Only consider the offset if it can enter the destination node.
+      Distance stoppingDistance = getStoppingDistance(currentSpeed);
+      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination, trainId));
+      if (canArrive) {
+        outEnterableDistance += paths[trainId].offset;
       }
 
-      // Reach the destination.
-      if (currentLocation.id == paths[trainId].destination) {
-        unreserve(currentLocation.id, trainId);
-        pathingStates[trainId] = State::IDLING;
+      if (canArrive && outEnterableDistance <= stoppingDistance) {
+        pathingStates[trainId] = State::ARRIVING;
         break;
       }
 
-      // Not reach the destination, calculate the reserved distance.
-      size_t notEntered = paths[trainId].nodes.size();
-      for (auto& node : paths[trainId].nodes) {
-        if (canEnter(node.srce->id, trainId)) {
-          if (node.srce->type == TrackNode::Type::Branch) {
-            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
-          }
-          outCanEnterDistance += node.srce->edges[node.direction].dist;
-          --notEntered;
-        } else {
-          break;
-        }
-      }
-      outCanEnterDistance -= currentOffset;
-
-      // If can enter all remaining path nodes, only yield if can not enter destination.
-      // If can not enter all remaining path nodes, then yield if the can-enter distance is not long enough.
-      if (notEntered == 0) {
-        if (!canEnter(paths[trainId].destination, trainId)) {
-          pathingStates[trainId] = State::YIELDING;
-        }
-      } else if (outCanEnterDistance <= getStoppingDistance(currentSpeed)) {
+      if (!canArrive && outEnterableDistance <= stoppingDistance) {
         pathingStates[trainId] = State::YIELDING;
+        break;
       }
+
       break;
     }
     case State::YIELDING: {
-      outCanEnterDistance = -currentOffset;
-      size_t notEntered = paths[trainId].nodes.size();
+      // Calculate the reserved distance.
+      size_t notEnterable = paths[trainId].nodes.size();
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
           if (node.srce->type == TrackNode::Type::Branch) {
             updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
           }
-          outCanEnterDistance += node.srce->edges[node.direction].dist;
-          --notEntered;
+          outEnterableDistance += node.srce->edges[node.direction].dist;
+          --notEnterable;
         } else {
           break;
         }
       }
+      outEnterableDistance -= currentOffset;
 
-      // Enough distance for train to move again.
-      if (outCanEnterDistance > getStoppingDistance(currentSpeed) ||
-          (notEntered == 0 && canEnter(paths[trainId].destination, trainId))) {
+      // YIELDING should not transit into ARRIVING.
+      // Otherwise the train's speed level will remain 0.
+      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination, trainId));
+      if (canArrive) {
         pathingStates[trainId] = State::MOVING;
         break;
       }
 
+      Distance stoppingDistance = getStoppingDistance(currentSpeed);
+      if (outEnterableDistance > stoppingDistance) {
+        pathingStates[trainId] = State::MOVING;
+        break;
+      }
+
+      break;
+    }
+    case State::ARRIVING: {
+      if (currentLocation.id == paths[trainId].destination && currentOffset >= paths[trainId].offset) {
+        unreserve(currentLocation.id, trainId);
+        pathingStates[trainId] = State::IDLING;
+      }
       break;
     }
     default:

@@ -44,6 +44,15 @@ template <typename It, typename T> bool contains(It begin, It end, const T& valu
   return false;
 }
 
+template <typename It, typename Unary> bool contains_if(It begin, It end, const Unary& good) {
+  for (; begin != end; ++begin) {
+    if (good(*begin)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template <typename It, typename T> void fill(It begin, It end, const T& value) {
   for (; begin != end; ++begin) {
     *begin = value;

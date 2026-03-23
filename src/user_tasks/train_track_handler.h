@@ -78,7 +78,6 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
     // Priority 1: Explicit Lock Ownership.
     marklin::TrainId trainId = context.pfSystem.getReserver(sensor.id);
     if (trainId != marklin::NO_TRAIN) {
-      notifyStatusToUI(context.uiTid, "by lock");
       return trainId;
     }
 
@@ -86,7 +85,6 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
     for (marklin::TrainId id : context.activeTrains) {
       marklin::Train& train = context.ttState.getTrain(id);
       if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
-        notifyStatusToUI(context.uiTid, "by prediction");
         return id;
       }
     }
@@ -95,7 +93,6 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
     for (marklin::TrainId id : context.activeTrains) {
       marklin::Train& train = context.ttState.getTrain(id);
       if (train.kinematics.state == marklin::KinematicsSystem::State::Lost) {
-        notifyStatusToUI(context.uiTid, "by lost");
         return id;
       }
     }
@@ -175,36 +172,35 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       break;
     }
     case marklin::NavigationSystem::State::Routed: {
-      marklin::Distance canEnterDistance = 0;
+      marklin::Distance enterableDistance = 0;
       auto pathFindingState = context.pfSystem.updateState(
           trainId, *train.kinematics.estimatedNode, train.kinematics.estimatedNodeOffset,
-          train.kinematics.estimatedSpeed, canEnterDistance,
+          train.kinematics.estimatedSpeed, enterableDistance,
           [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); });
 
       switch (pathFindingState) {
       case marklin::PathFindingSystem::State::IDLING: {
-        broadcastTrainSpeedLevel(context, trainId, 0);
+        // Train has no path finding task. Stationary.
         train.navigation.state = marklin::NavigationSystem::State::Manual;
         break;
       }
       case marklin::PathFindingSystem::State::MOVING: {
-        if (canEnterDistance <= marklin::getStoppingDistance(train.kinematics.estimatedSpeed)) {
-          broadcastTrainSpeedLevel(context, trainId, 0);
-        } else {
-          marklin::SpeedLevel speedLevel = marklin::getMaxSafeSpeedLevel(canEnterDistance);
-          broadcastTrainSpeedLevel(context, trainId,
-                                   kit::min(train.navigation.findingPathTask.maxSpeedLevel, speedLevel));
-        }
+        // Can enter all nodes within the stopping distance.
+        // Moving toward the destination.
+        broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
         break;
       }
       case marklin::PathFindingSystem::State::YIELDING: {
-        if (canEnterDistance <= marklin::getStoppingDistance(train.kinematics.estimatedSpeed)) {
-          broadcastTrainSpeedLevel(context, trainId, 0);
-        } else {
-          marklin::SpeedLevel speedLevel = marklin::getMaxSafeSpeedLevel(canEnterDistance);
-          broadcastTrainSpeedLevel(context, trainId,
-                                   kit::min(train.navigation.findingPathTask.maxSpeedLevel, speedLevel));
-        }
+        // Can not enter all nodes within the stopping distance.
+        // Slowing down.
+        broadcastTrainSpeedLevel(context, trainId, 0);
+        break;
+      }
+      case marklin::PathFindingSystem::State::ARRIVING: {
+        // Can enter all nodes within the stopping distance.
+        // Destination is within the stopping distance.
+        // Slowing down.
+        broadcastTrainSpeedLevel(context, trainId, 0);
         break;
       }
       }
