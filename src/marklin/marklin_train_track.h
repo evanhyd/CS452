@@ -85,6 +85,7 @@ Train Definition
 ***********************************/
 enum class TrainDirection { NoChange, Forward, Backward, Reverse };
 enum class TrainFunction { HeadLight, BoardingSound, F2, BazzingSound };
+enum class PathingState { Idling, Moving, Yielding, Arriving };
 
 class NavigationSystem {
   struct FindingPathTask {
@@ -101,6 +102,7 @@ class NavigationSystem {
 public:
   enum class State { Manual, FindingPath, Routed, Reversing };
   State state = State::Manual;
+  PathingState pathingState = PathingState::Idling;
   FindingPathTask findingPathTask{};
   ReversingTask reversingTask{};
   bool isWandering = false;
@@ -121,6 +123,8 @@ public:
   uint32_t lastSensorTicks = 0;
   struct TrackNode* estimatedNode = nullptr;
   Distance estimatedNodeOffset = 0;
+
+  bool isFullyAccelerated() const;
 
   void triggerSensor(TrackNode& sensor, Distance dS, uint32_t ticks) {
     static constexpr int32_t EWMA_DENOMINATOR = 4;

@@ -2406,6 +2406,10 @@ TrackNode* TrainTrackState::getTrackNodeByName(const char* name) {
   return nullptr;
 }
 
+bool KinematicsSystem::isFullyAccelerated() const {
+  return offlineSpeed == convertSpeedLevelToOfflineSpeed(offlineSpeedLevel);
+}
+
 void KinematicsSystem::onTick(TrainTrackState& ttState) {
   // Apply the acceleration to update the estimated speed.
   if (Speed targetSpeed = marklin::convertSpeedLevelToOfflineSpeed(offlineSpeedLevel); offlineSpeed != targetSpeed) {

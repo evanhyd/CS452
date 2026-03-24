@@ -23,11 +23,11 @@ constexpr Distance getTrainHeadLength(TrainDirection dir) {
 
 constexpr Speed convertSpeedLevelToOfflineSpeed(SpeedLevel speedLevel) { return OFFLINE_SPEED[speedLevel]; }
 
-constexpr Distance getExactStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+constexpr Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
 
 // https://www.desmos.com/calculator/lx4nslmckw
-constexpr Distance getUpperBoundStoppingDistance(Speed speed) {
-  return Distance(int64_t(speed) * speed * 26 / 1000 + speed * 85);
+constexpr Distance getStoppingDistance(Speed speed) {
+  return Distance(int64_t(speed) * speed * 26 / 1000 + speed * 80);
 }
 
 constexpr SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {

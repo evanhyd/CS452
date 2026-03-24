@@ -51,6 +51,20 @@ const char* toString(marklin::NavigationSystem::State state) {
   return "Unknown";
 }
 
+const char* toString(marklin::PathingState state) {
+  switch (state) {
+  case marklin::PathingState::Idling:
+    return "Idling";
+  case marklin::PathingState::Moving:
+    return "Moving";
+  case marklin::PathingState::Yielding:
+    return "Yielding";
+  case marklin::PathingState::Arriving:
+    return "Arriving";
+  }
+  return "Unknown";
+}
+
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
   if (id >= 1 && id <= 11) {
@@ -219,9 +233,10 @@ void uiViewServerTask() {
 
         // Row 1: Kinematics and Predictions
         console.moveCursor(baseRow, COL_TRAINS);
-        console.printf("Train %u [%s/%s] Est %u um/t Off %u um/t | Last %s[%u mm] Est %s[%u mm]", entry.trainId,
+        console.printf("Train %u [%s|%s|%s] Est %u um/t Off %u um/t | Last %s[%u mm] Est %s[%u mm]", entry.trainId,
                        toString(entry.train->kinematics.state), toString(entry.train->navigation.state),
-                       entry.train->kinematics.estimatedSpeed, entry.train->kinematics.offlineSpeed,
+                       toString(entry.train->navigation.pathingState), entry.train->kinematics.estimatedSpeed,
+                       entry.train->kinematics.offlineSpeed,
                        (entry.train->kinematics.lastSensor ? entry.train->kinematics.lastSensor->name : "N/A"),
                        entry.train->kinematics.lastSensorOffset / 1000,
                        (entry.train->kinematics.estimatedNode ? entry.train->kinematics.estimatedNode->name : "N/A"),
