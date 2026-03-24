@@ -207,15 +207,16 @@ public:
         if (dest->type != TrackNode::Type::Sensor) {
           return -1;
         }
-        static constexpr Distance PROXIMITY_THRESHOLD = 100'000; // 10 cm
-        auto isDanger = [](const TrackNode* node) {
+        static constexpr Distance PROXIMITY_THRESHOLD = 300'000; // 30 cm
+        static constexpr auto isDanger = [](const TrackNode* node) {
           return node->type == TrackNode::Type::Exit || node->type == TrackNode::Type::Branch ||
                  node->type == TrackNode::Type::Merge;
         };
-        bool shouldUndershoot =
-            dest->edges[Straight].dist <= PROXIMITY_THRESHOLD && isDanger(dest->edges[Straight].dest);
-        bool shouldOvershoot =
-            dest->reverse->edges[Straight].dist <= PROXIMITY_THRESHOLD && isDanger(dest->reverse->edges[Straight].dest);
+        static constexpr auto hasDangerAhead = [](const TrackNode* node) {
+          return node->edges[Straight].dist <= PROXIMITY_THRESHOLD && isDanger(node->edges[Straight].dest);
+        };
+        bool shouldUndershoot = hasDangerAhead(dest);
+        bool shouldOvershoot = hasDangerAhead(dest->reverse);
         return (shouldUndershoot ? -2 : 0) + (shouldOvershoot ? 2 : 0);
       }();
 
