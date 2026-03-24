@@ -108,8 +108,6 @@ public:
   bool isWandering = false;
 };
 
-class PathFindingSystem;
-
 class KinematicsSystem {
 public:
   enum class State { Lost, Tracked };

@@ -46,8 +46,6 @@ inline void scheduleWanderFindingPath(TrainTrackServerContext& context, marklin:
   marklin::TrackNodeId dest = pickWanderDestination(context, trainId, avoidNodeId);
   train.navigation.findingPathTask = {dest, 0, speedLevel, false};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
-  notifyStatusToUI(context.uiTid, "Train %u trying to wander to sensor %s.", trainId,
-                   context.ttState.getTrackNodeById(dest).name);
 }
 
 inline void setSpeedCmdHandler(TrainTrackServerContext& context, marklin::TrainId trainId,
@@ -203,7 +201,7 @@ inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id
   train.navigation.findingPathTask = {dest->id, offset, speedLevel, false};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
   broadcastTrainSpeedLevel(context, id, speedLevel);
-  notifyStatusToUI(context.uiTid, "Route train %u to %s.", id, dest->name);
+  notifyStatusToUI(context.uiTid, "Goto train %u to %s.", id, dest->name);
 }
 
 inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
@@ -231,7 +229,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
                                       train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
           train.navigation.state = marklin::NavigationSystem::State::Routed;
-          notifyStatusToUI(context.uiTid, "Train %u enter routed state.", trainId);
+          notifyStatusToUI(context.uiTid, "Train %u routed to %s.", trainId,
+                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           break;
         } else {
           train.navigation.findingPathTask.needToReverse = true;
@@ -262,7 +261,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
                                       train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
           train.navigation.state = marklin::NavigationSystem::State::Routed;
-          notifyStatusToUI(context.uiTid, "Train %u enter routed state.", trainId);
+          notifyStatusToUI(context.uiTid, "Train %u routed to %s.", trainId,
+                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           break;
         } else {
           notifyStatusToUI(context.uiTid, "Train %u can not find a path.", trainId);
@@ -282,11 +282,16 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       auto pathFindingState = context.pfSystem.updateState(
           trainId, train, enterableDistance,
           [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); });
+      bool changed = pathFindingState != train.navigation.pathingState;
       train.navigation.pathingState = pathFindingState;
 
       switch (pathFindingState) {
       case marklin::PathingState::Idling: {
         // Train has no path finding task. Stationary.
+        if (changed) {
+          notifyStatusToUI(context.uiTid, "Train %u arrived at %s", trainId,
+                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+        }
         if (train.navigation.isWandering) {
           scheduleWanderFindingPath(context, trainId, train, train.navigation.findingPathTask.maxSpeedLevel);
           broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
@@ -298,12 +303,20 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       case marklin::PathingState::Moving: {
         // Can enter all nodes within the stopping distance.
         // Moving toward the destination.
+        if (changed) {
+          notifyStatusToUI(context.uiTid, "Train %u is continuing toward %s", trainId,
+                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+        }
         broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
         break;
       }
       case marklin::PathingState::Yielding: {
         // Can not enter all nodes within the stopping distance.
         // Slowing down.
+        if (changed) {
+          notifyStatusToUI(context.uiTid, "Train %u is yielding for other trains toward %s", trainId,
+                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+        }
         broadcastTrainSpeedLevel(context, trainId, 0);
         break;
       }
@@ -311,6 +324,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Can enter all nodes within the stopping distance.
         // Destination is within the stopping distance.
         // Slowing down.
+        if (changed) {
+          notifyStatusToUI(context.uiTid, "Train %u is arriving at %s", trainId,
+                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+        }
         broadcastTrainSpeedLevel(context, trainId, 0);
         break;
       }

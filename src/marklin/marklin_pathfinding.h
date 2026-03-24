@@ -84,7 +84,7 @@ private:
   }
 
   Distance getEdgeWeight(const TrackEdge& edge) {
-    static constexpr Distance PENALTY_PER_WAITER = 500'000; // 50 cm
+    static constexpr Distance PENALTY_PER_WAITER = 3000'000; // 3 m
     return edge.dist + Distance(nodeOwners[edge.dest->id / 2].size()) * PENALTY_PER_WAITER;
   }
 
@@ -107,7 +107,7 @@ private:
   bool popPastNodes(TrainId trainId, TrackNodeId currentLocationId) {
     auto& nodes = paths[trainId].nodes;
     if (currentLocationId != paths[trainId].destination->id &&
-        !kit::contains(nodes.begin(), nodes.end(), currentLocationId)) {
+        !kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) { return node.srce->id == currentLocationId; })) {
       // Planned path based on estimated position, which can be overshoot compared to the last sensor.
       // But we pop past nodes based on the last sensor, which is not part of the path.
       return true;
@@ -163,18 +163,24 @@ public:
       Distance distToNextNode = 0;
       size_t notEnterable = paths[trainId].nodes.size();
       bool seenEstimated = false;
+      int nodeAfterEstimated = 0;
 
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
-          if (node.srce->type == TrackNode::Type::Branch) {
-            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+
+          // Switch switches close to us to avoid flipipng the train.
+          if (nodeAfterEstimated <= 4) {
+            if (node.srce->type == TrackNode::Type::Branch) {
+              updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+            }
           }
 
           // Only accumulate the enterable distance after the estimated node.
           if (!seenEstimated) {
-            seenEstimated = node.srce->id != train.kinematics.estimatedNode->id;
+            seenEstimated = (node.srce->id == train.kinematics.estimatedNode->id);
           } else {
             outEnterableDistance += distToNextNode;
+            ++nodeAfterEstimated;
           }
           distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
@@ -196,7 +202,24 @@ public:
                                       ? getStoppingDistanceFromLevel(train.kinematics.offlineSpeedLevel)
                                       : getStoppingDistance(train.kinematics.estimatedSpeed);
 
-      if (canArrive && outEnterableDistance <= stoppingDistance + OVERSHOOT_MARGIN) {
+      int overshootMult = [&]() {
+        auto* dest = paths[trainId].destination;
+        if (dest->type != TrackNode::Type::Sensor) {
+          return -1;
+        }
+        static constexpr Distance PROXIMITY_THRESHOLD = 100'000; // 10 cm
+        auto isDanger = [](const TrackNode* node) {
+          return node->type == TrackNode::Type::Exit || node->type == TrackNode::Type::Branch ||
+                 node->type == TrackNode::Type::Merge;
+        };
+        bool shouldUndershoot =
+            dest->edges[Straight].dist <= PROXIMITY_THRESHOLD && isDanger(dest->edges[Straight].dest);
+        bool shouldOvershoot =
+            dest->reverse->edges[Straight].dist <= PROXIMITY_THRESHOLD && isDanger(dest->reverse->edges[Straight].dest);
+        return (shouldUndershoot ? -2 : 0) + (shouldOvershoot ? 2 : 0);
+      }();
+
+      if (canArrive && outEnterableDistance <= stoppingDistance + overshootMult * OVERSHOOT_MARGIN) {
         pathingStates[trainId] = PathingState::Arriving;
         break;
       }
@@ -223,13 +246,9 @@ public:
 
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
-          if (node.srce->type == TrackNode::Type::Branch) {
-            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
-          }
-
           // Only accumulate the enterable distance after the estimated node.
           if (!seenEstimated) {
-            seenEstimated = node.srce->id != train.kinematics.estimatedNode->id;
+            seenEstimated = (node.srce->id == train.kinematics.estimatedNode->id);
           } else {
             outEnterableDistance += distToNextNode;
           }
