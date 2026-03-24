@@ -7,18 +7,36 @@
 #include "train_track_util.h"
 #include "user_tasks/send_util.h"
 #include "util/debug.h"
+#include "util/kit_algorithm.h"
 
 namespace k4 {
 
 inline marklin::TrackNodeId pickWanderDestination(TrainTrackServerContext& context, marklin::TrainId trainId,
                                                   marklin::TrackNodeId avoidNodeId) {
+  static constexpr std::array BAD_STOPPING_NODES = {
+      marklin::sensorToTrackNodeId({'E', 1}),  marklin::sensorToTrackNodeId({'E', 2}),
+      marklin::sensorToTrackNodeId({'D', 1}),  marklin::sensorToTrackNodeId({'D', 2}),
+      marklin::sensorToTrackNodeId({'C', 1}),  marklin::sensorToTrackNodeId({'C', 2}),
+      marklin::sensorToTrackNodeId({'B', 13}), marklin::sensorToTrackNodeId({'B', 14}),
+  };
+
   constexpr uint32_t NUM_SENSORS = 80;
   uint32_t seed = context.currentTicks * 1664525u + trainId * 1013904223u;
-  if (avoidNodeId < NUM_SENSORS) {
-    uint32_t offset = seed % (NUM_SENSORS - 1) + 1;
-    return static_cast<marklin::TrackNodeId>((avoidNodeId + offset) % NUM_SENSORS);
+  while (true) {
+    marklin::TrackNodeId candidate;
+    if (avoidNodeId < NUM_SENSORS) {
+      uint32_t offset = seed % (NUM_SENSORS - 1) + 1;
+      candidate = static_cast<marklin::TrackNodeId>((avoidNodeId + offset) % NUM_SENSORS);
+    } else {
+      candidate = static_cast<marklin::TrackNodeId>(seed % NUM_SENSORS);
+    }
+
+    bool isBad = kit::contains(BAD_STOPPING_NODES.begin(), BAD_STOPPING_NODES.end(), candidate);
+    if (!isBad) {
+      return candidate;
+    }
+    seed = seed * 1664525u + 1013904223u;
   }
-  return static_cast<marklin::TrackNodeId>(seed % NUM_SENSORS);
 }
 
 inline void scheduleWanderFindingPath(TrainTrackServerContext& context, marklin::TrainId trainId, marklin::Train& train,
@@ -266,7 +284,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); });
 
       switch (pathFindingState) {
-      case marklin::PathFindingSystem::State::IDLING: {
+      case marklin::PathFindingSystem::State::Idling: {
         // Train has no path finding task. Stationary.
         if (train.navigation.isWandering) {
           scheduleWanderFindingPath(context, trainId, train, train.navigation.findingPathTask.maxSpeedLevel);
@@ -276,19 +294,19 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         }
         break;
       }
-      case marklin::PathFindingSystem::State::MOVING: {
+      case marklin::PathFindingSystem::State::Moving: {
         // Can enter all nodes within the stopping distance.
         // Moving toward the destination.
         broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
         break;
       }
-      case marklin::PathFindingSystem::State::YIELDING: {
+      case marklin::PathFindingSystem::State::Yielding: {
         // Can not enter all nodes within the stopping distance.
         // Slowing down.
         broadcastTrainSpeedLevel(context, trainId, 0);
         break;
       }
-      case marklin::PathFindingSystem::State::ARRIVING: {
+      case marklin::PathFindingSystem::State::Arriving: {
         // Can enter all nodes within the stopping distance.
         // Destination is within the stopping distance.
         // Slowing down.

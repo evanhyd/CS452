@@ -83,6 +83,14 @@ inline void broadcastTrainSpeedLevel(TrainTrackServerContext& context, marklin::
   }
 }
 
+inline void broadcastReverseTrainDirection(TrainTrackServerContext& context, marklin::TrainId id) {
+  marklin::Train& train = context.ttState.getTrain(id);
+  train.kinematics.direction =
+      (train.kinematics.direction == marklin::TrainDirection::Forward ? marklin::TrainDirection::Backward
+                                                                      : marklin::TrainDirection::Forward);
+  sendToDispatcher(context.dispatcherTid, marklin::MMessage::setTrainDirection(id, train.kinematics.direction));
+}
+
 inline void initTrain(TrainTrackServerContext& context, marklin::TrainId id) {
   if (kit::contains(context.activeTrains.begin(), context.activeTrains.end(), id)) {
     return;
