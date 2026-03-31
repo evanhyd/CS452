@@ -198,9 +198,10 @@ public:
         outEnterableDistance += distToNextNode + paths[trainId].offset;
       }
 
-      Distance stoppingDistance = train.kinematics.isFullyAccelerated()
-                                      ? getStoppingDistanceFromLevel(train.kinematics.offlineSpeedLevel)
-                                      : getStoppingDistance(train.kinematics.estimatedSpeed);
+      Distance stoppingDistance =
+          train.kinematics.offlineSpeed == convertSpeedLevelToOfflineSpeed(trainId, train.kinematics.offlineSpeedLevel)
+              ? getStoppingDistanceFromLevel(train.kinematics.offlineSpeedLevel)
+              : getStoppingDistance(train.kinematics.estimatedSpeed);
 
       int overshootMult = [&]() {
         auto* dest = paths[trainId].destination;

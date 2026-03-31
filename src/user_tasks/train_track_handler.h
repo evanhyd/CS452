@@ -212,7 +212,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     marklin::Train& train = context.ttState.getTrain(trainId);
 
     // Part A: Kinematics Block.
-    train.kinematics.onTick(context.ttState);
+    train.kinematics.onTick(context.ttState, trainId);
 
     // Part B: Navigation Block.
     switch (train.navigation.state) {

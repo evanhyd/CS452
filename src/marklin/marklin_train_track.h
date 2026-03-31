@@ -122,8 +122,6 @@ public:
   struct TrackNode* estimatedNode = nullptr;
   Distance estimatedNodeOffset = 0;
 
-  bool isFullyAccelerated() const;
-
   void triggerSensor(TrackNode& sensor, Distance dS, uint32_t ticks) {
     static constexpr int32_t EWMA_DENOMINATOR = 4;
     if (state == State::Tracked) {
@@ -143,7 +141,7 @@ public:
     estimatedNodeOffset = 0;
   }
 
-  void onTick(struct TrainTrackState& ttState);
+  void onTick(struct TrainTrackState& ttState, TrainId trainId);
 };
 
 struct SensorPredictionSystem {
