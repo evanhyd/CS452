@@ -204,7 +204,7 @@ public:
               : getStoppingDistance(train.kinematics.estimatedSpeed);
 
       int overshootMult = [&]() {
-        auto* dest = paths[trainId].destination;
+        TrackNode* dest = paths[trainId].destination;
         if (dest->type != TrackNode::Type::Sensor) {
           return -1;
         }
@@ -218,7 +218,8 @@ public:
         };
         bool shouldUndershoot = hasDangerAhead(dest);
         bool shouldOvershoot = hasDangerAhead(dest->reverse);
-        return (shouldUndershoot ? -2 : 0) + (shouldOvershoot ? 2 : 0);
+        // return (shouldUndershoot ? -2 : 0) + (shouldOvershoot ? 2 : 0);
+        return (shouldUndershoot ? 2 : 0) + (shouldOvershoot ? -2 : 0);
       }();
 
       if (canArrive && outEnterableDistance <= stoppingDistance + overshootMult * OVERSHOOT_MARGIN) {
