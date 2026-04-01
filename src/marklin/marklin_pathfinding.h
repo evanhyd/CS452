@@ -67,11 +67,26 @@ private:
   std::array<TrainPath, MAX_TRAIN_ID> paths{};
   std::array<PathingState, MAX_TRAIN_ID> pathingStates{};
 
-  void reserve(TrackNodeId nodeId, TrainId trainId) { nodeOwners[nodeId / 2].pushBack(trainId); }
+  void reserve(TrackNodeId nodeId, TrainId trainId) {
+    size_t id = nodeId / 2;
+    nodeOwners[id].pushBack(trainId);
+    if (58 <= id && id <= 61) {
+      // Lock the central switch pair.
+      nodeOwners[id ^ 1].pushBack(trainId);
+    }
+  }
 
   void unreserve(TrackNodeId nodeId, TrainId trainId) {
-    KIT_ASSERT(!nodeOwners[nodeId / 2].empty(), "no reservation");
-    KIT_ASSERT(nodeOwners[nodeId / 2].popFront() == trainId, "unreserved by the wrong train");
+    size_t id = nodeId / 2;
+    KIT_ASSERT(!nodeOwners[id].empty(), "no reservation");
+    KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train");
+
+    if (58 <= id && id <= 61) {
+      // Unlock the central switch pair.
+      id ^= 1;
+      KIT_ASSERT(!nodeOwners[id].empty(), "no reservation");
+      KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train");
+    }
   }
 
   bool isPassable(TrackNodeId nodeId, TrainId trainId) {
@@ -142,8 +157,8 @@ public:
   template <typename Callback>
   PathingState updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance,
                            const Callback& updateSwitch) {
-    static constexpr Distance SAFETY_MARGIN = 80'000;    // 8 cm
-    static constexpr Distance OVERSHOOT_MARGIN = 50'000; // 5 cm
+    static constexpr Distance SAFETY_MARGIN = 150'000;    // 15 cm
+    static constexpr Distance OVERSHOOT_MARGIN = 100'000; // 10 cm
     outEnterableDistance = 0;
     bool isTresspassing = !popPastNodes(trainId, train.kinematics.lastSensor->id);
 
@@ -200,7 +215,7 @@ public:
 
       Distance stoppingDistance =
           train.kinematics.offlineSpeed == convertSpeedLevelToOfflineSpeed(trainId, train.kinematics.offlineSpeedLevel)
-              ? getStoppingDistanceFromLevel(train.kinematics.offlineSpeedLevel)
+              ? getStoppingDistanceFromLevel(trainId, train.kinematics.offlineSpeedLevel)
               : getStoppingDistance(train.kinematics.estimatedSpeed);
 
       int overshootMult = [&]() {
@@ -218,7 +233,6 @@ public:
         };
         bool shouldUndershoot = hasDangerAhead(dest);
         bool shouldOvershoot = hasDangerAhead(dest->reverse);
-        // return (shouldUndershoot ? -2 : 0) + (shouldOvershoot ? 2 : 0);
         return (shouldUndershoot ? 2 : 0) + (shouldOvershoot ? -2 : 0);
       }();
 
@@ -270,7 +284,7 @@ public:
         break;
       }
 
-      Distance stoppingDistance = getStoppingDistanceFromLevel(train.navigation.findingPathTask.maxSpeedLevel);
+      Distance stoppingDistance = getStoppingDistanceFromLevel(trainId, train.navigation.findingPathTask.maxSpeedLevel);
       if ((outEnterableDistance - getTrainHeadLength(train.kinematics.direction) - SAFETY_MARGIN) > stoppingDistance) {
         pathingStates[trainId] = PathingState::Moving;
         break;

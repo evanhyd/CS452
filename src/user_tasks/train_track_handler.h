@@ -13,29 +13,13 @@ namespace k4 {
 
 inline marklin::TrackNodeId pickWanderDestination(TrainTrackServerContext& context, marklin::TrainId trainId,
                                                   marklin::TrackNodeId avoidNodeId) {
-  static constexpr std::array BAD_STOPPING_NODES = {
-      marklin::sensorToTrackNodeId({'E', 1}),  marklin::sensorToTrackNodeId({'E', 2}),
-      marklin::sensorToTrackNodeId({'D', 1}),  marklin::sensorToTrackNodeId({'D', 2}),
-      marklin::sensorToTrackNodeId({'C', 1}),  marklin::sensorToTrackNodeId({'C', 2}),
-      marklin::sensorToTrackNodeId({'B', 13}), marklin::sensorToTrackNodeId({'B', 14}),
-  };
-
   constexpr uint32_t NUM_SENSORS = 80;
   uint32_t seed = context.currentTicks * 1664525u + trainId * 1013904223u;
-  while (true) {
-    marklin::TrackNodeId candidate;
-    if (avoidNodeId < NUM_SENSORS) {
-      uint32_t offset = seed % (NUM_SENSORS - 1) + 1;
-      candidate = static_cast<marklin::TrackNodeId>((avoidNodeId + offset) % NUM_SENSORS);
-    } else {
-      candidate = static_cast<marklin::TrackNodeId>(seed % NUM_SENSORS);
-    }
-
-    bool isBad = kit::contains(BAD_STOPPING_NODES.begin(), BAD_STOPPING_NODES.end(), candidate);
-    if (!isBad) {
-      return candidate;
-    }
-    seed = seed * 1664525u + 1013904223u;
+  if (avoidNodeId < NUM_SENSORS) {
+    uint32_t offset = seed % (NUM_SENSORS - 1) + 1;
+    return static_cast<marklin::TrackNodeId>((avoidNodeId + offset) % NUM_SENSORS);
+  } else {
+    return static_cast<marklin::TrackNodeId>(seed % NUM_SENSORS);
   }
 }
 

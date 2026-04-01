@@ -4,11 +4,19 @@
 #include <array>
 
 namespace marklin {
-//     static constexpr marklin::SwitchId CURVED_SWITCH_ID[] = {3, 5, 8, 9, 11, 12, 14, 15, 18, 154, 155};
-//     static constexpr marklin::SwitchId STRAIGHT_SWITCH_ID[] = {1, 2, 4, 6, 7, 10, 13, 16, 17, 153, 156};
-
-inline constexpr std::array STOPPING_DISTANCE = {0,      21000,  36000,  56000,  95000,  131000,  198000, 264000,
-                                                 378000, 427000, 579000, 766000, 980000, 1184000, 1503000};
+// 5 8 10 14
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_13 = {
+    0, 21000, 36000, 56000, 95000, 240000, 198000, 264000, 378000, 427000, 553000, 766000, 980000, 1184000, 1505000};
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_14 = {
+    0, 21000, 36000, 56000, 95000, 241000, 198000, 264000, 378000, 427000, 563000, 766000, 980000, 1184000, 1696000};
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_15 = {
+    0, 21000, 36000, 56000, 95000, 133000, 198000, 264000, 378000, 427000, 444000, 766000, 980000, 1184000, 1565000};
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_17 = {
+    0, 21000, 36000, 56000, 95000, 243000, 198000, 264000, 378000, 427000, 561000, 768000, 980000, 1184000, 1568000};
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_18 = {
+    0, 21000, 36000, 56000, 95000, 130000, 198000, 264000, 343000, 427000, 465000, 811000, 980000, 1184000, 1636000};
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_55 = {
+    0, 21000, 36000, 56000, 95000, 150000, 198000, 264000, 378000, 427000, 376000, 766000, 980000, 1184000, 1068000};
 
 inline constexpr std::array OFFLINE_SPEED_TRAIN_13 = {0,    90,   270,  490,  690,  976,  1400, 1880,
                                                       2478, 2908, 3470, 4138, 4814, 5441, 5740};
@@ -50,20 +58,28 @@ constexpr Speed convertSpeedLevelToOfflineSpeed(TrainId trainId, SpeedLevel spee
   }
 }
 
-constexpr Distance getStoppingDistanceFromLevel(SpeedLevel speedLevel) { return STOPPING_DISTANCE[speedLevel]; }
+constexpr Distance getStoppingDistanceFromLevel(TrainId trainId, SpeedLevel speedLevel) {
+  switch (trainId) {
+  case 13:
+    return STOPPING_DISTANCE_TRAIN_13[speedLevel];
+  case 14:
+    return STOPPING_DISTANCE_TRAIN_14[speedLevel];
+  case 15:
+    return STOPPING_DISTANCE_TRAIN_15[speedLevel];
+  case 17:
+    return STOPPING_DISTANCE_TRAIN_17[speedLevel];
+  case 18:
+    return STOPPING_DISTANCE_TRAIN_18[speedLevel];
+  case 55:
+    return STOPPING_DISTANCE_TRAIN_55[speedLevel];
+  default:
+    return STOPPING_DISTANCE_TRAIN_13[speedLevel];
+  }
+}
 
 // https://www.desmos.com/calculator/lx4nslmckw
 constexpr Distance getStoppingDistance(Speed speed) {
   return Distance(int64_t(speed) * speed * 26 / 1000 + speed * 80);
-}
-
-constexpr SpeedLevel getMaxSafeSpeedLevel(Distance stoppingDistance) {
-  for (SpeedLevel i = STOPPING_DISTANCE.size() - 1; i-- > 0;) {
-    if (STOPPING_DISTANCE[i] < stoppingDistance) {
-      return i;
-    }
-  }
-  return 0;
 }
 
 inline constexpr std::array<std::array<Distance, 80>, 80> TRACK_A_SENSOR_DISTANCE = {
