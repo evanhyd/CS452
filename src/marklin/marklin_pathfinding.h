@@ -6,6 +6,7 @@
 #include "util/kit_algorithm.h"
 #include "util/ring_buffer.h"
 #include "util/static_priority_queue.h"
+#include <cassert>
 #include <numeric>
 
 namespace marklin {
@@ -63,7 +64,7 @@ struct TrainPath {
 class PathFindingSystem {
 private:
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
-  std::array<TrainId, NUM_RESERVATION_NODES> occupied{};
+  std::array<TrainId, NUM_RESERVATION_NODES> finalDestination{};
   std::array<TrainPath, MAX_TRAIN_ID> paths{};
   std::array<PathingState, MAX_TRAIN_ID> pathingStates{};
 
@@ -90,7 +91,7 @@ private:
   }
 
   bool isPassable(TrackNodeId nodeId, TrainId trainId) {
-    return occupied[nodeId / 2] == NO_TRAIN || occupied[nodeId / 2] == trainId;
+    return finalDestination[nodeId / 2] == NO_TRAIN || finalDestination[nodeId / 2] == trainId;
   }
 
   bool canEnter(TrackNodeId nodeId, TrainId trainId) {
@@ -99,7 +100,7 @@ private:
   }
 
   Distance getEdgeWeight(const TrackEdge& edge) {
-    static constexpr Distance PENALTY_PER_WAITER = 3000'000; // 3 m
+    static constexpr Distance PENALTY_PER_WAITER = 3'000'000; // 3 m
     return edge.dist + Distance(nodeOwners[edge.dest->id / 2].size()) * PENALTY_PER_WAITER;
   }
 
@@ -157,8 +158,8 @@ public:
   template <typename Callback>
   PathingState updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance,
                            const Callback& updateSwitch) {
-    static constexpr Distance SAFETY_MARGIN = 200'000;   // 20 cm
-    static constexpr Distance STOPPING_MARGIN = 200'000; // 20 cm
+    static constexpr Distance SAFETY_MARGIN = 300'000;   // 30 cm
+    static constexpr Distance STOPPING_MARGIN = 300'000; // 30 cm
     outEnterableDistance = 0;
     bool isTresspassing = !popPastNodes(trainId, train.kinematics.lastSensor->id);
 
@@ -178,12 +179,16 @@ public:
       Distance distToNextNode = 0;
       size_t notEnterable = paths[trainId].nodes.size();
       bool seenEstimated = false;
+      int nodeCount = 0;
 
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
+
           // Switch switches close to us to avoid flipipng the train.
-          if (node.srce->type == TrackNode::Type::Branch) {
-            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+          if (nodeCount <= 6) {
+            if (node.srce->type == TrackNode::Type::Branch) {
+              updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+            }
           }
 
           // Only accumulate the enterable distance after the estimated node.
@@ -191,6 +196,7 @@ public:
             seenEstimated = (node.srce->id == train.kinematics.estimatedNode->id);
           } else {
             outEnterableDistance += distToNextNode;
+            ++nodeCount;
           }
           distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
@@ -213,10 +219,10 @@ public:
               ? getStoppingDistanceFromLevel(trainId, train.kinematics.offlineSpeedLevel)
               : getStoppingDistance(trainId, train.kinematics.estimatedSpeed);
 
-      Distance overshoot = [&]() {
+      Distance margin = [&]() {
         TrackNode* dest = paths[trainId].destination;
         if (dest->type != TrackNode::Type::Sensor) {
-          return -1;
+          return 0;
         }
         static constexpr Distance PROXIMITY_THRESHOLD = 300'000; // 30 cm
         static constexpr auto isDanger = [](const TrackNode* node) {
@@ -228,10 +234,10 @@ public:
         };
         bool shouldUndershoot = hasDangerAhead(dest);
         bool shouldOvershoot = hasDangerAhead(dest->reverse);
-        return (int(shouldUndershoot) - int(shouldOvershoot)) * STOPPING_MARGIN;
+        return (int(shouldOvershoot) - int(shouldUndershoot)) * STOPPING_MARGIN;
       }();
 
-      if (canArrive && outEnterableDistance <= stoppingDistance + overshoot) {
+      if (canArrive && outEnterableDistance + margin <= stoppingDistance) {
         pathingStates[trainId] = PathingState::Arriving;
         break;
       }
@@ -381,13 +387,14 @@ public:
     if (isReachable) {
       // Move the destination.
       if (paths[trainId].destination) {
-        occupied[paths[trainId].destination->id / 2] = NO_TRAIN;
+        finalDestination[paths[trainId].destination->id / 2] = NO_TRAIN;
       }
 
-      occupied[dest / 2] = trainId;
+      finalDestination[dest / 2] = trainId;
       paths[trainId].destination = &ttState.getTrackNodeById(dest);
       paths[trainId].offset = offset;
       paths[trainId].distance = 0;
+      KIT_ASSERT(paths[trainId].nodes.empty(), "old path is not clear");
       pathingStates[trainId] = PathingState::Moving;
 
       for (TrackNode* curr = &ttState.getTrackNodeById(dest);;) {
