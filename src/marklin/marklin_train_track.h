@@ -92,7 +92,7 @@ class NavigationSystem {
     TrackNodeId dest = 0;
     Distance offset = 0;
     SpeedLevel maxSpeedLevel = 0;
-    bool needToReverse = false;
+    bool isReversing = false;
   };
 
   struct ReversingTask {
