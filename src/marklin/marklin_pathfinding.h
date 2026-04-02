@@ -157,8 +157,8 @@ public:
   template <typename Callback>
   PathingState updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance,
                            const Callback& updateSwitch) {
-    static constexpr Distance SAFETY_MARGIN = 150'000;    // 15 cm
-    static constexpr Distance OVERSHOOT_MARGIN = 100'000; // 10 cm
+    static constexpr Distance SAFETY_MARGIN = 170'000;    // 17 cm
+    static constexpr Distance OVERSHOOT_MARGIN = 170'000; // 17 cm
     outEnterableDistance = 0;
     bool isTresspassing = !popPastNodes(trainId, train.kinematics.lastSensor->id);
 
@@ -233,7 +233,7 @@ public:
         };
         bool shouldUndershoot = hasDangerAhead(dest);
         bool shouldOvershoot = hasDangerAhead(dest->reverse);
-        return (shouldUndershoot ? 2 : 0) + (shouldOvershoot ? -2 : 0);
+        return int(shouldUndershoot) - int(shouldOvershoot);
       }();
 
       if (canArrive && outEnterableDistance <= stoppingDistance + overshootMult * OVERSHOOT_MARGIN) {

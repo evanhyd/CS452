@@ -35,41 +35,12 @@ inline void sendSwitchToUI(TrainTrackServerContext& context, marklin::SwitchId i
 // Train Track Utils
 template <bool forceUpdate = false>
 void broadcastSwitchState(TrainTrackServerContext& context, marklin::SwitchId id, marklin::SwitchState state) {
-
   // If the switch is already in the desired state, do nothing
-  if (!forceUpdate && context.ttState.getSwitchState(id) == state) {
-    return;
+  if (forceUpdate || context.ttState.getSwitchState(id) != state) {
+    context.ttState.setSwitchState(id, state);
+    sendToDispatcher(context.dispatcherTid, marklin::MMessage::setSwitchState(id, state));
+    sendSwitchToUI(context, id, state);
   }
-
-  // Identify if this is a center switch and find its partner
-  marklin::SwitchId pairingId = [id] -> marklin::SwitchId {
-    switch (id) {
-    case 153:
-      return 154;
-    case 154:
-      return 153;
-    case 155:
-      return 156;
-    case 156:
-      return 155;
-    default:
-      return 0;
-    }
-  }();
-
-  // Straight up the pairing switch first.
-  if (pairingId != 0 && state == marklin::SwitchState::Curved) {
-    if (forceUpdate || context.ttState.getSwitchState(pairingId) == marklin::SwitchState::Curved) {
-      context.ttState.setSwitchState(pairingId, marklin::SwitchState::Straight);
-      sendToDispatcher(context.dispatcherTid,
-                       marklin::MMessage::setSwitchState(pairingId, marklin::SwitchState::Straight));
-      sendSwitchToUI(context, pairingId, marklin::SwitchState::Straight);
-    }
-  }
-
-  context.ttState.setSwitchState(id, state);
-  sendToDispatcher(context.dispatcherTid, marklin::MMessage::setSwitchState(id, state));
-  sendSwitchToUI(context, id, state);
 }
 
 template <bool forceUpdate = false>
