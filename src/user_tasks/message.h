@@ -36,6 +36,7 @@ struct TimeData {
 inline constexpr const char* MARKLIN_DISPATCHER_SERVER_NAME = "marklin_dispatcher_server";
 inline constexpr const char* TRAIN_TRACK_SERVER_NAME = "train_track_server";
 inline constexpr const char* UI_VIEW_SERVER_NAME = "ui_view_server";
+inline constexpr const char* PACMAN_SERVER_NAME = "pacman_server";
 
 // Marklin Dispatcher Server Message
 enum class DispatcherMsgType : int {

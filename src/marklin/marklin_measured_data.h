@@ -77,9 +77,23 @@ constexpr Distance getStoppingDistanceFromLevel(TrainId trainId, SpeedLevel spee
   }
 }
 
-// https://www.desmos.com/calculator/lx4nslmckw
-constexpr Distance getStoppingDistance(Speed speed) {
-  return Distance(int64_t(speed) * speed * 26 / 1000 + speed * 80);
+constexpr Distance getStoppingDistance(TrainId trainId, Speed speed) {
+  for (SpeedLevel i = 1; i <= MAX_SPEED_LEVEL; ++i) {
+    Speed offlineSpeed = convertSpeedLevelToOfflineSpeed(trainId, i);
+    if (speed <= offlineSpeed) {
+      Speed v0 = convertSpeedLevelToOfflineSpeed(trainId, i - 1);
+      Speed v1 = offlineSpeed;
+      Distance d0 = getStoppingDistanceFromLevel(trainId, i - 1);
+      Distance d1 = getStoppingDistanceFromLevel(trainId, i);
+
+      int64_t dS = static_cast<int64_t>(d1) - static_cast<int64_t>(d0);
+      int64_t dV = static_cast<int64_t>(speed) - static_cast<int64_t>(v0);
+      int64_t dX = static_cast<int64_t>(v1) - static_cast<int64_t>(v0);
+
+      return static_cast<Distance>(d0 + ((dV * dS) / dX));
+    }
+  }
+  return getStoppingDistanceFromLevel(trainId, MAX_SPEED_LEVEL);
 }
 
 inline constexpr std::array<std::array<Distance, 80>, 80> TRACK_A_SENSOR_DISTANCE = {

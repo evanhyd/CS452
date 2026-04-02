@@ -325,8 +325,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           train.kinematics.lastSensor = train.kinematics.lastSensor->reverse;
           train.kinematics.lastSensorOffset = -train.kinematics.lastSensorOffset;
           broadcastTrainSpeedLevel(context, trainId, train.navigation.reversingTask.preReversingSpeedLevel);
-          train.navigation.state = marklin::NavigationSystem::State::Manual;
         }
+        train.navigation.state = marklin::NavigationSystem::State::Manual;
       }
       break;
     }

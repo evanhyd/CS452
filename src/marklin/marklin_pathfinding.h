@@ -63,7 +63,7 @@ struct TrainPath {
 class PathFindingSystem {
 private:
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
-  std::array<TrainId, NUM_RESERVATION_NODES> destination{};
+  std::array<TrainId, NUM_RESERVATION_NODES> occupied{};
   std::array<TrainPath, MAX_TRAIN_ID> paths{};
   std::array<PathingState, MAX_TRAIN_ID> pathingStates{};
 
@@ -90,7 +90,7 @@ private:
   }
 
   bool isPassable(TrackNodeId nodeId, TrainId trainId) {
-    return destination[nodeId / 2] == NO_TRAIN || destination[nodeId / 2] == trainId;
+    return occupied[nodeId / 2] == NO_TRAIN || occupied[nodeId / 2] == trainId;
   }
 
   bool canEnter(TrackNodeId nodeId, TrainId trainId) {
@@ -157,8 +157,8 @@ public:
   template <typename Callback>
   PathingState updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance,
                            const Callback& updateSwitch) {
-    static constexpr Distance SAFETY_MARGIN = 170'000;    // 17 cm
-    static constexpr Distance OVERSHOOT_MARGIN = 170'000; // 17 cm
+    static constexpr Distance SAFETY_MARGIN = 200'000;   // 20 cm
+    static constexpr Distance STOPPING_MARGIN = 200'000; // 20 cm
     outEnterableDistance = 0;
     bool isTresspassing = !popPastNodes(trainId, train.kinematics.lastSensor->id);
 
@@ -178,16 +178,12 @@ public:
       Distance distToNextNode = 0;
       size_t notEnterable = paths[trainId].nodes.size();
       bool seenEstimated = false;
-      int nodeAfterEstimated = 0;
 
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
-
           // Switch switches close to us to avoid flipipng the train.
-          if (nodeAfterEstimated <= 4) {
-            if (node.srce->type == TrackNode::Type::Branch) {
-              updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
-            }
+          if (node.srce->type == TrackNode::Type::Branch) {
+            updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
           }
 
           // Only accumulate the enterable distance after the estimated node.
@@ -195,13 +191,12 @@ public:
             seenEstimated = (node.srce->id == train.kinematics.estimatedNode->id);
           } else {
             outEnterableDistance += distToNextNode;
-            ++nodeAfterEstimated;
           }
           distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
         } else {
           if (!seenEstimated) {
-            // TRESPASSED.
+            // The train's estimated position in a node that it does not have access to.
           }
           break;
         }
@@ -216,9 +211,9 @@ public:
       Distance stoppingDistance =
           train.kinematics.offlineSpeed == convertSpeedLevelToOfflineSpeed(trainId, train.kinematics.offlineSpeedLevel)
               ? getStoppingDistanceFromLevel(trainId, train.kinematics.offlineSpeedLevel)
-              : getStoppingDistance(train.kinematics.estimatedSpeed);
+              : getStoppingDistance(trainId, train.kinematics.estimatedSpeed);
 
-      int overshootMult = [&]() {
+      Distance overshoot = [&]() {
         TrackNode* dest = paths[trainId].destination;
         if (dest->type != TrackNode::Type::Sensor) {
           return -1;
@@ -233,10 +228,10 @@ public:
         };
         bool shouldUndershoot = hasDangerAhead(dest);
         bool shouldOvershoot = hasDangerAhead(dest->reverse);
-        return int(shouldUndershoot) - int(shouldOvershoot);
+        return (int(shouldUndershoot) - int(shouldOvershoot)) * STOPPING_MARGIN;
       }();
 
-      if (canArrive && outEnterableDistance <= stoppingDistance + overshootMult * OVERSHOOT_MARGIN) {
+      if (canArrive && outEnterableDistance <= stoppingDistance + overshoot) {
         pathingStates[trainId] = PathingState::Arriving;
         break;
       }
@@ -386,10 +381,10 @@ public:
     if (isReachable) {
       // Move the destination.
       if (paths[trainId].destination) {
-        destination[paths[trainId].destination->id / 2] = NO_TRAIN;
+        occupied[paths[trainId].destination->id / 2] = NO_TRAIN;
       }
 
-      destination[dest / 2] = trainId;
+      occupied[dest / 2] = trainId;
       paths[trainId].destination = &ttState.getTrackNodeById(dest);
       paths[trainId].offset = offset;
       paths[trainId].distance = 0;
