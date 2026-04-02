@@ -227,20 +227,19 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           break;
         }
 
-        // Update the reversed kinematics state.
-        train.kinematics.direction =
-            (train.kinematics.direction == marklin::TrainDirection::Forward ? marklin::TrainDirection::Backward
-                                                                            : marklin::TrainDirection::Forward);
-        sendToDispatcher(context.dispatcherTid,
-                         marklin::MMessage::setTrainDirection(trainId, train.kinematics.direction));
+        // Flip the train direction.
+        broadcastReverseTrainDirection(context, trainId);
+        broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
 
-        train.kinematics.triggerSensor(*(train.kinematics.lastSensor->reverse), 0, context.currentTicks);
+        // Update kinematics.
+        train.kinematics.triggerSensor(*train.kinematics.lastSensor->reverse, 0, context.currentTicks);
+
+        // Update the prediction.
         marklin::Distance distToNext = 0;
         marklin::TrackNode* nextSensor =
             marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
         train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
                                        train.kinematics.estimatedSpeed, context.currentTicks);
-        broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
 
         if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
                                       train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
@@ -322,8 +321,12 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       if (train.kinematics.estimatedSpeed == 0) {
         broadcastReverseTrainDirection(context, trainId);
         if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked) {
-          train.kinematics.lastSensor = train.kinematics.lastSensor->reverse;
-          train.kinematics.lastSensorOffset = -train.kinematics.lastSensorOffset;
+          train.kinematics.triggerSensor(*train.kinematics.lastSensor->reverse, 0, context.currentTicks);
+          marklin::Distance distToNext = 0;
+          marklin::TrackNode* nextSensor =
+              marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
+          train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
+                                         train.kinematics.estimatedSpeed, context.currentTicks);
           broadcastTrainSpeedLevel(context, trainId, train.navigation.reversingTask.preReversingSpeedLevel);
         }
         train.navigation.state = marklin::NavigationSystem::State::Manual;
