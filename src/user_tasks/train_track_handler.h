@@ -287,8 +287,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Can not enter all nodes within the stopping distance.
         // Slowing down.
         if (changed) {
-          notifyStatusToUI(context.uiTid, "Train %u is yielding for other trains toward %s", trainId,
-                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+          notifyStatusToUI(context.uiTid, "Train %u is yielding at %s", trainId,
+                           context.ttState.getTrackNodeById(train.kinematics.estimatedNode->id).name);
         }
         broadcastTrainSpeedLevel(context, trainId, 0);
         break;

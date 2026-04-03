@@ -122,10 +122,12 @@ private:
   // Return false is the train is trespassing.
   bool popPastNodes(TrainId trainId, TrackNodeId currentLocationId) {
     auto& nodes = paths[trainId].nodes;
+
+    // We plan path based on estimated position, which can overshoot compared to the last sensor.
+    // So when we pop the past nodes based on the last sensor, it might not be part of the path.
+    // Simply ignore it.
     if (currentLocationId != paths[trainId].destination->id &&
         !kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) { return node.srce->id == currentLocationId; })) {
-      // Planned path based on estimated position, which can be overshoot compared to the last sensor.
-      // But we pop past nodes based on the last sensor, which is not part of the path.
       return true;
     }
 
