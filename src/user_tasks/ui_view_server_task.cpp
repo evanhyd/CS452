@@ -61,6 +61,8 @@ const char* toString(marklin::PathingState state) {
     return "Yielding";
   case marklin::PathingState::Arriving:
     return "Arriving";
+  case marklin::PathingState::Trespassing:
+    return "Trespassing";
   }
   return "Unknown";
 }
@@ -256,12 +258,15 @@ void uiViewServerTask() {
 
         // Row 2: Locks
         console.moveCursor(baseRow + 1, COL_TRAINS);
-        console.printf("  Locks[%u]: ", entry.lockedNodeCount);
-        if (entry.lockedNodeCount == 0) {
+        console.printf("  Path[%u|%u]: ", entry.lockCount, entry.nodeCount);
+        if (entry.nodeCount == 0) {
           console.puts("None");
         } else {
-          for (unsigned j = 0; j < entry.lockedNodeCount; ++j) {
-            console.printf("%s ", entry.lockedNodes[j]->name);
+          for (unsigned j = 0; j < entry.nodeCount; ++j) {
+            console.printf("%s ", entry.nodes[j]->name);
+            if (j + 1 == entry.lockCount) {
+              console.printf("### ");
+            }
           }
         }
         console.clearToEol();

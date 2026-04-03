@@ -1137,19 +1137,4 @@ inline constexpr std::array<std::array<Distance, 80>, 80> TRACK_B_SENSOR_DISTANC
       4956000, 5352000, 4963000, 880000,  201000,  5642000, 2645000, 5850000, 3487000, 2356000, 3530000, 2530000,
       1451000, 4392000, 5674000, 4751000, 4674000, 1169000, 5843000, 0}}};
 
-// inline constexpr std::array LOOP_SENSOR_NODE_IDS = {
-//     marklin::sensorToTrackNodeId({'A', 3}),  marklin::sensorToTrackNodeId({'A', 4}),
-//     marklin::sensorToTrackNodeId({'B', 15}), marklin::sensorToTrackNodeId({'B', 16}),
-//     marklin::sensorToTrackNodeId({'C', 9}),  marklin::sensorToTrackNodeId({'C', 10}),
-//     marklin::sensorToTrackNodeId({'B', 1}),  marklin::sensorToTrackNodeId({'B', 2}),
-//     marklin::sensorToTrackNodeId({'D', 13}), marklin::sensorToTrackNodeId({'D', 14}),
-//     marklin::sensorToTrackNodeId({'E', 13}), marklin::sensorToTrackNodeId({'E', 14}),
-//     marklin::sensorToTrackNodeId({'E', 9}),  marklin::sensorToTrackNodeId({'E', 10}),
-//     marklin::sensorToTrackNodeId({'D', 5}),  marklin::sensorToTrackNodeId({'D', 6}),
-//     marklin::sensorToTrackNodeId({'E', 5}),  marklin::sensorToTrackNodeId({'E', 6}),
-//     marklin::sensorToTrackNodeId({'D', 3}),  marklin::sensorToTrackNodeId({'D', 4}),
-//     marklin::sensorToTrackNodeId({'B', 5}),  marklin::sensorToTrackNodeId({'B', 6}),
-//     marklin::sensorToTrackNodeId({'C', 11}), marklin::sensorToTrackNodeId({'C', 12}),
-// };
-
 } // namespace marklin

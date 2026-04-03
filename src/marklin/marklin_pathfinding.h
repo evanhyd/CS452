@@ -57,7 +57,6 @@ struct TrainPath {
   };
   TrackNode* destination;
   Distance offset = 0;
-  Distance distance = 0;
   RingBuffer<Node, MAX_PATH_NODES> nodes{};
 };
 
@@ -72,7 +71,6 @@ private:
     size_t id = nodeId / 2;
     nodeOwners[id].pushBack(trainId);
     if (58 <= id && id <= 61) {
-      // Lock the central switch pair.
       nodeOwners[id ^ 1].pushBack(trainId);
     }
   }
@@ -118,29 +116,27 @@ private:
     return (n1.edges[Straight].dest == &n2) || (n1.edges[Curved].dest == &n2);
   }
 
-  // Unreserve and remove past nodes.
-  // Return false is the train is trespassing.
-  bool popPastNodes(TrainId trainId, TrackNodeId currentLocationId) {
+  // Unreserve and remove past nodes up to but not include nodeId.
+  // Return false if the train is trespassing.
+  bool popPastNodes(TrainId trainId, TrackNodeId nodeId) {
     auto& nodes = paths[trainId].nodes;
 
     // We plan path based on estimated position, which can overshoot compared to the last sensor.
     // So when we pop the past nodes based on the last sensor, it might not be part of the path.
     // Simply ignore it.
-    if (currentLocationId != paths[trainId].destination->id &&
-        !kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) { return node.srce->id == currentLocationId; })) {
+    if (!kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) { return node.srce->id == nodeId; })) {
       return true;
     }
 
     while (!nodes.empty()) {
       auto& node = nodes.front();
-      if (node.srce->id == currentLocationId) {
+      if (node.srce->id == nodeId) {
         break;
       }
       if (!canEnter(node.srce->id, trainId)) {
         // Trespassing.
         return false;
       }
-      paths[trainId].distance -= node.srce->edges[node.direction].dist;
       unreserve(node.srce->id, trainId);
       nodes.popFront();
     }
@@ -158,11 +154,9 @@ public:
   const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
 
   template <typename Callback>
-  PathingState updateState(TrainId trainId, const Train& train, Distance& outEnterableDistance,
-                           const Callback& updateSwitch) {
+  PathingState updateState(TrainId trainId, const Train& train, const Callback& updateSwitch) {
     static constexpr Distance SAFETY_MARGIN = 300'000;   // 30 cm
     static constexpr Distance STOPPING_MARGIN = 300'000; // 30 cm
-    outEnterableDistance = 0;
     bool isTresspassing = !popPastNodes(trainId, train.kinematics.lastSensor->id);
 
     switch (pathingStates[trainId]) {
@@ -172,22 +166,21 @@ public:
     case PathingState::Moving: {
       // Detected trespassing. Stop
       if (isTresspassing) {
-        pathingStates[trainId] = PathingState::Yielding;
+        pathingStates[trainId] = PathingState::Trespassing;
         break;
       }
 
       // Calculate the reserved distance.
-      outEnterableDistance = -train.kinematics.estimatedNodeOffset;
+      Distance enterableDistance = -train.kinematics.estimatedNodeOffset;
       Distance distToNextNode = 0;
       size_t notEnterable = paths[trainId].nodes.size();
-      bool seenEstimated = false;
       int nodeCount = 0;
+      bool seenEstimated = false;
 
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
-
           // Switch switches close to us to avoid flipipng the train.
-          if (nodeCount <= 6) {
+          if (seenEstimated && nodeCount <= 5) {
             if (node.srce->type == TrackNode::Type::Branch) {
               updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
             }
@@ -197,23 +190,24 @@ public:
           if (!seenEstimated) {
             seenEstimated = (node.srce->id == train.kinematics.estimatedNode->id);
           } else {
-            outEnterableDistance += distToNextNode;
+            enterableDistance += distToNextNode;
             ++nodeCount;
           }
           distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
         } else {
           if (!seenEstimated) {
-            // The train's estimated position in a node that it does not have access to.
+            // Estimated position trespassed.
+            pathingStates[trainId] = PathingState::Trespassing;
           }
           break;
         }
       }
 
       // Add the destination offset if it can enter the destination node.
-      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination->id, trainId));
+      bool canArrive = (notEnterable == 0);
       if (canArrive) {
-        outEnterableDistance += distToNextNode + paths[trainId].offset;
+        enterableDistance += paths[trainId].offset;
       }
 
       Distance stoppingDistance =
@@ -239,13 +233,13 @@ public:
         return (int(shouldOvershoot) - int(shouldUndershoot)) * STOPPING_MARGIN;
       }();
 
-      if (canArrive && outEnterableDistance + margin <= stoppingDistance) {
+      if (canArrive && enterableDistance + margin <= stoppingDistance) {
         pathingStates[trainId] = PathingState::Arriving;
         break;
       }
 
       if (!canArrive &&
-          (outEnterableDistance - getTrainHeadLength(train.kinematics.direction) - SAFETY_MARGIN) <= stoppingDistance) {
+          (enterableDistance - getTrainHeadLength(train.kinematics.direction) - SAFETY_MARGIN) <= stoppingDistance) {
         pathingStates[trainId] = PathingState::Yielding;
         break;
       }
@@ -255,40 +249,54 @@ public:
     case PathingState::Yielding: {
       // Detected trespassing. Stop
       if (isTresspassing) {
+        pathingStates[trainId] = PathingState::Trespassing;
         break;
       }
 
       // Calculate the reserved distance.
-      outEnterableDistance = -train.kinematics.estimatedNodeOffset;
+      Distance enterableDistance = -train.kinematics.estimatedNodeOffset;
       Distance distToNextNode = 0;
       size_t notEnterable = paths[trainId].nodes.size();
+      int nodeCount = 0;
       bool seenEstimated = false;
 
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
+          // Switch switches close to us to avoid flipipng the train.
+          if (seenEstimated && nodeCount <= 5) {
+            if (node.srce->type == TrackNode::Type::Branch) {
+              updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
+            }
+          }
+
           // Only accumulate the enterable distance after the estimated node.
           if (!seenEstimated) {
             seenEstimated = (node.srce->id == train.kinematics.estimatedNode->id);
           } else {
-            outEnterableDistance += distToNextNode;
+            enterableDistance += distToNextNode;
+            ++nodeCount;
           }
           distToNextNode = node.srce->edges[node.direction].dist;
           --notEnterable;
         } else {
+          if (!seenEstimated) {
+            // Estimated position trespassed.
+            pathingStates[trainId] = PathingState::Trespassing;
+          }
           break;
         }
       }
 
       // YIELDING should not transit into ARRIVING.
       // Otherwise the train's speed level will remain 0.
-      bool canArrive = (notEnterable == 0 && canEnter(paths[trainId].destination->id, trainId));
+      bool canArrive = (notEnterable == 0);
       if (canArrive) {
         pathingStates[trainId] = PathingState::Moving;
         break;
       }
 
       Distance stoppingDistance = getStoppingDistanceFromLevel(trainId, train.navigation.findingPathTask.maxSpeedLevel);
-      if ((outEnterableDistance - getTrainHeadLength(train.kinematics.direction) - SAFETY_MARGIN) > stoppingDistance) {
+      if ((enterableDistance - getTrainHeadLength(train.kinematics.direction) - SAFETY_MARGIN) > stoppingDistance) {
         pathingStates[trainId] = PathingState::Moving;
         break;
       }
@@ -298,18 +306,13 @@ public:
     case PathingState::Arriving: {
       // Must use estimated speed instead of estimated position.
       // Otherwise if the train stops a tiny bit before the destination, then it will stuck in ARRIVING.
-      if (train.kinematics.estimatedSpeed == 0) {
-        for (const auto& node : paths[trainId].nodes) {
-          unreserve(node.srce->id, trainId);
-        }
-        paths[trainId].nodes.clear();
-        unreserve(paths[trainId].destination->id, trainId);
+      if (train.kinematics.estimatedSpeed == 0 && train.kinematics.offlineSpeed == 0) {
         pathingStates[trainId] = PathingState::Idling;
       }
       break;
     }
     default:
-      logError("unhandled pathing state");
+      break;
     }
 
     return pathingStates[trainId];
@@ -372,7 +375,13 @@ public:
         const TrackEdge& edge = uNode.edges[i];
         TrackNodeId v = edge.dest->id;
 
+        // Ignore permanent stationary.
         if (!isPassable(v, trainId)) {
+          continue;
+        }
+
+        // Avoid flipipng the train.
+        if (edge.dest->type == TrackNode::Type::Branch && (u.dist + edge.dist) <= 50'000) {
           continue;
         }
 
@@ -391,26 +400,57 @@ public:
       if (paths[trainId].destination) {
         finalDestination[paths[trainId].destination->id / 2] = NO_TRAIN;
       }
-
       finalDestination[dest / 2] = trainId;
+
+      // Update the path.
       paths[trainId].destination = &ttState.getTrackNodeById(dest);
       paths[trainId].offset = offset;
-      paths[trainId].distance = 0;
-      KIT_ASSERT(paths[trainId].nodes.empty(), "old path is not clear");
-      pathingStates[trainId] = PathingState::Moving;
 
-      for (TrackNode* curr = &ttState.getTrackNodeById(dest);;) {
-        reserve(curr->id, trainId);
-        TrackNodeId p = parents[curr->id];
-        if (p == NO_PARENT) {
+      decltype(paths[trainId].nodes) newPath{};
+      newPath.pushFront({paths[trainId].destination, Straight});
+      reserve(dest, trainId);
+      for (TrackNodeId currId = dest; parents[currId] != NO_PARENT;) {
+        TrackNodeId parentId = parents[currId];
+        TrackNode& currNode = ttState.getTrackNodeById(currId);
+        TrackNode& parentNode = ttState.getTrackNodeById(parentId);
+
+        TrackDirection dir = getAdjacentDirection(parentNode, currNode);
+        newPath.pushFront({&parentNode, dir});
+        reserve(parentId, trainId);
+        currId = parentId;
+      }
+
+      // Unlike the old design. We don't free up all the nodes upon arrival.
+      // This makes the code more fault tolerant, as it reduces the chance of train crashing into each other.
+      // When we append new path, there are two cases we must handle.
+      // 1. The train continue moving forward. We need to remove the old invalid branches and duplicated nodes in the
+      // old path.
+      // 2. THe train reversed direction. We must unreserve all the previous path, because some other train might be
+      // yielding for it.
+      while (!paths[trainId].nodes.empty()) {
+        auto node = paths[trainId].nodes.popBack();
+        unreserve(node.srce->id, trainId);
+
+        // The train continue moving forward.
+        if (node.srce->id == srce) {
           break;
         }
-        TrackNode* parent = &ttState.getTrackNodeById(p);
-        TrackDirection direction = getAdjacentDirection(*parent, *curr);
-        paths[trainId].distance += parent->edges[direction].dist;
-        paths[trainId].nodes.pushFront({parent, direction});
-        curr = parent;
+
+        // The train reversed. Unreserve all paths to avoid deadlock.
+        if (node.srce->reverse->id == srce) {
+          while (!paths[trainId].nodes.empty()) {
+            auto remainingNode = paths[trainId].nodes.popBack();
+            unreserve(remainingNode.srce->id, trainId);
+          }
+          break;
+        }
       }
+
+      for (const auto& node : newPath) {
+        paths[trainId].nodes.pushBack(node);
+      }
+
+      pathingStates[trainId] = PathingState::Moving;
     }
 
     return isReachable;

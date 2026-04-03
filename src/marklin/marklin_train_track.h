@@ -85,7 +85,7 @@ Train Definition
 ***********************************/
 enum class TrainDirection { NoChange, Forward, Backward, Reverse };
 enum class TrainFunction { HeadLight, BoardingSound, F2, BazzingSound };
-enum class PathingState { Idling, Moving, Yielding, Arriving };
+enum class PathingState { Idling, Moving, Yielding, Arriving, Trespassing };
 
 class NavigationSystem {
   struct FindingPathTask {

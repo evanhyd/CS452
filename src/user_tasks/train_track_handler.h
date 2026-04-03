@@ -215,7 +215,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       bool wasReversing = false;
       if (train.navigation.findingPathTask.isReversing) {
         // Wait for the reverse to complete.
-        if (train.kinematics.estimatedSpeed != 0) {
+        if (train.kinematics.estimatedSpeed != 0 || train.kinematics.offlineSpeed != 0) {
           break;
         }
         // Update kinematics and prediction.
@@ -241,8 +241,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           // Already tried reversing and still couldn't find a path.
           // Most likekly blocked by other train. Pick a new destination.
           makeTrainGotoRandomSensor(context, trainId, train, train.navigation.findingPathTask.maxSpeedLevel);
-          notifyStatusToUI(context.uiTid, "Train %u failed to find a path to %s.", trainId,
-                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+          //   notifyStatusToUI(context.uiTid, "Train %u failed to find a path to %s.", trainId,
+          //                    context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
         } else {
           // Try the other direction.
           train.navigation.findingPathTask.isReversing = true;
@@ -252,10 +252,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       break;
     }
     case marklin::NavigationSystem::State::Routed: {
-      marklin::Distance enterableDistance = 0;
-      auto pathFindingState = context.pfSystem.updateState(
-          trainId, train, enterableDistance,
-          [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); });
+      auto pathFindingState =
+          context.pfSystem.updateState(trainId, train, [&](marklin::SwitchId id, marklin::SwitchState st) {
+            broadcastSwitchState(context, id, st);
+          });
       bool changed = pathFindingState != train.navigation.pathingState;
       train.navigation.pathingState = pathFindingState;
 
@@ -304,6 +304,13 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         broadcastTrainSpeedLevel(context, trainId, 0);
         break;
       }
+      case marklin::PathingState::Trespassing: {
+        if (changed) {
+          notifyStatusToUI(context.uiTid, "Train %u trespassed", trainId);
+        }
+        broadcastTrainSpeedLevel(context, trainId, 0);
+        break;
+      }
       }
       break;
     }
@@ -328,16 +335,15 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     // Log to UI.
     if (shouldUpdateTrainUI) {
       KIT_ASSERT(!context.trainStates.full(), "train state buffer overflow");
-      TrainStatesEntry entry{.trainId = trainId, .train = &train, .lockedNodes = {}, .lockedNodeCount = 0};
-      const auto& path = context.pfSystem.getTrainPath(trainId);
-      for (auto& node : path.nodes) {
-        if (context.pfSystem.getReserver(node.srce->id) != trainId) {
-          break;
+      bool lockEnd = false;
+      TrainStatesEntry entry{.trainId = trainId, .train = &train, .nodes = {}, .nodeCount = 0, .lockCount = 0};
+      for (auto& node : context.pfSystem.getTrainPath(trainId).nodes) {
+        if (!lockEnd && context.pfSystem.getReserver(node.srce->id) == trainId) {
+          ++entry.lockCount;
+        } else {
+          lockEnd = true;
         }
-        entry.lockedNodes[entry.lockedNodeCount++] = &context.ttState.getTrackNodeById(node.srce->id);
-      }
-      if (path.destination) {
-        entry.lockedNodes[entry.lockedNodeCount++] = path.destination;
+        entry.nodes[entry.nodeCount++] = &context.ttState.getTrackNodeById(node.srce->id);
       }
       context.trainStates.pushBack(entry);
     }

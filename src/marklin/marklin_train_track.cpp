@@ -2410,9 +2410,10 @@ void KinematicsSystem::onTick(TrainTrackState& ttState, TrainId trainId) {
   // Apply the acceleration to update the estimated speed.
   if (Speed targetSpeed = marklin::convertSpeedLevelToOfflineSpeed(trainId, offlineSpeedLevel);
       offlineSpeed != targetSpeed) {
-    static constexpr Speed ACCEL_UM_PER_TICK_PER_TICK = 13;
+    static constexpr Speed ACCEL_UM_PER_TICK_PER_TICK = 10;
+    static constexpr Speed DEACCEL_UM_PER_TICK_PER_TICK = -15;
     Speed speedDiff = targetSpeed - offlineSpeed;
-    Speed delta = kit::clamp(speedDiff, -ACCEL_UM_PER_TICK_PER_TICK, ACCEL_UM_PER_TICK_PER_TICK);
+    Speed delta = kit::clamp(speedDiff, DEACCEL_UM_PER_TICK_PER_TICK, ACCEL_UM_PER_TICK_PER_TICK);
     if (offlineSpeed == 0) {
       estimatedSpeed += delta;
     } else {

@@ -24,8 +24,9 @@ struct SensorHistoryEntry {
 struct TrainStatesEntry {
   marklin::TrainId trainId;
   marklin::Train* train;
-  marklin::TrackNode* lockedNodes[marklin::MAX_PATH_NODES];
-  unsigned lockedNodeCount;
+  marklin::TrackNode* nodes[marklin::MAX_PATH_NODES];
+  unsigned nodeCount;
+  unsigned lockCount;
 };
 
 // Clock Server Message
