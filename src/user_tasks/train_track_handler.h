@@ -270,8 +270,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Can enter all nodes within the stopping distance.
         // Moving toward the destination.
         if (changed) {
-          notifyStatusToUI(context.uiTid, "Train %u is continuing toward %s", trainId,
-                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+          //   notifyStatusToUI(context.uiTid, "Train %u is continuing toward %s", trainId,
+          //                    context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
         }
         break;
@@ -280,8 +280,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Can not enter all nodes within the stopping distance.
         // Slowing down.
         if (changed) {
-          notifyStatusToUI(context.uiTid, "Train %u is yielding at %s", trainId,
-                           context.ttState.getTrackNodeById(train.kinematics.estimatedNode->id).name);
+          //   notifyStatusToUI(context.uiTid, "Train %u is yielding at %s", trainId,
+          //                    context.ttState.getTrackNodeById(train.kinematics.estimatedNode->id).name);
           broadcastTrainSpeedLevel(context, trainId, 0);
         }
         break;
@@ -291,15 +291,15 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Destination is within the stopping distance.
         // Slowing down.
         if (changed) {
-          notifyStatusToUI(context.uiTid, "Train %u is arriving at %s", trainId,
-                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+          //   notifyStatusToUI(context.uiTid, "Train %u is arriving at %s", trainId,
+          //                    context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           broadcastTrainSpeedLevel(context, trainId, 0);
         }
         break;
       }
       case marklin::PathingState::Trespassing: {
         if (changed) {
-          notifyStatusToUI(context.uiTid, "Train %u trespassed", trainId);
+          //   notifyStatusToUI(context.uiTid, "Train %u trespassed", trainId);
           broadcastTrainSpeedLevel(context, trainId, 0);
           train.navigation.findingPathTask.isReversing = true;
           train.navigation.findingPathTask.isResumed = false;
@@ -315,13 +315,13 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
                                          train.kinematics.estimatedSpeed, context.currentTicks);
           train.navigation.findingPathTask.isReversing = false;
-          broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
+          broadcastTrainSpeedLevel(context, trainId, 6);
         }
         break;
       }
       case marklin::PathingState::Resuming: {
         if (changed) {
-          notifyStatusToUI(context.uiTid, "Train %u resuming", trainId);
+          //   notifyStatusToUI(context.uiTid, "Train %u resuming", trainId);
           broadcastTrainSpeedLevel(context, trainId, 0);
           train.navigation.findingPathTask.isReversing = true;
           train.navigation.findingPathTask.isResumed = false;

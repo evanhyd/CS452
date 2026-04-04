@@ -159,15 +159,15 @@ private:
         }
 
         // Check if respect yield safety margin.
-        if (pathingStates[trainId] == PathingState::Yielding) {
+        if (pathingStates[trainId] == PathingState::Yielding || pathingStates[trainId] == PathingState::Trespassing) {
           if (++it; it != nodes.end()) {
             if (!canEnter(it->srce->id, trainId)) {
               return true;
             }
-          }
-          if (++it; it != nodes.end()) {
-            if (!canEnter(it->srce->id, trainId)) {
-              return true;
+            if (++it; it != nodes.end()) {
+              if (!canEnter(it->srce->id, trainId)) {
+                return true;
+              }
             }
           }
         }
@@ -188,7 +188,7 @@ public:
   const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
 
   PathingState updateState(TrainId trainId, const Train& train, const auto& updateSwitch, const auto& printer) {
-    bool isTooAhead = isTrespassing(trainId, train);
+    const bool isTooAhead = isTrespassing(trainId, train);
 
     const PathingState oldState = pathingStates[trainId];
     switch (oldState) {
