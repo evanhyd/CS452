@@ -11,10 +11,12 @@ public:
     kit::printf(tid_, spec, args...);
   }
 
-  void puts(const char* str) {
-    for (; *str; ++str) {
+  unsigned puts(const char* str) {
+    unsigned len = 0;
+    for (; *str; ++str, ++len) {
       ::Putc(tid_, static_cast<unsigned char>(*str));
     }
+    return len;
   }
 
   void putc(char c) { ::Putc(tid_, static_cast<unsigned char>(c)); }
