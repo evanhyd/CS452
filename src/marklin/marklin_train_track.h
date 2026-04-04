@@ -142,9 +142,9 @@ public:
     estimatedNodeOffset = 0;
   }
 
-  void reverseEstimatedSensor() {
-    estimatedNode = estimatedNode->reverse;
-    estimatedNodeOffset = -estimatedNodeOffset;
+  void reverseLastSensor() {
+    lastSensor = lastSensor->reverse;
+    lastSensorOffset = -lastSensorOffset;
   }
 
   bool isStationary() const { return estimatedSpeed == 0 && offlineSpeed == 0; }

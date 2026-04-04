@@ -152,8 +152,7 @@ public:
 
   const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
 
-  template <typename Callback>
-  PathingState updateState(TrainId trainId, const Train& train, const Callback& updateSwitch) {
+  PathingState updateState(TrainId trainId, const Train& train, const auto& updateSwitch, const auto& printer) {
     bool isTooAhead = isTrespassing(trainId, train);
 
     const PathingState oldState = pathingStates[trainId];
@@ -199,20 +198,16 @@ public:
         }
       }
 
-      static constexpr Distance YIELDING_MARGIN = 500'000; // 50 cm
-      static constexpr Distance STOPPING_MARGIN = 300'000; // 30 cm
-
       // Add the destination offset if it can enter the destination node.
       const bool isRoadClear = (notEnterable == 0);
       if (isRoadClear) {
-        enterableDistance += paths[trainId].offset;
-      }
-
-      if (isRoadClear) {
+        static constexpr Distance STOPPING_MARGIN = 300'000; // 30 cm
         Distance stoppingDistance = train.kinematics.offlineSpeed ==
                                             convertSpeedLevelToOfflineSpeed(trainId, train.kinematics.offlineSpeedLevel)
                                         ? getStoppingDistanceFromLevel(trainId, train.kinematics.offlineSpeedLevel)
                                         : getStoppingDistance(trainId, train.kinematics.estimatedSpeed);
+
+        enterableDistance += paths[trainId].offset;
         // Check arrival.
         Distance margin = [&]() {
           TrackNode* dest = paths[trainId].destination;
@@ -237,6 +232,7 @@ public:
           pathingStates[trainId] = PathingState::Moving;
         }
       } else {
+        static constexpr Distance YIELDING_MARGIN = 500'000; // 50 cm
         Distance stoppingDistance =
             getStoppingDistanceFromLevel(trainId, train.navigation.findingPathTask.maxSpeedLevel);
 
