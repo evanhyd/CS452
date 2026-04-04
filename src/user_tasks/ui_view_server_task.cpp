@@ -96,6 +96,28 @@ constexpr ArtLoc CENTER_SWITCH_LOCS[4] = {
     {13, 56, 3},
 };
 
+constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
+    // bright green, green
+    "\033[92m",
+    "\033[32m",
+    // bright red, red
+    "\033[91m",
+    "\033[31m",
+    // bright yellow, yellow
+    "\033[93m",
+    "\033[33m",
+    // bright blue, blue
+    "\033[94m",
+    "\033[34m",
+    // bright magenta, magenta
+    "\033[95m",
+    "\033[35m",
+    // bright cyan, cyan
+    "\033[96m",
+    "\033[36m",
+};
+constexpr const char* RESET_COLOR = "\033[0m";
+
 const char* toString(marklin::KinematicsSystem::State state) {
   switch (state) {
   case marklin::KinematicsSystem::State::Lost:
@@ -357,39 +379,19 @@ void uiViewServerTask() {
         if (entry.nodeCount == 0) {
           console.puts("None");
         } else {
+          console.puts(COLORS[2 * i]);
           for (unsigned j = 0; j < entry.nodeCount; ++j) {
             console.printf("%s ", entry.nodes[j]->name);
             if (j + 1 == entry.lockCount) {
-              console.printf("### ");
+              console.puts(COLORS[2 * i + 1]);
             }
           }
+          console.puts(RESET_COLOR);
         }
         console.clearToEol();
       }
 
       // Track art
-      static constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
-          // bright green, green
-          "\033[92m",
-          "\033[32m",
-          // bright red, red
-          "\033[91m",
-          "\033[31m",
-          // bright yellow, yellow
-          "\033[93m",
-          "\033[33m",
-          // bright blue, blue
-          "\033[94m",
-          "\033[34m",
-          // bright magenta, magenta
-          "\033[95m",
-          "\033[35m",
-          // bright cyan, cyan
-          "\033[96m",
-          "\033[36m",
-      };
-      static constexpr const char* RESET_COLOR = "\033[0m";
-
       uint8_t desiredSensorColors[80];
       uint8_t desiredSwitchColors[18];
       uint8_t desiredCenterSwitchColors[4];
