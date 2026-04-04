@@ -15,7 +15,7 @@ def foo(name):
         txt = name + arrow
         for ri, row in enumerate(art):
             if (col := row.find(txt)) != -1:
-                sensor_locs.append((ri, col, len(name)))
+                sensor_locs.append((ri, col, len(txt)))
                 return
     raise ValueError(f"{name} not found in art")
 

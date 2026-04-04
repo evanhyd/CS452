@@ -75,15 +75,15 @@ struct ArtLoc {
 };
 
 constexpr ArtLoc SENSOR_LOCS[80] = {
-    {0, 19, 2},  {2, 19, 2},  {9, 24, 2},  {10, 24, 2}, {29, 23, 2}, {31, 23, 2}, {25, 19, 2}, {27, 19, 2}, {21, 15, 2},
-    {23, 15, 3}, {18, 12, 3}, {19, 13, 3}, {4, 14, 3},  {6, 14, 3},  {8, 13, 3},  {9, 12, 3},  {21, 53, 2}, {23, 53, 2},
-    {19, 47, 2}, {20, 46, 2}, {4, 53, 2},  {6, 53, 2},  {21, 4, 2},  {23, 4, 2},  {29, 3, 2},  {31, 3, 3},  {25, 3, 3},
-    {27, 3, 3},  {16, 66, 3}, {17, 67, 3}, {17, 23, 3}, {18, 23, 3}, {17, 49, 2}, {16, 50, 2}, {29, 73, 2}, {31, 73, 2},
-    {25, 40, 2}, {27, 40, 2}, {29, 43, 2}, {31, 43, 2}, {21, 39, 2}, {23, 39, 3}, {4, 39, 3},  {6, 39, 3},  {0, 41, 3},
-    {2, 41, 3},  {25, 52, 3}, {27, 52, 3}, {11, 66, 2}, {10, 67, 2}, {4, 63, 2},  {6, 63, 2},  {8, 77, 2},  {9, 78, 2},
-    {6, 89, 2},  {5, 89, 2},  {22, 89, 2}, {21, 89, 3}, {25, 63, 3}, {27, 63, 3}, {21, 62, 3}, {23, 62, 3}, {19, 69, 3},
-    {20, 70, 3}, {11, 50, 2}, {10, 49, 2}, {7, 70, 2},  {8, 69, 2},  {4, 73, 2},  {6, 73, 2},  {0, 77, 2},  {2, 77, 2},
-    {18, 78, 2}, {19, 76, 3}, {25, 75, 3}, {27, 75, 3}, {21, 73, 3}, {23, 73, 3}, {7, 45, 3},  {8, 46, 3},
+    {0, 19, 3},  {2, 19, 3},  {9, 24, 3},  {10, 24, 3}, {29, 23, 3}, {31, 23, 3}, {25, 19, 3}, {27, 19, 3}, {21, 15, 3},
+    {23, 15, 4}, {18, 12, 4}, {19, 13, 4}, {4, 14, 4},  {6, 14, 4},  {8, 13, 4},  {9, 12, 4},  {21, 53, 3}, {23, 53, 3},
+    {19, 47, 3}, {20, 46, 3}, {4, 53, 3},  {6, 53, 3},  {21, 4, 3},  {23, 4, 3},  {29, 3, 3},  {31, 3, 4},  {25, 3, 4},
+    {27, 3, 4},  {16, 66, 4}, {17, 67, 4}, {17, 23, 4}, {18, 23, 4}, {17, 49, 3}, {16, 50, 3}, {29, 73, 3}, {31, 73, 3},
+    {25, 40, 3}, {27, 40, 3}, {29, 43, 3}, {31, 43, 3}, {21, 39, 3}, {23, 39, 4}, {4, 39, 4},  {6, 39, 4},  {0, 41, 4},
+    {2, 41, 4},  {25, 52, 4}, {27, 52, 4}, {11, 66, 3}, {10, 67, 3}, {4, 63, 3},  {6, 63, 3},  {8, 77, 3},  {9, 78, 3},
+    {6, 89, 3},  {5, 89, 3},  {22, 89, 3}, {21, 89, 4}, {25, 63, 4}, {27, 63, 4}, {21, 62, 4}, {23, 62, 4}, {19, 69, 4},
+    {20, 70, 4}, {11, 50, 3}, {10, 49, 3}, {7, 70, 3},  {8, 69, 3},  {4, 73, 3},  {6, 73, 3},  {0, 77, 3},  {2, 77, 3},
+    {18, 78, 3}, {19, 76, 4}, {25, 75, 4}, {27, 75, 4}, {21, 73, 4}, {23, 73, 4}, {7, 45, 4},  {8, 46, 4},
 };
 constexpr ArtLoc SWITCH_LOCS[18] = {
     {22, 22, 1}, {26, 26, 1}, {30, 30, 1}, {5, 22, 1}, {30, 68, 1}, {26, 48, 1}, {26, 71, 1}, {17, 85, 1}, {10, 85, 1},
@@ -97,26 +97,48 @@ constexpr ArtLoc CENTER_SWITCH_LOCS[4] = {
 };
 
 constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
-    // bright green, green
+    // black on bright green, bright green
+    "\033[30;102m",
     "\033[92m",
-    "\033[32m",
-    // bright red, red
+    // black on bright red, bright red
+    "\033[30;101m",
     "\033[91m",
-    "\033[31m",
-    // bright yellow, yellow
+    // black on bright yellow, bright yellow
+    "\033[30;103m",
     "\033[93m",
-    "\033[33m",
-    // bright blue, blue
+    // black on bright blue, bright blue
+    "\033[30;104m",
     "\033[94m",
-    "\033[34m",
-    // bright magenta, magenta
+    // black on bright magenta, bright magenta
+    "\033[30;105m",
     "\033[95m",
-    "\033[35m",
-    // bright cyan, cyan
+    // black on bright cyan, bright cyan
+    "\033[30;106m",
     "\033[96m",
-    "\033[36m",
 };
 constexpr const char* RESET_COLOR = "\033[0m";
+constexpr const char* BOLD = "\033[1m";
+constexpr const char* FG_BLACK = "\033[30m";
+constexpr uint8_t NO_TRAIN = static_cast<uint8_t>(-1);
+
+constexpr const char* BRIGHT_FG[marklin::NUM_TRAIN_IN_LAB] = {
+    "\033[92m", "\033[91m", "\033[93m", "\033[94m", "\033[95m", "\033[96m",
+};
+constexpr const char* REGULAR_FG[marklin::NUM_TRAIN_IN_LAB] = {
+    "\033[32m", "\033[31m", "\033[33m", "\033[34m", "\033[35m", "\033[36m",
+};
+constexpr const char* BRIGHT_BG[marklin::NUM_TRAIN_IN_LAB] = {
+    "\033[102m", "\033[101m", "\033[103m", "\033[104m", "\033[105m", "\033[106m",
+};
+constexpr const char* REGULAR_BG[marklin::NUM_TRAIN_IN_LAB] = {
+    "\033[42m", "\033[41m", "\033[43m", "\033[44m", "\033[45m", "\033[46m",
+};
+
+struct NodeRenderStyle {
+  uint8_t lockTrain;
+  uint8_t pathTrain;
+  uint8_t estimatedTrain;
+};
 
 const char* toString(marklin::KinematicsSystem::State state) {
   switch (state) {
@@ -195,6 +217,7 @@ void uiViewServerTask() {
   console.hideCursor();
   console.puts(RESET_COLOR);
   console.moveCursor(ROW_SWITCHES, 1);
+  console.puts(BOLD);
   console.puts("Switches:");
   console.moveCursor(ROW_SENSORS, COL_SENSORS);
   console.puts("Sensors:");
@@ -204,24 +227,24 @@ void uiViewServerTask() {
   console.puts("Command history:");
   console.moveCursor(ROW_PROMPT, 1);
   console.puts("> ");
+  console.puts(RESET_COLOR);
 
   for (unsigned i = 0; i < std::size(ART); ++i) {
     console.moveCursor(ROW_ART + i, COL_ART);
     console.puts(ART[i]);
   }
 
-  static constexpr uint8_t NO_COLOR = static_cast<uint8_t>(-1);
-  uint8_t sensorColors[80];
-  uint8_t switchColors[18];
-  uint8_t centerSwitchColors[4];
+  NodeRenderStyle sensorStyles[80];
+  NodeRenderStyle switchStyles[18];
+  NodeRenderStyle centerSwitchStyles[4];
   for (unsigned i = 0; i < 80; ++i) {
-    sensorColors[i] = NO_COLOR;
+    sensorStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
   }
   for (unsigned i = 0; i < 18; ++i) {
-    switchColors[i] = NO_COLOR;
+    switchStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
   }
   for (unsigned i = 0; i < 4; ++i) {
-    centerSwitchColors[i] = NO_COLOR;
+    centerSwitchStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
   }
 
   bool cmdHistoryDirty = false;
@@ -232,8 +255,6 @@ void uiViewServerTask() {
     if (cmdHistoryDirty && currentTicks - cmdHistoryDrawnTicks >= CMD_HISTORY_DEBOUNCE_TICKS) {
       cmdHistoryDrawnTicks = currentTicks;
       cmdHistoryDirty = false;
-      console.moveCursor(ROW_CMD_HISTORY, 1);
-      console.puts("Command history:");
       for (unsigned row = 0; row < cmdHistoryToDraw.count; ++row) {
         const auto& entry = cmdHistoryToDraw.entries[row];
         console.moveCursor(ROW_CMD_HISTORY + 1 + row, 1);
@@ -327,8 +348,6 @@ void uiViewServerTask() {
       break;
     }
     case UIMsgType::RedrawSensors: {
-      console.moveCursor(ROW_SENSORS, COL_SENSORS);
-      console.puts("Sensors:");
       for (unsigned row = 0; row < msg.sensorHistory.count; ++row) {
         const auto& entry = msg.sensorHistory.entries[row];
         console.moveCursor(ROW_SENSORS + 1 + row, COL_SENSORS);
@@ -344,8 +363,6 @@ void uiViewServerTask() {
       break;
     }
     case UIMsgType::TrainStates: {
-      console.moveCursor(ROW_TRAINS, COL_TRAINS);
-      console.puts("Trains:");
       for (unsigned i = 0; i < msg.trainStates.count; ++i) {
         const auto& entry = msg.trainStates.entries[i];
         unsigned baseRow = ROW_TRAINS + 1 + (i * 2);
@@ -392,64 +409,112 @@ void uiViewServerTask() {
       }
 
       // Track art
-      uint8_t desiredSensorColors[80];
-      uint8_t desiredSwitchColors[18];
-      uint8_t desiredCenterSwitchColors[4];
+      NodeRenderStyle desiredSensorStyles[80];
+      NodeRenderStyle desiredSwitchStyles[18];
+      NodeRenderStyle desiredCenterSwitchStyles[4];
       for (unsigned i = 0; i < 80; ++i) {
-        desiredSensorColors[i] = NO_COLOR;
+        desiredSensorStyles[i] =
+            NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
       }
       for (unsigned i = 0; i < 18; ++i) {
-        desiredSwitchColors[i] = NO_COLOR;
+        desiredSwitchStyles[i] =
+            NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
       }
       for (unsigned i = 0; i < 4; ++i) {
-        desiredCenterSwitchColors[i] = NO_COLOR;
+        desiredCenterSwitchStyles[i] =
+            NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
       }
 
       for (unsigned i = 0; i < msg.trainStates.count; ++i) {
         const auto& entry = msg.trainStates.entries[i];
         for (unsigned j = 0; j < entry.nodeCount; ++j) {
-          uint8_t colorIndex = static_cast<uint8_t>(2 * i + (j >= entry.lockCount));
+          bool isLocked = j < entry.lockCount;
           const auto& node = *entry.nodes[j];
           if (node.type == marklin::TrackNode::Type::Sensor) {
-            desiredSensorColors[node.num] = colorIndex;
+            auto& style = desiredSensorStyles[node.num];
+            if (isLocked) {
+              style.lockTrain = static_cast<uint8_t>(i);
+            } else {
+              style.pathTrain = static_cast<uint8_t>(i);
+            }
           } else if (node.type == marklin::TrackNode::Type::Branch || node.type == marklin::TrackNode::Type::Merge) {
             if (node.num >= 153) {
-              desiredCenterSwitchColors[node.num - 153] = colorIndex;
+              auto& style = desiredCenterSwitchStyles[node.num - 153];
+              if (isLocked) {
+                style.lockTrain = static_cast<uint8_t>(i);
+              } else {
+                style.pathTrain = static_cast<uint8_t>(i);
+              }
             } else {
-              desiredSwitchColors[node.num - 1] = colorIndex;
+              auto& style = desiredSwitchStyles[node.num - 1];
+              if (isLocked) {
+                style.lockTrain = static_cast<uint8_t>(i);
+              } else {
+                style.pathTrain = static_cast<uint8_t>(i);
+              }
             }
+          }
+        }
+
+        const marklin::TrackNode* estimatedNode = entry.train->kinematics.estimatedNode;
+        if (!estimatedNode) {
+          continue;
+        }
+        if (estimatedNode->type == marklin::TrackNode::Type::Sensor) {
+          desiredSensorStyles[estimatedNode->num].estimatedTrain = static_cast<uint8_t>(i);
+        } else if (estimatedNode->type == marklin::TrackNode::Type::Branch ||
+                   estimatedNode->type == marklin::TrackNode::Type::Merge) {
+          if (estimatedNode->num >= 153) {
+            desiredCenterSwitchStyles[estimatedNode->num - 153].estimatedTrain = static_cast<uint8_t>(i);
+          } else {
+            desiredSwitchStyles[estimatedNode->num - 1].estimatedTrain = static_cast<uint8_t>(i);
           }
         }
       }
 
-      auto drawLoc = [&](const ArtLoc& loc, uint8_t colorIndex) {
+      auto drawLoc = [&](const ArtLoc& loc, const NodeRenderStyle& style) {
         console.moveCursor(ROW_ART + loc.row, COL_ART + loc.col);
-        if (colorIndex == NO_COLOR) {
-          console.puts(RESET_COLOR);
-        } else {
-          console.puts(COLORS[colorIndex]);
+        console.puts(RESET_COLOR);
+        if (style.estimatedTrain != NO_TRAIN) {
+          console.puts(REGULAR_BG[style.estimatedTrain]);
+        } else if (style.lockTrain != NO_TRAIN) {
+          console.puts(BRIGHT_BG[style.lockTrain]);
+        }
+
+        if (style.lockTrain != NO_TRAIN) {
+          if (style.pathTrain != NO_TRAIN && style.pathTrain != style.lockTrain) {
+            console.puts(REGULAR_FG[style.pathTrain]);
+          } else {
+            console.puts(FG_BLACK);
+          }
+        } else if (style.pathTrain != NO_TRAIN) {
+          console.puts(BRIGHT_FG[style.pathTrain]);
         }
         for (unsigned k = 0; k < loc.len; ++k) {
           console.putc(ART[loc.row][loc.col + k]);
         }
       };
 
+      auto styleChanged = [](const NodeRenderStyle& a, const NodeRenderStyle& b) {
+        return a.lockTrain != b.lockTrain || a.pathTrain != b.pathTrain || a.estimatedTrain != b.estimatedTrain;
+      };
+
       for (unsigned i = 0; i < 80; ++i) {
-        if (sensorColors[i] != desiredSensorColors[i]) {
-          sensorColors[i] = desiredSensorColors[i];
-          drawLoc(SENSOR_LOCS[i], sensorColors[i]);
+        if (styleChanged(sensorStyles[i], desiredSensorStyles[i])) {
+          sensorStyles[i] = desiredSensorStyles[i];
+          drawLoc(SENSOR_LOCS[i], sensorStyles[i]);
         }
       }
       for (unsigned i = 0; i < 18; ++i) {
-        if (switchColors[i] != desiredSwitchColors[i]) {
-          switchColors[i] = desiredSwitchColors[i];
-          drawLoc(SWITCH_LOCS[i], switchColors[i]);
+        if (styleChanged(switchStyles[i], desiredSwitchStyles[i])) {
+          switchStyles[i] = desiredSwitchStyles[i];
+          drawLoc(SWITCH_LOCS[i], switchStyles[i]);
         }
       }
       for (unsigned i = 0; i < 4; ++i) {
-        if (centerSwitchColors[i] != desiredCenterSwitchColors[i]) {
-          centerSwitchColors[i] = desiredCenterSwitchColors[i];
-          drawLoc(CENTER_SWITCH_LOCS[i], centerSwitchColors[i]);
+        if (styleChanged(centerSwitchStyles[i], desiredCenterSwitchStyles[i])) {
+          centerSwitchStyles[i] = desiredCenterSwitchStyles[i];
+          drawLoc(CENTER_SWITCH_LOCS[i], centerSwitchStyles[i]);
         }
       }
 
