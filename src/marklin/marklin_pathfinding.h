@@ -208,12 +208,11 @@ public:
         enterableDistance += paths[trainId].offset;
       }
 
-      if (isRoadClear && oldState == PathingState::Moving) {
+      if (isRoadClear) {
         Distance stoppingDistance = train.kinematics.offlineSpeed ==
                                             convertSpeedLevelToOfflineSpeed(trainId, train.kinematics.offlineSpeedLevel)
                                         ? getStoppingDistanceFromLevel(trainId, train.kinematics.offlineSpeedLevel)
                                         : getStoppingDistance(trainId, train.kinematics.estimatedSpeed);
-
         // Check arrival.
         Distance margin = [&]() {
           TrackNode* dest = paths[trainId].destination;
