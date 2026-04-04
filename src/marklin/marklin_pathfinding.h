@@ -135,11 +135,46 @@ private:
 
   bool isTrespassing(TrainId trainId, const Train& train) {
     auto& nodes = paths[trainId].nodes;
+
+    // Last sensor trespassing.
     bool inPath = kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) {
       return node.srce->id == train.kinematics.lastSensor->id ||
              node.srce->reverse->id == train.kinematics.lastSensor->id;
     });
-    return inPath && !canEnter(train.kinematics.lastSensor->id, trainId);
+    if (inPath && !canEnter(train.kinematics.lastSensor->id, trainId)) {
+      return true;
+    }
+
+    // Estimated node trespassing.
+    {
+      auto it = kit::find_if(nodes.begin(), nodes.end(), [&](auto& node) {
+        return node.srce->id == train.kinematics.lastSensor->id ||
+               node.srce->reverse->id == train.kinematics.lastSensor->id;
+      });
+
+      if (it != nodes.end()) {
+        // Check if the train is too ahead.
+        if (!canEnter(it->srce->id, trainId)) {
+          return true;
+        }
+
+        // Check if respect yield safety margin.
+        if (pathingStates[trainId] == PathingState::Yielding) {
+          if (++it; it != nodes.end()) {
+            if (!canEnter(it->srce->id, trainId)) {
+              return true;
+            }
+          }
+          if (++it; it != nodes.end()) {
+            if (!canEnter(it->srce->id, trainId)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    return false;
   }
 
 public:
@@ -232,7 +267,7 @@ public:
           pathingStates[trainId] = PathingState::Moving;
         }
       } else {
-        static constexpr Distance YIELDING_MARGIN = 500'000; // 50 cm
+        static constexpr Distance YIELDING_MARGIN = 300'000; // 30 cm
         Distance stoppingDistance =
             getStoppingDistanceFromLevel(trainId, train.navigation.findingPathTask.maxSpeedLevel);
 

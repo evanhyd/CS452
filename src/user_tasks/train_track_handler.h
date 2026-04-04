@@ -315,7 +315,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
           train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
                                          train.kinematics.estimatedSpeed, context.currentTicks);
           train.navigation.findingPathTask.isReversing = false;
-          broadcastTrainSpeedLevel(context, trainId, 5);
+          broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
         }
         break;
       }
