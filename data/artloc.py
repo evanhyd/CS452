@@ -1,5 +1,6 @@
 ASCII = True
-filename = "track_art_ascii.txt" if ASCII else "track_art.txt"
+# filename = "track_art_ascii.txt" if ASCII else "track_art.txt"
+filename = "track_art_ascii_rotated.txt" if ASCII else "track_art.txt"
 
 with open(filename) as f:
     art = f.readlines()
