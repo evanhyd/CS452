@@ -11,6 +11,9 @@
 
 namespace k4 {
 
+inline constexpr uint32_t FINDING_PATH_RETRY_INITIAL_TICKS = 10;
+inline constexpr uint32_t FINDING_PATH_RETRY_MAX_TICKS = 320;
+
 inline marklin::TrackNodeId pickWanderDestination(TrainTrackServerContext& ctx, marklin::TrackNodeId avoidId) {
   avoidId /= 2;
   auto id = marklin::TrackNodeId(ctx.currentTicks % 40);
@@ -24,8 +27,23 @@ inline marklin::TrackNodeId pickWanderDestination(TrainTrackServerContext& ctx, 
 inline void makeTrainGotoRandomSensor(TrainTrackServerContext& context, marklin::Train& train,
                                       marklin::SpeedLevel speedLevel) {
   marklin::TrackNodeId dest = pickWanderDestination(context, train.navigation.findingPathTask.dest);
-  train.navigation.findingPathTask = {dest, 0, speedLevel, false};
+  const uint32_t retryAtTicks = train.navigation.findingPathTask.retryAtTicks;
+  const uint32_t retryBackoffTicks = train.navigation.findingPathTask.retryBackoffTicks;
+  train.navigation.findingPathTask = {dest, 0, speedLevel, false, false, retryAtTicks, retryBackoffTicks};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
+}
+
+inline void resetFindingPathRetryBackoff(marklin::Train& train) {
+  train.navigation.findingPathTask.retryAtTicks = 0;
+  train.navigation.findingPathTask.retryBackoffTicks = 0;
+}
+
+inline void scheduleFindingPathRetry(TrainTrackServerContext& context, marklin::Train& train) {
+  auto& task = train.navigation.findingPathTask;
+  task.retryBackoffTicks = task.retryBackoffTicks == 0
+                               ? FINDING_PATH_RETRY_INITIAL_TICKS
+                               : kit::min(task.retryBackoffTicks * 2, FINDING_PATH_RETRY_MAX_TICKS);
+  task.retryAtTicks = context.currentTicks + task.retryBackoffTicks;
 }
 
 inline void setSpeedCmdHandler(TrainTrackServerContext& context, marklin::TrainId trainId,
@@ -205,6 +223,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         break;
       }
 
+      if (train.navigation.findingPathTask.retryAtTicks > context.currentTicks) {
+        break;
+      }
+
       // Check if the train is reversing.
       bool wasReversing = false;
       if (train.navigation.findingPathTask.isReversing) {
@@ -227,6 +249,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       // Find path from the current direction. If fail, we try the other direction.
       if (context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
                                     train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset)) {
+        resetFindingPathRetryBackoff(train);
         train.navigation.state = marklin::NavigationSystem::State::Routed;
         notifyStatusToUI(context.uiTid, "Train %u routed to %s.", trainId,
                          context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
@@ -234,10 +257,11 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         if (wasReversing) {
           // Already tried reversing and still couldn't find a path.
           // Most likekly blocked by other train. Pick a new destination.
+          const marklin::TrackNodeId failedDest = train.navigation.findingPathTask.dest;
+          scheduleFindingPathRetry(context, train);
           makeTrainGotoRandomSensor(context, train, train.navigation.findingPathTask.maxSpeedLevel);
           notifyStatusToUI(context.uiTid, "Train %u failed to find a path from %s to %s.", trainId,
-                           train.kinematics.estimatedNode->name,
-                           context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+                           train.kinematics.estimatedNode->name, context.ttState.getTrackNodeById(failedDest).name);
         } else {
           // Try the other direction.
           train.navigation.findingPathTask.isReversing = true;

@@ -94,6 +94,8 @@ class NavigationSystem {
     SpeedLevel maxSpeedLevel = 0;
     bool isReversing = false;
     bool isResumed = false;
+    uint32_t retryAtTicks = 0;
+    uint32_t retryBackoffTicks = 0;
   };
 
   struct ReversingTask {
