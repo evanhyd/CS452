@@ -101,7 +101,9 @@ void io_server::ioServerTask() {
         putcReady = false;
         ::Reply(putcNotifierTid, reinterpret_cast<const char*>(&msg.putcRequest.ch), sizeof(msg.putcRequest.ch));
       } else {
-        toPutcBuffer.pushBack(PutcReply{msg.putcRequest.ch});
+        if (!toPutcBuffer.full()) {
+          toPutcBuffer.pushBack(PutcReply{msg.putcRequest.ch});
+        }
       }
       int success = 0;
       ::Reply(tid, reinterpret_cast<const char*>(&success), sizeof(int));

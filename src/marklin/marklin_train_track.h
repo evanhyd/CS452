@@ -85,7 +85,7 @@ Train Definition
 ***********************************/
 enum class TrainDirection { NoChange, Forward, Backward, Reverse };
 enum class TrainFunction { HeadLight, BoardingSound, F2, BazzingSound };
-enum class PathingState { Idling, Moving, Yielding, Arriving, Trespassing };
+enum class PathingState { Idling, Moving, Yielding, Arriving, Trespassing, Resuming };
 
 class NavigationSystem {
   struct FindingPathTask {
@@ -93,6 +93,7 @@ class NavigationSystem {
     Distance offset = 0;
     SpeedLevel maxSpeedLevel = 0;
     bool isReversing = false;
+    bool isResumed = false;
   };
 
   struct ReversingTask {
@@ -102,7 +103,7 @@ class NavigationSystem {
 public:
   enum class State { Manual, FindingPath, Routed, Reversing };
   State state = State::Manual;
-  PathingState pathingState = PathingState::Idling;
+  PathingState oldPathingState = PathingState::Idling;
   FindingPathTask findingPathTask{};
   ReversingTask reversingTask{};
   bool isWandering = false;
@@ -140,6 +141,13 @@ public:
     estimatedNode = &sensor;
     estimatedNodeOffset = 0;
   }
+
+  void reverseEstimatedSensor() {
+    estimatedNode = estimatedNode->reverse;
+    estimatedNodeOffset = -estimatedNodeOffset;
+  }
+
+  bool isStationary() const { return estimatedSpeed == 0 && offlineSpeed == 0; }
 
   void onTick(struct TrainTrackState& ttState, TrainId trainId);
 };

@@ -132,6 +132,8 @@ const char* toString(marklin::PathingState state) {
     return "Arriving";
   case marklin::PathingState::Trespassing:
     return "Trespassing";
+  case marklin::PathingState::Resuming:
+    return "Resuming";
   }
   return "Unknown";
 }
@@ -330,7 +332,7 @@ void uiViewServerTask() {
         console.moveCursor(baseRow, COL_TRAINS);
         console.printf("Train %u [%s|%s|%s] Est %u um/t Off %u um/t | Last %s[%u mm] Est %s[%u mm]", entry.trainId,
                        toString(entry.train->kinematics.state), toString(entry.train->navigation.state),
-                       toString(entry.train->navigation.pathingState), entry.train->kinematics.estimatedSpeed,
+                       toString(entry.train->navigation.oldPathingState), entry.train->kinematics.estimatedSpeed,
                        entry.train->kinematics.offlineSpeed,
                        (entry.train->kinematics.lastSensor ? entry.train->kinematics.lastSensor->name : "N/A"),
                        entry.train->kinematics.lastSensorOffset / 1000,
