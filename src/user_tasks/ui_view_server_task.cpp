@@ -193,7 +193,7 @@ void uiViewServerTask() {
 
   console.clearScreen();
   console.hideCursor();
-
+  console.puts(RESET_COLOR);
   console.moveCursor(ROW_SWITCHES, 1);
   console.puts("Switches:");
   console.moveCursor(ROW_SENSORS, COL_SENSORS);
@@ -411,7 +411,7 @@ void uiViewServerTask() {
           uint8_t colorIndex = static_cast<uint8_t>(2 * i + (j >= entry.lockCount));
           const auto& node = *entry.nodes[j];
           if (node.type == marklin::TrackNode::Type::Sensor) {
-            desiredSensorColors[node.num - 1] = colorIndex;
+            desiredSensorColors[node.num] = colorIndex;
           } else if (node.type == marklin::TrackNode::Type::Branch || node.type == marklin::TrackNode::Type::Merge) {
             if (node.num >= 153) {
               desiredCenterSwitchColors[node.num - 153] = colorIndex;
