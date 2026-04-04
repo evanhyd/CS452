@@ -186,17 +186,18 @@ void uiViewServerTask() {
     console.puts(ART[i]);
   }
 
+  static constexpr uint8_t NO_COLOR = static_cast<uint8_t>(-1);
   uint8_t sensorColors[80];
   uint8_t switchColors[18];
   uint8_t centerSwitchColors[4];
   for (unsigned i = 0; i < 80; ++i) {
-    sensorColors[i] = (uint8_t)-1;
+    sensorColors[i] = NO_COLOR;
   }
   for (unsigned i = 0; i < 18; ++i) {
-    switchColors[i] = (uint8_t)-1;
+    switchColors[i] = NO_COLOR;
   }
   for (unsigned i = 0; i < 4; ++i) {
-    centerSwitchColors[i] = (uint8_t)-1;
+    centerSwitchColors[i] = NO_COLOR;
   }
 
   bool cmdHistoryDirty = false;
@@ -365,65 +366,90 @@ void uiViewServerTask() {
       }
 
       // Track art
-      static constexpr const char* COLORS[marklin::NUM_TRAIN_IN_LAB][2] = {
+      static constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
           // bright green, green
-          {"\033[92m", "\033[32m"},
+          "\033[92m",
+          "\033[32m",
           // bright red, red
-          {"\033[91m", "\033[31m"},
+          "\033[91m",
+          "\033[31m",
           // bright yellow, yellow
-          {"\033[93m", "\033[33m"},
+          "\033[93m",
+          "\033[33m",
           // bright blue, blue
-          {"\033[94m", "\033[34m"},
+          "\033[94m",
+          "\033[34m",
           // bright magenta, magenta
-          {"\033[95m", "\033[35m"},
+          "\033[95m",
+          "\033[35m",
           // bright cyan, cyan
-          {"\033[96m", "\033[36m"},
+          "\033[96m",
+          "\033[36m",
       };
       static constexpr const char* RESET_COLOR = "\033[0m";
+
+      uint8_t desiredSensorColors[80];
+      uint8_t desiredSwitchColors[18];
+      uint8_t desiredCenterSwitchColors[4];
+      for (unsigned i = 0; i < 80; ++i) {
+        desiredSensorColors[i] = NO_COLOR;
+      }
+      for (unsigned i = 0; i < 18; ++i) {
+        desiredSwitchColors[i] = NO_COLOR;
+      }
+      for (unsigned i = 0; i < 4; ++i) {
+        desiredCenterSwitchColors[i] = NO_COLOR;
+      }
+
       for (unsigned i = 0; i < msg.trainStates.count; ++i) {
         const auto& entry = msg.trainStates.entries[i];
-        console.puts(COLORS[i][0]);
         for (unsigned j = 0; j < entry.nodeCount; ++j) {
-          if (j == entry.lockCount) {
-            console.puts(COLORS[i][1]);
-          }
           uint8_t colorIndex = static_cast<uint8_t>(2 * i + (j >= entry.lockCount));
-          const ArtLoc* loc = nullptr;
           const auto& node = *entry.nodes[j];
           if (node.type == marklin::TrackNode::Type::Sensor) {
-            if (sensorColors[node.num - 1] != colorIndex) {
-              sensorColors[node.num - 1] = colorIndex;
-            } else {
-              continue;
-            }
-            loc = &SENSOR_LOCS[node.num - 1];
+            desiredSensorColors[node.num - 1] = colorIndex;
           } else if (node.type == marklin::TrackNode::Type::Branch || node.type == marklin::TrackNode::Type::Merge) {
             if (node.num >= 153) {
-              if (centerSwitchColors[node.num - 153] != colorIndex) {
-                centerSwitchColors[node.num - 153] = colorIndex;
-              } else {
-                continue;
-              }
-              loc = &CENTER_SWITCH_LOCS[node.num - 153];
+              desiredCenterSwitchColors[node.num - 153] = colorIndex;
             } else {
-              if (switchColors[node.num - 1] != colorIndex) {
-                switchColors[node.num - 1] = colorIndex;
-              } else {
-                continue;
-              }
-              loc = &SWITCH_LOCS[node.num - 1];
+              desiredSwitchColors[node.num - 1] = colorIndex;
             }
           }
-          if (!loc) {
-            continue;
-          }
-          console.moveCursor(ROW_ART + loc->row, COL_ART + loc->col);
-          for (unsigned k = 0; k < loc->len; ++k) {
-            console.putc(ART[loc->row][loc->col + k]);
-          }
         }
-        console.puts(RESET_COLOR);
       }
+
+      auto drawLoc = [&](const ArtLoc& loc, uint8_t colorIndex) {
+        console.moveCursor(ROW_ART + loc.row, COL_ART + loc.col);
+        if (colorIndex == NO_COLOR) {
+          console.puts(RESET_COLOR);
+        } else {
+          console.puts(COLORS[colorIndex]);
+        }
+        for (unsigned k = 0; k < loc.len; ++k) {
+          console.putc(ART[loc.row][loc.col + k]);
+        }
+      };
+
+      for (unsigned i = 0; i < 80; ++i) {
+        if (sensorColors[i] != desiredSensorColors[i]) {
+          sensorColors[i] = desiredSensorColors[i];
+          drawLoc(SENSOR_LOCS[i], sensorColors[i]);
+        }
+      }
+      for (unsigned i = 0; i < 18; ++i) {
+        if (switchColors[i] != desiredSwitchColors[i]) {
+          switchColors[i] = desiredSwitchColors[i];
+          drawLoc(SWITCH_LOCS[i], switchColors[i]);
+        }
+      }
+      for (unsigned i = 0; i < 4; ++i) {
+        if (centerSwitchColors[i] != desiredCenterSwitchColors[i]) {
+          centerSwitchColors[i] = desiredCenterSwitchColors[i];
+          drawLoc(CENTER_SWITCH_LOCS[i], centerSwitchColors[i]);
+        }
+      }
+
+      console.puts(RESET_COLOR);
       break;
     }
     }
