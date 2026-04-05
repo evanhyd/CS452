@@ -130,8 +130,8 @@ constexpr const char* REGULAR_FG[marklin::NUM_TRAIN_IN_LAB] = {
 constexpr const char* BRIGHT_BG[marklin::NUM_TRAIN_IN_LAB] = {
     "\033[102m", "\033[101m", "\033[103m", "\033[104m", "\033[105m", "\033[106m",
 };
-constexpr const char* REGULAR_BG[marklin::NUM_TRAIN_IN_LAB] = {
-    "\033[42m", "\033[41m", "\033[43m", "\033[44m", "\033[45m", "\033[46m",
+constexpr const char* REGULAR_BG_BOLD[marklin::NUM_TRAIN_IN_LAB] = {
+    "\033[1;42m", "\033[1;41m", "\033[1;43m", "\033[1;44m", "\033[1;45m", "\033[1;46m",
 };
 
 struct NodeRenderStyle {
@@ -476,7 +476,7 @@ void uiViewServerTask() {
         console.moveCursor(ROW_ART + loc.row, COL_ART + loc.col);
         console.puts(RESET_COLOR);
         if (style.estimatedTrain != NO_TRAIN) {
-          console.puts(REGULAR_BG[style.estimatedTrain]);
+          console.puts(REGULAR_BG_BOLD[style.estimatedTrain]);
         } else if (style.lockTrain != NO_TRAIN) {
           console.puts(BRIGHT_BG[style.lockTrain]);
         }
