@@ -23,6 +23,8 @@ constexpr const char* USAGE_SW = "sw <switch id> <switch direction> - Set switch
 constexpr const char* USAGE_ST = "st <track id> - Set track to A or B";
 constexpr const char* USAGE_GOTO =
     "goto <train id> <speed level> <location> <offset> - Send train to a track node (e.g. A5, BR15)";
+constexpr const char* USAGE_GHOST = "ghost <train id> <speed level> - Register ghost and start wandering";
+constexpr const char* USAGE_HUMAN = "human <train id> - Register human train for arrow controls";
 constexpr const char* USAGE_HIT = "hit <sensor> - Simulate sensor hit (e.g. hit A5)";
 constexpr const char* USAGE_Q = "q - Quit program and reboot";
 
@@ -220,6 +222,49 @@ ParsedCommand CommandBuffer::parse_impl() {
     }
     result.gotoData.location[locLen] = '\0';
     return result;
+  }
+  if (length_ >= 5 && ptr[0] == 'g' && ptr[1] == 'h' && ptr[2] == 'o' && ptr[3] == 's' && ptr[4] == 't') {
+    ptr += 5;
+    skip_ws();
+
+    unsigned trainId, speedLevel;
+    next = a2ui(ptr, end(), trainId);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GHOST}};
+    }
+    ptr = next;
+    skip_ws();
+
+    next = a2ui(ptr, end(), speedLevel);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GHOST}};
+    }
+    ptr = next;
+    skip_ws();
+
+    if (ptr != end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_GHOST}};
+    }
+
+    return {.tag = CmdTag::Ghost, .ghost{marklin::TrainId(trainId), marklin::SpeedLevel(speedLevel)}};
+  }
+  if (length_ >= 5 && ptr[0] == 'h' && ptr[1] == 'u' && ptr[2] == 'm' && ptr[3] == 'a' && ptr[4] == 'n') {
+    ptr += 5;
+    skip_ws();
+
+    unsigned trainId;
+    next = a2ui(ptr, end(), trainId);
+    if (next == ptr) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_HUMAN}};
+    }
+    ptr = next;
+    skip_ws();
+
+    if (ptr != end()) {
+      return {.tag = CmdTag::Invalid, .invalid{USAGE_HUMAN}};
+    }
+
+    return {.tag = CmdTag::Human, .human{marklin::TrainId(trainId)}};
   }
   if (length_ >= 3 && ptr[0] == 'h' && ptr[1] == 'i' && ptr[2] == 't') {
     ptr += 3;

@@ -24,9 +24,7 @@ constexpr uint32_t GHOST_GOTO_DEBOUNCE_TICKS = 300;
 constexpr uint32_t HUMAN_REVERSE_CMD_DEBOUNCE_TICKS = 50;
 constexpr unsigned UPCOMING_SWITCH_LOOKAHEAD_STEPS = 12;
 
-constexpr marklin::TrainId DEFAULT_HUMAN_TRAIN_ID = 13;
-constexpr marklin::TrainId DEFAULT_CHASER_TRAIN_ID = 14;
-constexpr marklin::TrainId DEFAULT_AMBUSHER_TRAIN_ID = 15;
+constexpr unsigned MAX_REGISTERED_GHOSTS = marklin::NUM_TRAIN_IN_LAB;
 
 constexpr size_t DOT_SENSOR_COUNT = PACMAN_DOT_COUNT;
 
@@ -151,9 +149,14 @@ marklin::Distance shortestPathDistance(marklin::TrainTrackState& trackState, mar
 }
 
 struct GameState {
-  marklin::TrainId humanTrainId = DEFAULT_HUMAN_TRAIN_ID;
-  marklin::TrainId ghostChaserTrainId = DEFAULT_CHASER_TRAIN_ID;
-  marklin::TrainId ghostAmbusherTrainId = DEFAULT_AMBUSHER_TRAIN_ID;
+  marklin::TrainId humanTrainId = marklin::NO_TRAIN;
+  marklin::TrainId ghostChaserTrainId = marklin::NO_TRAIN;
+  marklin::TrainId ghostAmbusherTrainId = marklin::NO_TRAIN;
+
+  std::array<marklin::TrainId, MAX_REGISTERED_GHOSTS> registeredGhosts{};
+  std::array<marklin::SpeedLevel, marklin::MAX_TRAIN_ID + 1> ghostSpeedByTrain{};
+  std::array<bool, marklin::MAX_TRAIN_ID + 1> ghostRegistered{};
+  unsigned registeredGhostCount = 0;
 
   std::bitset<DOT_SENSOR_COUNT> activeDots{};
   uint32_t score = 0;
@@ -188,6 +191,90 @@ const PacmanTrainStateEntry* getTrainState(const GameState& state, marklin::Trai
     return nullptr;
   }
   return &state.trainById[trainId];
+}
+
+bool isHumanRegistered(const GameState& state) { return marklin::isValidTrainId(state.humanTrainId); }
+
+marklin::SpeedLevel ghostSpeedLevel(const GameState& state, marklin::TrainId ghostId) {
+  if (!marklin::isValidTrainId(ghostId) || !state.ghostRegistered[ghostId]) {
+    return GHOST_SPEED_LEVEL;
+  }
+  return state.ghostSpeedByTrain[ghostId];
+}
+
+void resetGhostRoutingTargets(GameState& state) {
+  state.lastHumanNodeForChaser = INVALID_TRACK_NODE_ID;
+  state.lastAmbusherTargetNode = INVALID_TRACK_NODE_ID;
+  state.lastChaserGotoTicks = std::numeric_limits<uint32_t>::max();
+  state.lastAmbusherGotoTicks = std::numeric_limits<uint32_t>::max();
+}
+
+void assignGhostRoles(GameState& state) {
+  marklin::TrainId nextChaser = marklin::NO_TRAIN;
+  marklin::TrainId nextAmbusher = marklin::NO_TRAIN;
+
+  if (isHumanRegistered(state)) {
+    if (state.registeredGhostCount >= 1) {
+      nextChaser = state.registeredGhosts[0];
+    }
+    if (state.registeredGhostCount >= 2) {
+      nextAmbusher = state.registeredGhosts[1];
+    }
+  }
+
+  if (state.ghostChaserTrainId != nextChaser || state.ghostAmbusherTrainId != nextAmbusher) {
+    state.ghostChaserTrainId = nextChaser;
+    state.ghostAmbusherTrainId = nextAmbusher;
+    resetGhostRoutingTargets(state);
+  }
+}
+
+void unregisterGhostTrain(GameState& state, marklin::TrainId trainId) {
+  if (!marklin::isValidTrainId(trainId) || !state.ghostRegistered[trainId]) {
+    return;
+  }
+
+  size_t idx = state.registeredGhostCount;
+  for (size_t i = 0; i < state.registeredGhostCount; ++i) {
+    if (state.registeredGhosts[i] == trainId) {
+      idx = i;
+      break;
+    }
+  }
+
+  if (idx < state.registeredGhostCount) {
+    for (size_t i = idx + 1; i < state.registeredGhostCount; ++i) {
+      state.registeredGhosts[i - 1] = state.registeredGhosts[i];
+    }
+    --state.registeredGhostCount;
+  }
+
+  state.ghostRegistered[trainId] = false;
+  state.ghostSpeedByTrain[trainId] = 0;
+}
+
+void registerGhostTrain(GameState& state, marklin::TrainId trainId, marklin::SpeedLevel speedLevel) {
+  if (!state.ghostRegistered[trainId]) {
+    if (state.registeredGhostCount >= MAX_REGISTERED_GHOSTS) {
+      return;
+    }
+    state.registeredGhosts[state.registeredGhostCount++] = trainId;
+    state.ghostRegistered[trainId] = true;
+  }
+
+  state.ghostSpeedByTrain[trainId] = speedLevel;
+  assignGhostRoles(state);
+}
+
+void registerHumanTrain(GameState& state, marklin::TrainId trainId) {
+  if (state.ghostRegistered[trainId]) {
+    unregisterGhostTrain(state, trainId);
+  }
+
+  state.humanTrainId = trainId;
+  state.humanDesiredSpeedInitialized = false;
+  state.humanReversePending = false;
+  assignGhostRoles(state);
 }
 
 void setTrainSpeed(int trainTrackTid, marklin::TrainId trainId, marklin::SpeedLevel speedLevel) {
@@ -296,6 +383,11 @@ void applyHumanDesiredSpeed(GameState& state, int trainTrackTid, int uiTid, bool
 }
 
 void handleHumanSpeedControl(GameState& state, int trainTrackTid, int uiTid, int delta) {
+  if (!isHumanRegistered(state)) {
+    notifyStatusToUI(uiTid, "Pacman control: set human train first (human <id>).");
+    return;
+  }
+
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
   if (!state.humanDesiredSpeedInitialized) {
     state.humanDesiredSignedSpeedLevel = human ? signedHumanSpeedLevel(*human) : 0;
@@ -351,6 +443,70 @@ void handleHumanControl(GameState& state, const PacmanMsg& msg, int trainTrackTi
     handleHumanSwitchControl(state, trainTrackTid, uiTid, trackState, false);
     break;
   }
+}
+
+void notifyRoleAssignment(int uiTid, const GameState& state) {
+  if (!isHumanRegistered(state)) {
+    notifyStatusToUI(uiTid, "Pacman roles: no human configured.");
+    return;
+  }
+
+  if (marklin::isValidTrainId(state.ghostChaserTrainId) && marklin::isValidTrainId(state.ghostAmbusherTrainId)) {
+    notifyStatusToUI(uiTid, "Pacman roles: human=%u chaser=%u ambusher=%u", state.humanTrainId,
+                     state.ghostChaserTrainId, state.ghostAmbusherTrainId);
+  } else if (marklin::isValidTrainId(state.ghostChaserTrainId)) {
+    notifyStatusToUI(uiTid, "Pacman roles: human=%u chaser=%u (need one more ghost for ambusher)", state.humanTrainId,
+                     state.ghostChaserTrainId);
+  } else {
+    notifyStatusToUI(uiTid, "Pacman roles: human=%u (no ghosts registered)", state.humanTrainId);
+  }
+}
+
+void handleRegisterGhost(GameState& state, const PacmanMsg& msg, int uiTid) {
+  marklin::TrainId trainId = msg.registerGhost.trainId;
+  marklin::SpeedLevel speedLevel = msg.registerGhost.speedLevel;
+
+  if (!marklin::isValidTrainId(trainId) || !marklin::isValidSpeedLevel(speedLevel)) {
+    notifyStatusToUI(uiTid, "Pacman ghost registration rejected.");
+    return;
+  }
+
+  if (trainId == state.humanTrainId) {
+    notifyStatusToUI(uiTid, "Pacman ghost registration rejected: train %u is human.", trainId);
+    return;
+  }
+
+  bool wasRegistered = state.ghostRegistered[trainId];
+  unsigned oldCount = state.registeredGhostCount;
+
+  registerGhostTrain(state, trainId, speedLevel);
+
+  if (!state.ghostRegistered[trainId]) {
+    notifyStatusToUI(uiTid, "Pacman ghost registration full (max %u).", MAX_REGISTERED_GHOSTS);
+    return;
+  }
+
+  if (wasRegistered) {
+    notifyStatusToUI(uiTid, "Pacman ghost %u updated to speed %u.", trainId, speedLevel);
+  } else {
+    notifyStatusToUI(uiTid, "Pacman ghost %u registered at speed %u.", trainId, speedLevel);
+  }
+
+  if (state.registeredGhostCount != oldCount || wasRegistered) {
+    notifyRoleAssignment(uiTid, state);
+  }
+}
+
+void handleRegisterHuman(GameState& state, const PacmanMsg& msg, int uiTid) {
+  marklin::TrainId trainId = msg.registerHuman.trainId;
+  if (!marklin::isValidTrainId(trainId)) {
+    notifyStatusToUI(uiTid, "Pacman human registration rejected.");
+    return;
+  }
+
+  registerHumanTrain(state, trainId);
+  notifyStatusToUI(uiTid, "Pacman human set to train %u.", trainId);
+  notifyRoleAssignment(uiTid, state);
 }
 
 marklin::Distance estimateSeparationUm(marklin::TrainTrackState& trackState, const PacmanTrainStateEntry& lhs,
@@ -446,6 +602,10 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
     return;
   }
 
+  if (!isHumanRegistered(state)) {
+    return;
+  }
+
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
   if (human == nullptr || !human->isTracked || human->estimatedNodeId == INVALID_TRACK_NODE_ID) {
     return;
@@ -453,9 +613,10 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
 
   marklin::TrackNode& humanNode = trackState.getTrackNodeById(human->estimatedNodeId);
 
-  if (state.lastHumanNodeForChaser != human->estimatedNodeId &&
+  if (marklin::isValidTrainId(state.ghostChaserTrainId) && state.lastHumanNodeForChaser != human->estimatedNodeId &&
       debounceElapsed(state.lastChaserGotoTicks, currentTicks, GHOST_GOTO_DEBOUNCE_TICKS)) {
-    sendGotoCommand(trainTrackTid, state.ghostChaserTrainId, GHOST_SPEED_LEVEL, humanNode.name);
+    sendGotoCommand(trainTrackTid, state.ghostChaserTrainId, ghostSpeedLevel(state, state.ghostChaserTrainId),
+                    humanNode.name);
     state.lastHumanNodeForChaser = human->estimatedNodeId;
     state.lastChaserGotoTicks = currentTicks;
   }
@@ -466,9 +627,10 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
     ambushTarget = &humanNode;
   }
 
-  if (state.lastAmbusherTargetNode != ambushTarget->id &&
+  if (marklin::isValidTrainId(state.ghostAmbusherTrainId) && state.lastAmbusherTargetNode != ambushTarget->id &&
       debounceElapsed(state.lastAmbusherGotoTicks, currentTicks, GHOST_GOTO_DEBOUNCE_TICKS)) {
-    sendGotoCommand(trainTrackTid, state.ghostAmbusherTrainId, GHOST_SPEED_LEVEL, ambushTarget->name);
+    sendGotoCommand(trainTrackTid, state.ghostAmbusherTrainId, ghostSpeedLevel(state, state.ghostAmbusherTrainId),
+                    ambushTarget->name);
     state.lastAmbusherTargetNode = ambushTarget->id;
     state.lastAmbusherGotoTicks = currentTicks;
   }
@@ -555,8 +717,7 @@ void pacmanServerTask() {
   GameState state{};
   state.activeDots.set();
   marklin::TrainTrackState trackState{};
-  notifyStatusToUI(uiTid, "Pacman server online. Human=%u, Chaser=%u, Ambusher=%u", state.humanTrainId,
-                   state.ghostChaserTrainId, state.ghostAmbusherTrainId);
+  notifyStatusToUI(uiTid, "Pacman server online. Use 'human <id>' and 'ghost <id> <speed>'.");
   sendPacmanDotsToUI(uiTid, state);
 
   for (;;) {
@@ -570,9 +731,7 @@ void pacmanServerTask() {
       if (!state.hasSnapshot) {
         break;
       }
-      if (false) {
-        maybeRouteGhosts(state, trainTrackTid, trackState, msg.time.ticks);
-      }
+      maybeRouteGhosts(state, trainTrackTid, trackState, msg.time.ticks);
       maybeTriggerLoss(state, trainTrackTid, uiTid, trackState);
       break;
     }
@@ -586,6 +745,14 @@ void pacmanServerTask() {
     }
     case PacmanMsgType::HumanControl: {
       handleHumanControl(state, msg, trainTrackTid, uiTid, trackState);
+      break;
+    }
+    case PacmanMsgType::RegisterGhost: {
+      handleRegisterGhost(state, msg, uiTid);
+      break;
+    }
+    case PacmanMsgType::RegisterHuman: {
+      handleRegisterHuman(state, msg, uiTid);
       break;
     }
     default:

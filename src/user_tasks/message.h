@@ -112,6 +112,8 @@ enum class PacmanMsgType : int {
   TimerTick,
   GameStateUpdate,
   HumanControl,
+  RegisterGhost,
+  RegisterHuman,
 };
 
 enum class HumanControlAction : uint8_t {
@@ -149,10 +151,21 @@ struct PacmanMsg {
     HumanControlAction action;
   };
 
+  struct RegisterGhostData {
+    marklin::TrainId trainId;
+    marklin::SpeedLevel speedLevel;
+  };
+
+  struct RegisterHumanData {
+    marklin::TrainId trainId;
+  };
+
   union {
     TimeData time;
     GameStateUpdateData gameStateUpdate;
     HumanControlData humanControl;
+    RegisterGhostData registerGhost;
+    RegisterHumanData registerHuman;
   };
 };
 

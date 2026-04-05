@@ -174,6 +174,61 @@ void uiControllerTask() {
         notify(trainTrackTid, tm);
         break;
       }
+      case cmd::CmdTag::Ghost: {
+        if (!marklin::isValidTrainId(parsed.ghost.trainId)) {
+          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.ghost.trainId,
+                           marklin::MAX_TRAIN_ID);
+          break;
+        }
+        if (!marklin::isValidSpeedLevel(parsed.ghost.speedLevel)) {
+          notifyStatusToUI(uiTid, "Invalid speed level %u. Must be between 0 and 14.", parsed.ghost.speedLevel);
+          break;
+        }
+
+        // ghost command behaves like wander plus pacman registration.
+        notify(trainTrackTid,
+               TrainTrackMsg{.type = TrainTrackMsgType::WanderCmd,
+                             .wanderCmd{.trainId = parsed.ghost.trainId, .speedLevel = parsed.ghost.speedLevel}});
+
+        bool registeredPacman = false;
+        if (pacmanTid < 0) {
+          pacmanTid = ::WhoIs(PACMAN_SERVER_NAME);
+        }
+        if (pacmanTid >= 0) {
+          notify(pacmanTid,
+                 PacmanMsg{.type = PacmanMsgType::RegisterGhost,
+                           .registerGhost{.trainId = parsed.ghost.trainId, .speedLevel = parsed.ghost.speedLevel}});
+          registeredPacman = true;
+        }
+        if (registeredPacman) {
+          notifyStatusToUI(uiTid, "Registered ghost %u @ speed %u.", parsed.ghost.trainId, parsed.ghost.speedLevel);
+        } else {
+          notifyStatusToUI(uiTid, "Ghost %u wandering @ speed %u (Pacman server unavailable).", parsed.ghost.trainId,
+                           parsed.ghost.speedLevel);
+        }
+        break;
+      }
+      case cmd::CmdTag::Human: {
+        if (!marklin::isValidTrainId(parsed.human.trainId)) {
+          notifyStatusToUI(uiTid, "Invalid train number %u. Must be between 1 and %u.", parsed.human.trainId,
+                           marklin::MAX_TRAIN_ID);
+          break;
+        }
+
+        if (pacmanTid < 0) {
+          pacmanTid = ::WhoIs(PACMAN_SERVER_NAME);
+        }
+        if (pacmanTid >= 0) {
+          notify(pacmanTid,
+                 PacmanMsg{.type = PacmanMsgType::RegisterHuman, .registerHuman{.trainId = parsed.human.trainId}});
+          notifyStatusToUI(uiTid, "Registered human train %u.", parsed.human.trainId);
+        } else {
+          notifyStatusToUI(uiTid, "Pacman server not found.");
+        }
+        notify(trainTrackTid, TrainTrackMsg{.type = TrainTrackMsgType::SetSpeedCmd,
+                                            .setSpeedCmd{.trainId = parsed.human.trainId, .speedLevel = 0}});
+        break;
+      }
       case cmd::CmdTag::SimulateSensor: {
         marklin::SensorTriggeredEvent sensorEvent{};
         sensorEvent.id = static_cast<uint8_t>(parsed.simulateSensor.sensorId);
