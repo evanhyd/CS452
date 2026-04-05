@@ -35,36 +35,36 @@ constexpr unsigned COL_ART = 80;
 
 constexpr const char* ART[] = {
     R"(   /-------------C3<---------------------------C7<-----------------A5<----------------B9<---\)",
-    R"(   X                    5                18                   3                             X)",
-    R"(   \-------------C4>--/   /-------------\   \--C8>-----------\   \-A6>----------------B10>--/)",
+    R"(   X                  < 5                18 >                 3 >                           X)",
+    R"(   \-------------C4>--/ v /-------------\ v \--C8>-----------\ v \-A6>----------------B10>--/)",
     R"(                     /   /               \   \                \   \)",
-    R"(        /-----E11<--/   /-D11>-------C15<-\   \---C5<----\     \   \---A7>------------B11<--\)",
-    R"(       /             7                      6             \     \ 2                         X)",
-    R"(      /   /---E12>--------D12<-------C16>---------C6>--\   \     \   \-A8<------------B12>--/)",
+    R"(        /-----E11<--/ ^ /-D11>-------C15<-\ ^ \---C5<----\     \   \---A7>------------B11<--\)",
+    R"(       /             7 >                   < 6            \     \ 2 >                       X)",
+    R"(      /   /---E12>--------D12<-------C16>---------C6>--\   \     \ v \-A8<------------B12>--/)",
     R"(     /   /                                              \   \     \   \)",
-    R"(    /   /   /---E13>-------D13>------B1<----------C9>----\   \     \   \---A9>--------B7<---\)",
-    R"( D9^|   |  /           17                 16               15 \     \ 1                     X)",
-    R"(D10v|   | /   /-E14<--\   \D14<------B2>/   /-----C10<-----\   \     \   \-A10<-------B8>---/)",
+    R"(    /   /   /---E13>-------D13>------B1<----------C9>----\ ^ \     \   \---A9>--------B7<---\)",
+    R"( D9^|   |  /           17 >             < 16             < 15 \     \ 1 >                   X)",
+    R"(D10v|   | /   /-E14<--\ v \D14<------B2>/ v /-----C10<-----\   \     \ v \-A10<-------B8>---/)",
     R"(    |   |/   /     D15v\   \           /   /B3v             \   \     \   \)",
     R"(    |   |   /E9v    D16^\   \    =    /   /B4^               |   |     \   \A11^)",
-    R"(    |      /E10^         \   \   |   /   /                   |   |B15v  \   \A12v)",
+    R"(    | ^  > /E10^         \   \   |   /   /                   |   |B15v  \   \A12v)",
     R"(    |  8  /           B13v\   \  |  /   /C1^                 |   |B16^   |   |)",
     R"(    |    /             B14^\   \ | /   /C2v                  |   |       |   |)",
     R"(    |   |                   \   \|/   /                      |   |       |   |)",
-    R"(    |   |                    \154 153/                       |   |       |   |)",
-    R"(    |   |                    /155 156\                       |   |       |   |)",
+    R"(    |   |                 SC \154 153/ SC                    |   |       |   |)",
+    R"(    |   |                 SC /155 156\ SC                    |   |       |   |)",
     R"(    |   |                   /   /|\   \                      |   |       |   |)",
     R"(    |    \              D1v/   / | \   \E1v                  |   |       |   |)",
     R"(    |  9  \            D2^/   /  |  \   \E2^                 |   |A3v    |   |)",
-    R"(    |      \D5v          /   /   |   \   \                   |   |A4^   /   /A15^)",
+    R"(    | v  > \D5v          /   /   |   \   \                   |   |A4^   /   /A15^)",
     R"(    |   |   \D6^     E3v/   /    =    \   \E15v              |   |     /   /A16v)",
     R"(    |   |\   \      E4^/   /           \   \E16^            /   /     /   /)",
-    R"( D7^|   | \   \--E5<--/   /D3<-------B5<\   \-----C11<-----/   /     /   /-A13<-------------\)",
-    R"( D8v|   |  \           10                 13               14 /     / 4                     X)",
-    R"(    \   \   \----E6>-------D4>-------B6>----------C12>---/   /     /   /---A14>-------------/)",
+    R"( D7^|   | \   \--E5<--/ ^ /D3<-------B5<\ ^ \-----C11<-----/   /     / ^ /-A13<-------------\)",
+    R"( D8v|   |  \           10 >             < 13             < 14 /     / 4 >                   X)",
+    R"(    \   \   \----E6>-------D4>-------B6>----------C12>---/ v /     /   /---A14>-------------/)",
     R"(     \   \                                              /   /     /   /)",
-    R"(      \   \--E7<--------------------------------C13<---/   /-----/   /-A1<------------------\)",
-    R"(       \                                                11        12                        X)",
+    R"(      \   \--E7<--------------------------------C13<---/ ^ /-----/ ^ /-A1<------------------\)",
+    R"(       \                                                11 >      12 >                      X)",
     R"(        \----E8>--------------------------------C14>-------------------A2>------------------/)",
 };
 
@@ -86,7 +86,7 @@ constexpr ArtLoc SENSOR_LOCS[80] = {
     {12, 13, 3}, {13, 12, 4}, {4, 14, 4},  {6, 14, 4},  {8, 16, 4},  {10, 16, 4}, {23, 43, 4}, {24, 44, 4},
 };
 constexpr ArtLoc SWITCH_LOCS[18] = {
-    {9, 70, 1},  {5, 66, 1},  {1, 62, 1},  {26, 70, 1}, {1, 24, 1},  {5, 44, 1}, {5, 21, 1}, {14, 7, 1}, {21, 7, 1},
+    {9, 70, 1},  {5, 66, 1},  {1, 62, 1},  {26, 70, 1}, {1, 24, 1},  {5, 45, 1}, {5, 21, 1}, {14, 7, 1}, {21, 7, 1},
     {26, 23, 2}, {30, 56, 2}, {30, 66, 2}, {26, 42, 2}, {26, 59, 2}, {9, 59, 2}, {9, 42, 2}, {9, 23, 2}, {1, 41, 2},
 };
 constexpr ArtLoc CENTER_SWITCH_LOCS[4] = {
@@ -94,6 +94,19 @@ constexpr ArtLoc CENTER_SWITCH_LOCS[4] = {
     {17, 30, 3},
     {18, 30, 3},
     {18, 34, 3},
+};
+constexpr ArtLoc SWITCH_STATE_LOCS[18][2] = {
+    {{9, 72, 1}, {10, 71, 1}},  {{5, 68, 1}, {6, 67, 1}},   {{1, 64, 1}, {2, 63, 1}},   {{26, 72, 1}, {25, 71, 1}},
+    {{2, 24, 1}, {1, 22, 1}},   {{4, 44, 1}, {5, 43, 1}},   {{4, 22, 1}, {5, 23, 1}},   {{13, 9, 1}, {13, 6, 1}},
+    {{22, 9, 1}, {22, 6, 1}},   {{25, 24, 1}, {26, 26, 1}}, {{29, 57, 1}, {30, 59, 1}}, {{29, 67, 1}, {30, 69, 1}},
+    {{25, 42, 1}, {26, 40, 1}}, {{26, 57, 1}, {27, 59, 1}}, {{9, 57, 1}, {8, 59, 1}},   {{10, 42, 1}, {9, 40, 1}},
+    {{10, 24, 1}, {9, 26, 1}},  {{2, 42, 1}, {1, 44, 1}},
+};
+constexpr ArtLoc CENTER_SWITCH_STATE_LOCS[4][2] = {
+    {{17, 40, 1}, {17, 39, 1}},
+    {{17, 27, 1}, {17, 26, 1}},
+    {{18, 27, 1}, {18, 26, 1}},
+    {{18, 40, 1}, {18, 39, 1}},
 };
 
 constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
@@ -119,6 +132,8 @@ constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
 constexpr const char* RESET_COLOR = "\033[0m";
 constexpr const char* BOLD = "\033[1m";
 constexpr const char* FG_BLACK = "\033[30m";
+constexpr const char* FG_BRIGHT_BLACK = "\033[90m";
+constexpr const char* FG_BRIGHT_WHITE = "\033[1;97m";
 constexpr uint8_t NO_TRAIN = static_cast<uint8_t>(-1);
 
 constexpr const char* BRIGHT_FG[marklin::NUM_TRAIN_IN_LAB] = {
@@ -182,6 +197,29 @@ const char* toString(marklin::PathingState state) {
   return "Unknown";
 }
 
+auto getSwitchStateArtLoc(unsigned int id) -> const ArtLoc (&)[2] {
+  if (id >= 1 && id <= 18) {
+    return SWITCH_STATE_LOCS[id - 1];
+  }
+  if (id >= 153 && id <= 156) {
+    return CENTER_SWITCH_STATE_LOCS[id - 153];
+  }
+  logError("invalid switch id");
+}
+
+void drawSwitchStateMarker(Console& console, const ArtLoc& loc, bool active) {
+  console.moveCursor(ROW_ART + loc.row, COL_ART + loc.col);
+  console.puts(active ? FG_BRIGHT_WHITE : FG_BRIGHT_BLACK);
+  console.putc(ART[loc.row][loc.col]);
+  console.puts(RESET_COLOR);
+}
+
+void renderSwitchStateMarkers(Console& console, unsigned id, marklin::SwitchState state, bool isKnown) {
+  const auto& locs = getSwitchStateArtLoc(id);
+  drawSwitchStateMarker(console, locs[0], isKnown && state == marklin::SwitchState::Curved);
+  drawSwitchStateMarker(console, locs[1], isKnown && state == marklin::SwitchState::Straight);
+}
+
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
   if (id >= 1 && id <= 11) {
@@ -198,6 +236,7 @@ void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   }
   console.moveCursor(row, col);
   console.printf("%03u: %c", id, state == marklin::SwitchState::Straight ? 'S' : 'C');
+  renderSwitchStateMarkers(console, id, state, true);
 }
 
 } // namespace
@@ -233,6 +272,13 @@ void uiViewServerTask() {
     console.moveCursor(ROW_ART + i, COL_ART);
     console.puts(ART[i]);
   }
+  for (marklin::SwitchId id = 1; id <= 18; ++id) {
+    renderSwitchStateMarkers(console, id, marklin::SwitchState::Straight, false);
+  }
+  for (marklin::SwitchId id = 153; id <= 156; ++id) {
+    renderSwitchStateMarkers(console, id, marklin::SwitchState::Straight, false);
+  }
+  console.puts(RESET_COLOR);
 
   NodeRenderStyle sensorStyles[80];
   NodeRenderStyle switchStyles[18];
