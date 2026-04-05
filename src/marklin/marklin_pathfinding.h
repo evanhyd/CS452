@@ -8,6 +8,7 @@
 #include "util/static_priority_queue.h"
 #include <cassert>
 #include <numeric>
+#include <source_location>
 
 namespace marklin {
 
@@ -82,20 +83,20 @@ private:
     }
   }
 
-  void unreserve(TrackNodeId nodeId, TrainId trainId) {
+  void unreserve(TrackNodeId nodeId, TrainId trainId, std::source_location loc = std::source_location::current()) {
     size_t id = nodeId / 2;
     if (58 <= id && id <= 61) {
-      KIT_ASSERT(!nodeOwners[58].empty(), "no reservation");
-      KIT_ASSERT(nodeOwners[58].popFront() == trainId, "unreserved by the wrong train");
-      KIT_ASSERT(!nodeOwners[59].empty(), "no reservation");
-      KIT_ASSERT(nodeOwners[59].popFront() == trainId, "unreserved by the wrong train");
-      KIT_ASSERT(!nodeOwners[60].empty(), "no reservation");
-      KIT_ASSERT(nodeOwners[60].popFront() == trainId, "unreserved by the wrong train");
-      KIT_ASSERT(!nodeOwners[61].empty(), "no reservation");
-      KIT_ASSERT(nodeOwners[61].popFront() == trainId, "unreserved by the wrong train");
+      KIT_ASSERT(!nodeOwners[58].empty(), "no reservation", loc);
+      KIT_ASSERT(nodeOwners[58].popFront() == trainId, "unreserved by the wrong train", loc);
+      KIT_ASSERT(!nodeOwners[59].empty(), "no reservation", loc);
+      KIT_ASSERT(nodeOwners[59].popFront() == trainId, "unreserved by the wrong train", loc);
+      KIT_ASSERT(!nodeOwners[60].empty(), "no reservation", loc);
+      KIT_ASSERT(nodeOwners[60].popFront() == trainId, "unreserved by the wrong train", loc);
+      KIT_ASSERT(!nodeOwners[61].empty(), "no reservation", loc);
+      KIT_ASSERT(nodeOwners[61].popFront() == trainId, "unreserved by the wrong train", loc);
     } else {
-      KIT_ASSERT(!nodeOwners[id].empty(), "no reservation");
-      KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train");
+      KIT_ASSERT(!nodeOwners[id].empty(), "no reservation", loc);
+      KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train", loc);
     }
   }
 
@@ -403,8 +404,14 @@ public:
       paths[trainId].destination = &ttState.getTrackNodeById(dest);
       paths[trainId].offset = offset;
 
-      decltype(paths[trainId].nodes) newPath{};
-      newPath.pushFront({paths[trainId].destination, Straight});
+      // Remove the old path when planning new path instead of at arrival.
+      // Otherwise other train can reserve this train's position and cause collision.
+      for (const auto& node : paths[trainId].nodes) {
+        unreserve(node.srce->id, trainId);
+      }
+      paths[trainId].nodes.clear();
+
+      paths[trainId].nodes.pushFront({paths[trainId].destination, Straight});
       reserve(dest, trainId);
       for (TrackNodeId currId = dest; parents[currId] != NO_PARENT;) {
         TrackNodeId parentId = parents[currId];
@@ -412,39 +419,9 @@ public:
         TrackNode& parentNode = ttState.getTrackNodeById(parentId);
 
         TrackDirection dir = getAdjacentDirection(parentNode, currNode);
-        newPath.pushFront({&parentNode, dir});
+        paths[trainId].nodes.pushFront({&parentNode, dir});
         reserve(parentId, trainId);
         currId = parentId;
-      }
-
-      // Unlike the old design. We don't free up all the nodes upon arrival.
-      // This makes the code more fault tolerant, as it reduces the chance of train crashing into each other.
-      // When we append new path, there are two cases we must handle.
-      // 1. The train continue moving forward. We need to remove the old invalid branches and duplicated nodes in the
-      // old path.
-      // 2. The train reversed direction. We must unreserve all the previous path, because some other train might be
-      // yielding for it.
-      while (!paths[trainId].nodes.empty()) {
-        auto node = paths[trainId].nodes.popBack();
-        unreserve(node.srce->id, trainId);
-
-        // The train continue moving forward.
-        if (node.srce->id == srce) {
-          break;
-        }
-
-        // The train reversed. Unreserve all paths to avoid deadlock.
-        if (node.srce->reverse->id == srce) {
-          while (!paths[trainId].nodes.empty()) {
-            auto remainingNode = paths[trainId].nodes.popBack();
-            unreserve(remainingNode.srce->id, trainId);
-          }
-          break;
-        }
-      }
-
-      for (const auto& node : newPath) {
-        paths[trainId].nodes.pushBack(node);
       }
 
       pathingStates[trainId] = PathingState::Moving;
