@@ -83,14 +83,14 @@ inline void wanderCmdHandler(TrainTrackServerContext& context, marklin::TrainId 
 
   initTrain(context, trainId);
   marklin::Train& train = context.ttState.getTrain(trainId);
-  if (train.navigation.state != marklin::NavigationSystem::State::Manual) {
-    notifyStatusToUI(context.uiTid, "Train %u is busy right now.", trainId);
-    return;
-  }
-
   if (speedLevel == 0) {
     train.navigation.isWandering = false;
     notifyStatusToUI(context.uiTid, "Train %u stopped wandering.", trainId);
+    return;
+  }
+
+  if (train.navigation.state != marklin::NavigationSystem::State::Manual) {
+    notifyStatusToUI(context.uiTid, "Train %u is busy right now.", trainId);
     return;
   }
 
