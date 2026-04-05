@@ -25,7 +25,7 @@ constexpr marklin::TrainId DEFAULT_HUMAN_TRAIN_ID = 13;
 constexpr marklin::TrainId DEFAULT_CHASER_TRAIN_ID = 14;
 constexpr marklin::TrainId DEFAULT_AMBUSHER_TRAIN_ID = 15;
 
-constexpr marklin::TrackNodeId DOT_SENSOR_COUNT = 80 / 2;
+constexpr size_t DOT_SENSOR_COUNT = PACMAN_DOT_COUNT;
 
 constexpr marklin::Distance absDist(marklin::Distance a, marklin::Distance b) { return a > b ? a - b : b - a; }
 
@@ -140,6 +140,11 @@ void setTrainSpeed(int trainTrackTid, marklin::TrainId trainId, marklin::SpeedLe
                                       .setSpeedCmd{.trainId = trainId, .speedLevel = speedLevel}});
 }
 
+void sendPacmanDotsToUI(int uiTid, const GameState& state) {
+  notify(uiTid, UIMsg{.type = UIMsgType::RedrawPacmanDots,
+                      .pacmanDots{.activeMask = static_cast<uint64_t>(state.activeDots.to_ullong())}});
+}
+
 void stopAllActiveTrains(int trainTrackTid, const GameState& state) {
   for (size_t idx = 1; idx < state.trainPresent.size(); ++idx) {
     if (!state.trainPresent[idx]) {
@@ -176,18 +181,18 @@ marklin::Distance estimateSeparationUm(marklin::TrainTrackState& trackState, con
   return kit::min(lhsToRhs, rhsToLhs);
 }
 
-void maybeConsumeDot(GameState& state, int uiTid) {
+bool maybeConsumeDot(GameState& state, int uiTid) {
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
   if (human == nullptr || !human->isTracked || human->lastSensorId == INVALID_TRACK_NODE_ID) {
-    return;
+    return false;
   }
   if (human->lastSensorId == state.lastHumanSensorForScoring) {
-    return;
+    return false;
   }
 
   state.lastHumanSensorForScoring = human->lastSensorId;
   if (human->lastSensorId / 2 >= DOT_SENSOR_COUNT) {
-    return;
+    return false;
   }
 
   const size_t sensorIdx = static_cast<size_t>(human->lastSensorId / 2);
@@ -195,7 +200,9 @@ void maybeConsumeDot(GameState& state, int uiTid) {
     state.activeDots.reset(sensorIdx);
     ++state.score;
     notifyStatusToUI(uiTid, "Pacman ate dot %u. Score: %u", human->lastSensorId, state.score);
+    return true;
   }
+  return false;
 }
 
 void maybeTriggerWin(GameState& state, int trainTrackTid, int uiTid) {
@@ -341,6 +348,7 @@ void pacmanServerTask() {
   marklin::TrainTrackState trackState{};
   notifyStatusToUI(uiTid, "Pacman server online. Human=%u, Chaser=%u, Ambusher=%u", state.humanTrainId,
                    state.ghostChaserTrainId, state.ghostAmbusherTrainId);
+  sendPacmanDotsToUI(uiTid, state);
 
   for (;;) {
     PacmanMsg msg{};
@@ -359,7 +367,9 @@ void pacmanServerTask() {
     }
     case PacmanMsgType::GameStateUpdate: {
       updateSnapshot(state, msg, trackState);
-      maybeConsumeDot(state, uiTid);
+      if (maybeConsumeDot(state, uiTid)) {
+        sendPacmanDotsToUI(uiTid, state);
+      }
       maybeTriggerWin(state, trainTrackTid, uiTid);
       break;
     }

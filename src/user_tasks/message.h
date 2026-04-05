@@ -9,6 +9,7 @@
 namespace k4 {
 inline constexpr size_t SENSOR_HISTORY_SIZE = 16;
 inline constexpr size_t CMD_HISTORY_SIZE = 16;
+inline constexpr size_t PACMAN_DOT_COUNT = 80 / 2;
 inline constexpr uint32_t NOT_ACKED = 0xFFFFFFFF;
 
 struct CmdHistoryEntry {
@@ -152,6 +153,7 @@ enum class UIMsgType : int {
   UpdateSwitch,
   RedrawSensors,
   RedrawCmdHistory,
+  RedrawPacmanDots,
   TrainStates,
 };
 
@@ -188,6 +190,10 @@ struct UIMsg {
     unsigned count;
   };
 
+  struct PacmanDotsData {
+    uint64_t activeMask;
+  };
+
   struct TrainStatesData {
     TrainStatesEntry entries[marklin::NUM_TRAIN_IN_LAB];
     unsigned count;
@@ -202,6 +208,7 @@ struct UIMsg {
     SwitchUpdateData switchUpdate;
     SensorHistoryData sensorHistory;
     CmdHistoryData cmdHistory;
+    PacmanDotsData pacmanDots;
     TrainStatesData trainStates;
   };
 };

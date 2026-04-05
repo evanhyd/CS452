@@ -38,6 +38,7 @@ center_switch_markers = {
 sensor_locs = []
 switch_locs = []
 center_switch_locs = []
+dot_locs = []
 switch_loc_by_id = {}
 center_switch_loc_by_id = {}
 
@@ -98,6 +99,13 @@ def collect_marker_locs():
 marker_locs = collect_marker_locs()
 
 
+def collect_dot_locs():
+    for ri, row in enumerate(art):
+        for ci, ch in enumerate(row):
+            if ch == "o":
+                dot_locs.append((ri, ci, 1))
+
+
 def marker_distance(origin, candidate):
     origin_center = origin[1] + (origin[2] - 1) / 2
     candidate_center = candidate[1] + (candidate[2] - 1) / 2
@@ -113,6 +121,82 @@ def find_closest_marker(origin, marker):
     return min(candidates, key=lambda candidate: marker_distance(origin, candidate))
 
 
+def art_loc_center_times_4(loc):
+    row, col, length = loc
+    return 4 * row, 4 * col + 2 * (length - 1)
+
+
+def pair_origin_times_4(pair_index):
+    a = art_loc_center_times_4(sensor_locs[2 * pair_index])
+    b = art_loc_center_times_4(sensor_locs[2 * pair_index + 1])
+    return (a[0] + b[0]) // 2, (a[1] + b[1]) // 2
+
+
+def dot_cost(origin_times_4, dot_index):
+    dot = dot_locs[dot_index]
+    dot_center = (4 * dot[0], 4 * dot[1])
+    dr = abs(origin_times_4[0] - dot_center[0])
+    dc = abs(origin_times_4[1] - dot_center[1])
+    primary = dr + dc
+    secondary = dr * dr + dc * dc
+    return primary * 1_000_000_000_000 + secondary * 1_000_000 + dot_index
+
+
+def solve_assignment(costs):
+    n = len(costs)
+    m = len(costs[0])
+    if n > m:
+        raise ValueError("assignment matrix has more rows than columns")
+
+    inf = 10**30
+    u = [0] * (n + 1)
+    v = [0] * (m + 1)
+    p = [0] * (m + 1)
+    way = [0] * (m + 1)
+
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = [inf] * (m + 1)
+        used = [False] * (m + 1)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            delta = inf
+            j1 = 0
+            for j in range(1, m + 1):
+                if used[j]:
+                    continue
+                cur = costs[i0 - 1][j - 1] - u[i0] - v[j]
+                if cur < minv[j]:
+                    minv[j] = cur
+                    way[j] = j0
+                if minv[j] < delta:
+                    delta = minv[j]
+                    j1 = j
+            for j in range(m + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+
+    assignment = [-1] * n
+    for j in range(1, m + 1):
+        if p[j] != 0:
+            assignment[p[j] - 1] = j - 1
+    return assignment
+
+
 for i in range(80):
     q, r = divmod(i, 16)
     find_sensor(chr(ord("A") + q) + str(r + 1))
@@ -122,6 +206,10 @@ for i in range(18):
 
 for i in range(4):
     find_switch(i + 153)
+
+collect_dot_locs()
+if len(dot_locs) != len(sensor_locs) // 2:
+    raise ValueError(f"expected {len(sensor_locs) // 2} dots, found {len(dot_locs)}")
 
 switch_state_locs = []
 for switch_id in range(1, 19):
@@ -145,6 +233,15 @@ for switch_id in range(153, 157):
         )
     )
 
+dot_assignment = solve_assignment(
+    [[dot_cost(pair_origin_times_4(pair_index), dot_index) for dot_index in range(len(dot_locs))]
+     for pair_index in range(len(sensor_locs) // 2)]
+)
+if len(set(dot_assignment)) != len(dot_assignment):
+    raise ValueError("dot assignment is not bijective")
+
+sensor_pair_dot_locs = [dot_locs[dot_index] for dot_index in dot_assignment]
+
 
 def print_art_loc_array(name, locs):
     print(f"constexpr ArtLoc {name}[{len(locs)}] = {{", end="")
@@ -166,5 +263,6 @@ def print_switch_state_loc_array(name, locs):
 print_art_loc_array("SENSOR_LOCS", sensor_locs)
 print_art_loc_array("SWITCH_LOCS", switch_locs)
 print_art_loc_array("CENTER_SWITCH_LOCS", center_switch_locs)
+print_art_loc_array("DOT_LOCS", sensor_pair_dot_locs)
 print_switch_state_loc_array("SWITCH_STATE_LOCS", switch_state_locs)
 print_switch_state_loc_array("CENTER_SWITCH_STATE_LOCS", center_switch_state_locs)

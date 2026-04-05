@@ -35,36 +35,36 @@ constexpr unsigned COL_ART = 80;
 
 constexpr const char* ART[] = {
     R"(   /-------------C3<---------------------------C7<-----------------A5<----------------B9<---\)",
-    R"(   X                  < 5                18 >                 3 >                           X)",
+    R"(   X              o   < 5                18 >   o             3 >   o                  o    X)",
     R"(   \-------------C4>--/ v /-------------\ v \--C8>-----------\ v \-A6>----------------B10>--/)",
     R"(                     /   /               \   \                \   \)",
     R"(        /-----E11<--/ ^ /-D11>-------C15<-\ ^ \---C5<----\     \   \---A7>------------B11<--\)",
-    R"(       /             7 >                   < 6            \     \ 2 >                       X)",
+    R"(       /       o     7 >   o          o    < 6     o      \     \ 2 >   o              o    X)",
     R"(      /   /---E12>--------D12<-------C16>---------C6>--\   \     \ v \-A8<------------B12>--/)",
     R"(     /   /                                              \   \     \   \)",
     R"(    /   /   /---E13>-------D13>------B1<----------C9>----\ ^ \     \   \---A9>--------B7<---\)",
-    R"( D9^|   |  /           17 >             < 16             < 15 \     \ 1 >                   X)",
+    R"( D9^| o |  /     o     17 >  o       o  < 16       o     < 15 \     \ 1 >   o          o    X)",
     R"(D10v|   | /   /-E14<--\ v \D14<------B2>/ v /-----C10<-----\   \     \ v \-A10<-------B8>---/)",
     R"(    |   |/   /     D15v\   \           /   /B3v             \   \     \   \)",
-    R"(    |   |   /E9v    D16^\   \    =    /   /B4^               |   |     \   \A11^)",
-    R"(    | ^  > /E10^         \   \   |   /   /                   |   |B15v  \   \A12v)",
+    R"(    |   | o /E9v    D16^\ o \    =    / o /B4^               |   |     \   \A11^)",
+    R"(    | ^  > /E10^         \   \   |   /   /                   | o |B15v  \ o \A12v)",
     R"(    |  8  /           B13v\   \  |  /   /C1^                 |   |B16^   |   |)",
-    R"(    |    /             B14^\   \ | /   /C2v                  |   |       |   |)",
+    R"(    |    /             B14^\ o \ | / o /C2v                  |   |       |   |)",
     R"(    |   |                   \   \|/   /                      |   |       |   |)",
     R"(    |   |                 SC \154 153/ SC                    |   |       |   |)",
     R"(    |   |                 SC /155 156\ SC                    |   |       |   |)",
     R"(    |   |                   /   /|\   \                      |   |       |   |)",
-    R"(    |    \              D1v/   / | \   \E1v                  |   |       |   |)",
+    R"(    |    \              D1v/ o / | \ o \E1v                  |   |       |   |)",
     R"(    |  9  \            D2^/   /  |  \   \E2^                 |   |A3v    |   |)",
-    R"(    | v  > \D5v          /   /   |   \   \                   |   |A4^   /   /A15^)",
-    R"(    |   |   \D6^     E3v/   /    =    \   \E15v              |   |     /   /A16v)",
+    R"(    | v  > \D5v          /   /   |   \   \                   | o |A4^   / o /A15^)",
+    R"(    |   | o \D6^     E3v/ o /    =    \ o \E15v              |   |     /   /A16v)",
     R"(    |   |\   \      E4^/   /           \   \E16^            /   /     /   /)",
     R"( D7^|   | \   \--E5<--/ ^ /D3<-------B5<\ ^ \-----C11<-----/   /     / ^ /-A13<-------------\)",
-    R"( D8v|   |  \           10 >             < 13             < 14 /     / 4 >                   X)",
+    R"( D8v| o |  \      o    10 >  o       o  < 13       o     < 14 /     / 4 >   o               X)",
     R"(    \   \   \----E6>-------D4>-------B6>----------C12>---/ v /     /   /---A14>-------------/)",
     R"(     \   \                                              /   /     /   /)",
     R"(      \   \--E7<--------------------------------C13<---/ ^ /-----/ ^ /-A1<------------------\)",
-    R"(       \                                                11 >      12 >                      X)",
+    R"(       \      o                                  o      11 >      12 >  o                   X)",
     R"(        \----E8>--------------------------------C14>-------------------A2>------------------/)",
 };
 
@@ -94,6 +94,13 @@ constexpr ArtLoc CENTER_SWITCH_LOCS[4] = {
     {17, 30, 3},
     {18, 30, 3},
     {18, 34, 3},
+};
+constexpr ArtLoc DOT_LOCS[40] = {
+    {30, 72, 1}, {22, 63, 1}, {1, 68, 1},  {5, 72, 1},  {9, 76, 1},  {13, 74, 1}, {26, 76, 1}, {22, 74, 1},
+    {9, 37, 1},  {12, 40, 1}, {26, 37, 1}, {9, 87, 1},  {1, 87, 1},  {5, 87, 1},  {15, 29, 1}, {13, 63, 1},
+    {15, 37, 1}, {1, 18, 1},  {5, 51, 1},  {1, 48, 1},  {9, 51, 1},  {26, 51, 1}, {30, 49, 1}, {5, 38, 1},
+    {20, 29, 1}, {26, 29, 1}, {23, 10, 1}, {26, 6, 1},  {9, 6, 1},   {5, 27, 1},  {9, 29, 1},  {12, 26, 1},
+    {20, 37, 1}, {23, 26, 1}, {26, 18, 1}, {30, 14, 1}, {12, 10, 1}, {5, 15, 1},  {9, 17, 1},  {23, 40, 1},
 };
 constexpr ArtLoc SWITCH_STATE_LOCS[18][2] = {
     {{9, 72, 1}, {10, 71, 1}},  {{5, 68, 1}, {6, 67, 1}},   {{2, 63, 1}, {1, 64, 1}},   {{26, 72, 1}, {25, 71, 1}},
@@ -133,7 +140,9 @@ constexpr const char* RESET_COLOR = "\033[0m";
 constexpr const char* BOLD = "\033[1m";
 constexpr const char* FG_BLACK = "\033[30m";
 constexpr const char* FG_BRIGHT_BLACK = "\033[90m";
-constexpr const char* FG_BRIGHT_WHITE = "\033[1;97m";
+constexpr const char* FG_BRIGHT_WHITE_BOLD = "\033[1;97m";
+constexpr const char* FG_BRIGHT_WHITE = "\033[97m";
+constexpr uint64_t ALL_PACMAN_DOTS_MASK = (uint64_t{1} << PACMAN_DOT_COUNT) - 1;
 constexpr uint8_t NO_TRAIN = static_cast<uint8_t>(-1);
 
 constexpr const char* BRIGHT_FG[marklin::NUM_TRAIN_IN_LAB] = {
@@ -209,7 +218,7 @@ auto getSwitchStateArtLoc(unsigned int id) -> const ArtLoc (&)[2] {
 
 void drawSwitchStateMarker(Console& console, const ArtLoc& loc, bool active) {
   console.moveCursor(ROW_ART + loc.row, COL_ART + loc.col);
-  console.puts(active ? FG_BRIGHT_WHITE : FG_BRIGHT_BLACK);
+  console.puts(active ? FG_BRIGHT_WHITE_BOLD : FG_BRIGHT_BLACK);
   console.putc(ART[loc.row][loc.col]);
   console.puts(RESET_COLOR);
 }
@@ -218,6 +227,12 @@ void renderSwitchStateMarkers(Console& console, unsigned id, marklin::SwitchStat
   const auto& locs = getSwitchStateArtLoc(id);
   drawSwitchStateMarker(console, locs[0], isKnown && state == marklin::SwitchState::Curved);
   drawSwitchStateMarker(console, locs[1], isKnown && state == marklin::SwitchState::Straight);
+}
+
+void drawPacmanDot(Console& console, unsigned dotIndex, bool active) {
+  const auto& loc = DOT_LOCS[dotIndex];
+  console.moveCursor(ROW_ART + loc.row, COL_ART + loc.col);
+  console.putc(active ? 'o' : ' ');
 }
 
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
@@ -296,6 +311,7 @@ void uiViewServerTask() {
   bool cmdHistoryDirty = false;
   unsigned cmdHistoryDrawnTicks = 0;
   UIMsg::CmdHistoryData cmdHistoryToDraw;
+  uint64_t pacmanDotsMask = ALL_PACMAN_DOTS_MASK;
 
   auto maybeDrawCmdHistory = [&](unsigned currentTicks) {
     if (cmdHistoryDirty && currentTicks - cmdHistoryDrawnTicks >= CMD_HISTORY_DEBOUNCE_TICKS) {
@@ -406,6 +422,18 @@ void uiViewServerTask() {
     case UIMsgType::RedrawCmdHistory: {
       cmdHistoryToDraw = msg.cmdHistory;
       cmdHistoryDirty = true;
+      break;
+    }
+    case UIMsgType::RedrawPacmanDots: {
+      for (unsigned i = 0; i < PACMAN_DOT_COUNT; ++i) {
+        uint64_t bit = uint64_t{1} << i;
+        bool oldActive = (pacmanDotsMask & bit) != 0;
+        bool newActive = (msg.pacmanDots.activeMask & bit) != 0;
+        if (oldActive != newActive) {
+          drawPacmanDot(console, i, newActive);
+        }
+      }
+      pacmanDotsMask = msg.pacmanDots.activeMask;
       break;
     }
     case UIMsgType::TrainStates: {
