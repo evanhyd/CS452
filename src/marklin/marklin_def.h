@@ -25,7 +25,7 @@ Magic Constant
 static constexpr size_t MAX_TRAIN_ID = 56;
 static constexpr size_t NUM_TRACK_NODES = 144;
 static constexpr size_t NUM_SWITCHES = 22;
-static constexpr size_t NUM_TRAIN_IN_LAB = 6;
+static constexpr size_t NUM_TRAIN_IN_LAB = 8;
 static constexpr size_t MAX_SPEED_LEVEL = 14;
 
 static constexpr TrainId NO_TRAIN = 0;

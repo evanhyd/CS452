@@ -5,6 +5,10 @@
 
 namespace marklin {
 // 5 8 10 14
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_10 = {
+    0, 38000, 66000, 144000, 192000, 240000, 250000, 314000, 378000, 427000, 553000, 766000, 980000, 1184000, 1505000};
+inline constexpr std::array STOPPING_DISTANCE_TRAIN_12 = {
+    0, 38000, 66000, 144000, 192000, 240000, 250000, 314000, 378000, 427000, 553000, 766000, 980000, 1184000, 1505000};
 inline constexpr std::array STOPPING_DISTANCE_TRAIN_13 = {
     0, 38000, 66000, 144000, 192000, 240000, 250000, 314000, 378000, 427000, 553000, 766000, 980000, 1184000, 1505000};
 inline constexpr std::array STOPPING_DISTANCE_TRAIN_14 = {
@@ -18,6 +22,10 @@ inline constexpr std::array STOPPING_DISTANCE_TRAIN_18 = {
 inline constexpr std::array STOPPING_DISTANCE_TRAIN_55 = {
     0, 30000, 50000, 90000, 120000, 150000, 198000, 264000, 378000, 427000, 376000, 766000, 980000, 1184000, 1068000};
 
+inline constexpr std::array OFFLINE_SPEED_TRAIN_10 = {0,    90,   270,  490,  690,  976,  1400, 1880,
+                                                      2478, 2908, 3470, 4138, 4814, 5441, 5740};
+inline constexpr std::array OFFLINE_SPEED_TRAIN_12 = {0,    90,   270,  490,  690,  976,  1400, 1880,
+                                                      2478, 2908, 3470, 4138, 4814, 5441, 5740};
 inline constexpr std::array OFFLINE_SPEED_TRAIN_13 = {0,    90,   270,  490,  690,  976,  1400, 1880,
                                                       2478, 2908, 3470, 4138, 4814, 5441, 5740};
 inline constexpr std::array OFFLINE_SPEED_TRAIN_14 = {0,    90,   280,  510,  720,  990,  1450, 1920,
@@ -41,6 +49,10 @@ constexpr Distance getTrainHeadLength(TrainDirection dir) {
 
 constexpr Speed convertSpeedLevelToOfflineSpeed(TrainId trainId, SpeedLevel speedLevel) {
   switch (trainId) {
+  case 10:
+    return OFFLINE_SPEED_TRAIN_10[speedLevel];
+  case 12:
+    return OFFLINE_SPEED_TRAIN_12[speedLevel];
   case 13:
     return OFFLINE_SPEED_TRAIN_13[speedLevel];
   case 14:
@@ -60,6 +72,10 @@ constexpr Speed convertSpeedLevelToOfflineSpeed(TrainId trainId, SpeedLevel spee
 
 constexpr Distance getStoppingDistanceFromLevel(TrainId trainId, SpeedLevel speedLevel) {
   switch (trainId) {
+  case 10:
+    return STOPPING_DISTANCE_TRAIN_10[speedLevel];
+  case 12:
+    return STOPPING_DISTANCE_TRAIN_12[speedLevel];
   case 13:
     return STOPPING_DISTANCE_TRAIN_13[speedLevel];
   case 14:

@@ -62,6 +62,9 @@ struct TrainPath {
 
 class PathFindingSystem {
 private:
+  static constexpr Distance YIELDING_MARGIN = 300'000; // 30 cm
+  static constexpr Distance STOPPING_MARGIN = 300'000; // 30 cm
+
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
   std::array<TrainId, NUM_RESERVATION_NODES> finalDestination{};
   std::array<TrainPath, MAX_TRAIN_ID> paths{};
@@ -69,20 +72,28 @@ private:
 
   void reserve(TrackNodeId nodeId, TrainId trainId) {
     size_t id = nodeId / 2;
-    nodeOwners[id].pushBack(trainId);
     if (58 <= id && id <= 61) {
-      nodeOwners[id ^ 1].pushBack(trainId);
+      nodeOwners[58].pushBack(trainId);
+      nodeOwners[59].pushBack(trainId);
+      nodeOwners[60].pushBack(trainId);
+      nodeOwners[61].pushBack(trainId);
+    } else {
+      nodeOwners[id].pushBack(trainId);
     }
   }
 
   void unreserve(TrackNodeId nodeId, TrainId trainId) {
     size_t id = nodeId / 2;
-    KIT_ASSERT(!nodeOwners[id].empty(), "no reservation");
-    KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train");
-
     if (58 <= id && id <= 61) {
-      // Unlock the central switch pair.
-      id ^= 1;
+      KIT_ASSERT(!nodeOwners[58].empty(), "no reservation");
+      KIT_ASSERT(nodeOwners[58].popFront() == trainId, "unreserved by the wrong train");
+      KIT_ASSERT(!nodeOwners[59].empty(), "no reservation");
+      KIT_ASSERT(nodeOwners[59].popFront() == trainId, "unreserved by the wrong train");
+      KIT_ASSERT(!nodeOwners[60].empty(), "no reservation");
+      KIT_ASSERT(nodeOwners[60].popFront() == trainId, "unreserved by the wrong train");
+      KIT_ASSERT(!nodeOwners[61].empty(), "no reservation");
+      KIT_ASSERT(nodeOwners[61].popFront() == trainId, "unreserved by the wrong train");
+    } else {
       KIT_ASSERT(!nodeOwners[id].empty(), "no reservation");
       KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train");
     }
@@ -134,6 +145,11 @@ private:
   }
 
   bool isTrespassing(TrainId trainId, const Train& train) {
+    const PathingState state = pathingStates[trainId];
+    if (state == PathingState::Moving && state != PathingState::Yielding && state != PathingState::Trespassing) {
+      return false;
+    }
+
     auto& nodes = paths[trainId].nodes;
 
     // Last sensor trespassing.
@@ -148,29 +164,22 @@ private:
     // Estimated node trespassing.
     {
       auto it = kit::find_if(nodes.begin(), nodes.end(), [&](auto& node) {
-        return node.srce->id == train.kinematics.lastSensor->id ||
-               node.srce->reverse->id == train.kinematics.lastSensor->id;
+        return node.srce->id == train.kinematics.estimatedNode->id ||
+               node.srce->reverse->id == train.kinematics.estimatedNode->id;
       });
 
-      if (it != nodes.end()) {
-        // Check if the train is too ahead.
+      Distance margin = -train.kinematics.estimatedNodeOffset;
+      Distance lastDist = 0;
+      for (; it != nodes.end() && margin < YIELDING_MARGIN; ++it) {
         if (!canEnter(it->srce->id, trainId)) {
-          return true;
+          break;
         }
+        margin += lastDist;
+        lastDist = it->srce->edges[it->direction].dist;
+      }
 
-        // Check if respect yield safety margin.
-        if (pathingStates[trainId] == PathingState::Yielding || pathingStates[trainId] == PathingState::Trespassing) {
-          if (++it; it != nodes.end()) {
-            if (!canEnter(it->srce->id, trainId)) {
-              return true;
-            }
-            if (++it; it != nodes.end()) {
-              if (!canEnter(it->srce->id, trainId)) {
-                return true;
-              }
-            }
-          }
-        }
+      if (margin < YIELDING_MARGIN) {
+        return true;
       }
     }
 
@@ -187,7 +196,8 @@ public:
 
   const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
 
-  PathingState updateState(TrainId trainId, const Train& train, const auto& updateSwitch, const auto& printer) {
+  PathingState updateState(TrainId trainId, const Train& train, const auto& updateSwitch,
+                           [[maybe_unused]] const auto& printer) {
     const bool isTooAhead = isTrespassing(trainId, train);
 
     const PathingState oldState = pathingStates[trainId];
@@ -236,7 +246,6 @@ public:
       // Add the destination offset if it can enter the destination node.
       const bool isRoadClear = (notEnterable == 0);
       if (isRoadClear) {
-        static constexpr Distance STOPPING_MARGIN = 300'000; // 30 cm
         Distance stoppingDistance = train.kinematics.offlineSpeed ==
                                             convertSpeedLevelToOfflineSpeed(trainId, train.kinematics.offlineSpeedLevel)
                                         ? getStoppingDistanceFromLevel(trainId, train.kinematics.offlineSpeedLevel)
@@ -267,7 +276,6 @@ public:
           pathingStates[trainId] = PathingState::Moving;
         }
       } else {
-        static constexpr Distance YIELDING_MARGIN = 300'000; // 30 cm
         Distance stoppingDistance =
             getStoppingDistanceFromLevel(trainId, train.navigation.findingPathTask.maxSpeedLevel);
 
@@ -414,7 +422,7 @@ public:
       // When we append new path, there are two cases we must handle.
       // 1. The train continue moving forward. We need to remove the old invalid branches and duplicated nodes in the
       // old path.
-      // 2. THe train reversed direction. We must unreserve all the previous path, because some other train might be
+      // 2. The train reversed direction. We must unreserve all the previous path, because some other train might be
       // yielding for it.
       while (!paths[trainId].nodes.empty()) {
         auto node = paths[trainId].nodes.popBack();
