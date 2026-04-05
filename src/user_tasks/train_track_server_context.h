@@ -12,6 +12,7 @@ namespace k4 {
 struct TrainTrackServerContext {
   int dispatcherTid = 0;
   int uiTid = 0;
+  int pacmanTid = -1;
 
   uint32_t currentTicks = 0;
   marklin::TrainTrackState ttState{};
@@ -20,5 +21,6 @@ struct TrainTrackServerContext {
   History<SensorHistoryEntry, SENSOR_HISTORY_SIZE> sensorHistory{};
   RingBuffer<TrainStatesEntry, marklin::NUM_TRAIN_IN_LAB> trainStates{};
   uint32_t lastTrainUIRefreshTicks = 0;
+  uint32_t lastPacmanRefreshTicks = 0;
 };
 } // namespace k4

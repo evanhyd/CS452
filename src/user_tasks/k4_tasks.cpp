@@ -2,6 +2,7 @@
 
 #include "helper_tasks.h"
 #include "marklin_dispatcher_server_task.h"
+#include "pacman_server_task.h"
 #include "train_track_server_task.h"
 #include "ui_controller_task.h"
 #include "ui_view_server_task.h"
@@ -31,6 +32,7 @@ void k4::FirstUserTask() {
   ::Create(2, k4::uiViewServerTask);
   ::Create(2, k4::marklinDispatcherServerTask);
   ::Create(2, k4::trainTrackTask);
+  ::Create(2, k4::pacmanServerTask);
 
   ::Create(0, k4::clockTask);
   ::Create(0, k4::marklinEventListenerTask);

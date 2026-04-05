@@ -48,6 +48,19 @@ constexpr Distance getDistanceBetweenSensor(TrackId trackId, const TrackNode& se
   }
 }
 
+constexpr size_t outgoingEdgeCount(const marklin::TrackNode& node) {
+  switch (node.type) {
+  case marklin::TrackNode::Type::Branch:
+    return 2;
+  case marklin::TrackNode::Type::Sensor:
+  case marklin::TrackNode::Type::Merge:
+  case marklin::TrackNode::Type::Enter:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
 static constexpr size_t NUM_RESERVATION_NODES = NUM_TRACK_NODES / 2;
 static constexpr size_t MAX_PATH_NODES = NUM_TRACK_NODES;
 
@@ -404,18 +417,7 @@ public:
 
       // Calculate number of edges.
       const TrackNode& uNode = ttState.getTrackNodeById(u.id);
-      size_t numEdges = [&] -> size_t {
-        switch (uNode.type) {
-        case TrackNode::Type::Branch:
-          return 2;
-        case TrackNode::Type::Sensor:
-        case TrackNode::Type::Merge:
-        case TrackNode::Type::Enter:
-          return 1;
-        default:
-          return 0;
-        }
-      }();
+      size_t numEdges = outgoingEdgeCount(uNode);
 
       // Explore neighbors.
       for (size_t i = 0; i < numEdges; ++i) {

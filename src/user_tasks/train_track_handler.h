@@ -217,6 +217,7 @@ inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id
 inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
   context.currentTicks = ticks;
   bool shouldUpdateTrainUI = context.currentTicks - context.lastTrainUIRefreshTicks >= 10;
+  bool shouldSendGameStateToPacman = context.currentTicks - context.lastPacmanRefreshTicks >= 50;
 
   for (marklin::TrainId trainId : context.activeTrains) {
     marklin::Train& train = context.ttState.getTrain(trainId);
@@ -409,6 +410,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     context.lastTrainUIRefreshTicks = context.currentTicks;
     sendTrainHistoryToUI(context);
     context.trainStates.clear();
+  }
+  if (shouldSendGameStateToPacman) {
+    context.lastPacmanRefreshTicks = context.currentTicks;
+    sendGameStateToPacman(context);
   }
 }
 

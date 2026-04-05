@@ -28,6 +28,33 @@ inline void sendTrainHistoryToUI(TrainTrackServerContext& context) {
   notify(context.uiTid, ui);
 }
 
+inline void sendGameStateToPacman(TrainTrackServerContext& context) {
+  if (context.pacmanTid < 0 && (context.pacmanTid = ::WhoIs(PACMAN_SERVER_NAME)) < 0) {
+    logError("failed to find pacman server");
+  }
+
+  PacmanMsg pm{.type = PacmanMsgType::GameStateUpdate, .gameStateUpdate{}};
+  pm.gameStateUpdate.ticks = context.currentTicks;
+  pm.gameStateUpdate.trackId = context.ttState.getCurrentTrackId();
+
+  unsigned idx = 0;
+  for (marklin::TrainId trainId : context.activeTrains) {
+    KIT_ASSERT(idx < marklin::NUM_TRAIN_IN_LAB, "pacman snapshot overflow");
+    const marklin::Train& train = context.ttState.getTrain(trainId);
+
+    PacmanTrainStateEntry& entry = pm.gameStateUpdate.entries[idx++];
+    entry.trainId = trainId;
+    entry.estimatedNodeId = train.kinematics.estimatedNode ? train.kinematics.estimatedNode->id : INVALID_TRACK_NODE_ID;
+    entry.lastSensorId = train.kinematics.lastSensor ? train.kinematics.lastSensor->id : INVALID_TRACK_NODE_ID;
+    entry.direction = train.kinematics.direction;
+    entry.estimatedNodeOffset = train.kinematics.estimatedNodeOffset;
+    entry.lastSensorOffset = train.kinematics.lastSensorOffset;
+    entry.isTracked = train.kinematics.state == marklin::KinematicsSystem::State::Tracked;
+  }
+  pm.gameStateUpdate.count = idx;
+  notify(context.pacmanTid, pm);
+}
+
 inline void sendSwitchToUI(TrainTrackServerContext& context, marklin::SwitchId id, marklin::SwitchState state) {
   notify(context.uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
 }

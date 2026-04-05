@@ -3,6 +3,7 @@
 #include "marklin/marklin_message.h"
 #include "marklin/marklin_pathfinding.h"
 #include "marklin/marklin_train_track.h"
+#include <array>
 #include <cstdint>
 
 namespace k4 {
@@ -102,6 +103,41 @@ struct TrainTrackMsg {
     GotoCmdData gotoCmd;
     marklin::SensorTriggeredEvent sensorEvent;
     TimeData time;
+  };
+};
+
+// Pacman Server Message
+enum class PacmanMsgType : int {
+  TimerTick,
+  GameStateUpdate,
+};
+
+inline constexpr marklin::TrackNodeId INVALID_TRACK_NODE_ID =
+    static_cast<marklin::TrackNodeId>(marklin::NUM_TRACK_NODES);
+
+struct PacmanTrainStateEntry {
+  marklin::TrainId trainId;
+  marklin::TrackNodeId estimatedNodeId;
+  marklin::TrackNodeId lastSensorId;
+  marklin::TrainDirection direction;
+  marklin::Distance estimatedNodeOffset;
+  marklin::Distance lastSensorOffset;
+  bool isTracked;
+};
+
+struct PacmanMsg {
+  PacmanMsgType type;
+
+  struct GameStateUpdateData {
+    uint32_t ticks;
+    marklin::TrackId trackId;
+    PacmanTrainStateEntry entries[marklin::NUM_TRAIN_IN_LAB];
+    unsigned count;
+  };
+
+  union {
+    TimeData time;
+    GameStateUpdateData gameStateUpdate;
   };
 };
 
