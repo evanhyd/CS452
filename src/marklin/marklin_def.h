@@ -22,7 +22,7 @@ using TrackId = uint32_t;     // Track A (0) or Track B (1)
 /**********************************
 Magic Constant
 ***********************************/
-static constexpr size_t MAX_TRAIN_ID = 56;
+static constexpr size_t MAX_TRAIN_ID = 21;
 static constexpr size_t NUM_TRACK_NODES = 144;
 static constexpr size_t NUM_SWITCHES = 22;
 static constexpr size_t NUM_TRAIN_IN_LAB = 8;

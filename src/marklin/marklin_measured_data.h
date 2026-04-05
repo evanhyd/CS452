@@ -39,14 +39,6 @@ inline constexpr std::array OFFLINE_SPEED_TRAIN_18 = {0,    90,   270,  490,  69
 inline constexpr std::array OFFLINE_SPEED_TRAIN_55 = {0,    30,   100,  200,  350,  580,  1017, 1404,
                                                       1759, 2324, 2796, 3326, 4036, 4543, 5237};
 
-constexpr Distance getTrainHeadLength(TrainDirection dir) {
-  // TODO: fix this value, because whatever I put, the train collide at the shared branch.
-  if (dir == TrainDirection::Forward) {
-    return 50'000; // 5 cm;
-  }
-  return 150'000; // 15cm;
-}
-
 constexpr Speed convertSpeedLevelToOfflineSpeed(TrainId trainId, SpeedLevel speedLevel) {
   switch (trainId) {
   case 10:

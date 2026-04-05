@@ -53,6 +53,16 @@ template <typename It, typename Unary> bool contains_if(It begin, It end, const 
   return false;
 }
 
+template <typename It, typename T> int count(It begin, It end, const T& value) {
+  int cnt = 0;
+  for (; begin != end; ++begin) {
+    if (*begin == value) {
+      ++cnt;
+    }
+  }
+  return cnt;
+}
+
 template <typename It, typename T> void fill(It begin, It end, const T& value) {
   for (; begin != end; ++begin) {
     *begin = value;

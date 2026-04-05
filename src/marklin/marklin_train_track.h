@@ -93,7 +93,6 @@ class NavigationSystem {
     Distance offset = 0;
     SpeedLevel maxSpeedLevel = 0;
     bool isReversing = false;
-    bool isResumed = false;
     uint32_t retryAtTicks = 0;
     uint32_t retryBackoffTicks = 0;
   };
@@ -144,9 +143,11 @@ public:
     estimatedNodeOffset = 0;
   }
 
-  void reverseLastSensor() {
+  void reverseSensor() {
     lastSensor = lastSensor->reverse;
     lastSensorOffset = -lastSensorOffset;
+    estimatedNode = estimatedNode->reverse;
+    estimatedNodeOffset = -estimatedNodeOffset;
   }
 
   bool isStationary() const { return estimatedSpeed == 0 && offlineSpeed == 0; }

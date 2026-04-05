@@ -16,12 +16,24 @@ inline constexpr uint32_t FINDING_PATH_RETRY_MAX_TICKS = 320;
 
 inline marklin::TrackNodeId pickWanderDestination(TrainTrackServerContext& ctx, marklin::TrackNodeId avoidId) {
   avoidId /= 2;
-  auto id = marklin::TrackNodeId(ctx.currentTicks % 40);
-  if (id != avoidId) {
-    return id * 2;
-  } else {
-    return marklin::TrackNodeId((id + 19) % 40 * 2);
+  uint32_t id = ctx.currentTicks % 40;
+  for (;;) {
+    // Don't duplicate.
+    if (id == avoidId) {
+      id = (id + 19) % 40;
+      continue;
+    }
+
+    // Bad sensors.
+    if (id == 14 || id == 16 || id == 24 || id == 32) {
+      id += 2;
+      continue;
+    }
+
+    break;
   }
+
+  return marklin::TrackNodeId(id * 2);
 }
 
 inline void makeTrainGotoRandomSensor(TrainTrackServerContext& context, marklin::Train& train,
@@ -29,7 +41,7 @@ inline void makeTrainGotoRandomSensor(TrainTrackServerContext& context, marklin:
   marklin::TrackNodeId dest = pickWanderDestination(context, train.navigation.findingPathTask.dest);
   const uint32_t retryAtTicks = train.navigation.findingPathTask.retryAtTicks;
   const uint32_t retryBackoffTicks = train.navigation.findingPathTask.retryBackoffTicks;
-  train.navigation.findingPathTask = {dest, 0, speedLevel, false, false, retryAtTicks, retryBackoffTicks};
+  train.navigation.findingPathTask = {dest, 0, speedLevel, false, retryAtTicks, retryBackoffTicks};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
 }
 
@@ -236,7 +248,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         }
         // Update kinematics and prediction.
         broadcastReverseTrainDirection(context, trainId);
-        train.kinematics.reverseLastSensor();
+        train.kinematics.reverseSensor();
         marklin::Distance distToNext = 0;
         marklin::TrackNode* nextSensor =
             marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
@@ -272,7 +284,8 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     }
     case marklin::NavigationSystem::State::Routed: {
       auto pathFindingState = context.pfSystem.updateState(
-          trainId, train, [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); },
+          context.ttState, trainId, train,
+          [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); },
           [&](auto... args) { notifyStatusToUI(context.uiTid, "%d %d %d %d %d", args...); });
       const bool changed = pathFindingState != train.navigation.oldPathingState;
 
@@ -325,21 +338,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         if (changed) {
           //   notifyStatusToUI(context.uiTid, "Train %u trespassed", trainId);
           broadcastTrainSpeedLevel(context, trainId, 0);
-          train.navigation.findingPathTask.isReversing = true;
-          train.navigation.findingPathTask.isResumed = false;
-        }
-
-        // Reverse the train, and slowly backtrack to the last sensor until the trespassing is fixed.
-        if (train.navigation.findingPathTask.isReversing && train.kinematics.isStationary()) {
-          broadcastReverseTrainDirection(context, trainId);
-          train.kinematics.reverseLastSensor();
-          marklin::Distance distToNext = 0;
-          marklin::TrackNode* nextSensor =
-              marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
-          train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
-                                         train.kinematics.estimatedSpeed, context.currentTicks);
-          train.navigation.findingPathTask.isReversing = false;
-          broadcastTrainSpeedLevel(context, trainId, 6);
         }
         break;
       }
@@ -347,21 +345,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         if (changed) {
           //   notifyStatusToUI(context.uiTid, "Train %u resuming", trainId);
           broadcastTrainSpeedLevel(context, trainId, 0);
-          train.navigation.findingPathTask.isReversing = true;
-          train.navigation.findingPathTask.isResumed = false;
-        }
-
-        // Reverse the train and resume the original direction.
-        if (train.navigation.findingPathTask.isReversing && train.kinematics.isStationary()) {
-          broadcastReverseTrainDirection(context, trainId);
-          train.kinematics.reverseLastSensor();
-          marklin::Distance distToNext = 0;
-          marklin::TrackNode* nextSensor =
-              marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
-          train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
-                                         train.kinematics.estimatedSpeed, context.currentTicks);
-          train.navigation.findingPathTask.isReversing = false;
-          train.navigation.findingPathTask.isResumed = true;
         }
         break;
       }
@@ -374,7 +357,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       if (train.kinematics.isStationary()) {
         broadcastReverseTrainDirection(context, trainId);
         if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked) {
-          train.kinematics.reverseLastSensor();
+          train.kinematics.reverseSensor();
           marklin::Distance distToNext = 0;
           marklin::TrackNode* nextSensor =
               marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
