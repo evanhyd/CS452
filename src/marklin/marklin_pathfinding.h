@@ -325,7 +325,7 @@ public:
       // Resets the system once.
       if (isEmergencyReroutingProtocolActivated) {
         bool hasRoutedTrain = kit::contains_if(pathingStates.begin(), pathingStates.end(), [](auto s) {
-          return s == PathingState::Moving || s == PathingState::Yielding;
+          return s == PathingState::Moving || s == PathingState::Yielding || s == PathingState::Arriving;
         });
         if (!hasRoutedTrain) {
           isEmergencyReroutingProtocolActivated = false;
@@ -335,7 +335,7 @@ public:
         }
       }
 
-      if (train.kinematics.isStationary()) {
+      if (!isEmergencyReroutingProtocolActivated && train.kinematics.isStationary()) {
         --trespassingCount;
         setBlocker(train.kinematics.estimatedNode->id, trainId);
         pathingStates[trainId] = PathingState::Resuming;
