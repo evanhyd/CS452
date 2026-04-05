@@ -7,10 +7,25 @@
 
 #include "kernel/syscalls.h"
 #include "system_tasks/io_server_task.h"
+#include "user_tasks/track_art.h"
 #include "util/ctfmt.h"
 #include "util/debug.h"
 
 extern "C" [[noreturn]] void _reboot();
+
+static int parseSgrInt(int ioServerTid, char& lastChar) {
+  int val = 0;
+  for (;;) {
+    int c = ::Getc(ioServerTid);
+    lastChar = static_cast<char>(c);
+    if (c < 0 || lastChar == ';' || lastChar == 'M' || lastChar == 'm')
+      break;
+    if (lastChar >= '0' && lastChar <= '9') {
+      val = val * 10 + (lastChar - '0');
+    }
+  }
+  return val;
+}
 
 namespace k4 {
 
@@ -47,6 +62,33 @@ void uiControllerTask() {
       int seq2 = ::Getc(ioServerTid);
 
       if (seq1 == '[') {
+        if (seq2 == '<') {
+          char terminator;
+          [[maybe_unused]] int button = parseSgrInt(ioServerTid, terminator);
+          int col = parseSgrInt(ioServerTid, terminator);
+          int row = parseSgrInt(ioServerTid, terminator);
+          if (terminator == 'M') {
+            if (row >= (int)ROW_ART && col >= (int)COL_ART) {
+              unsigned rw = (unsigned)row - ROW_ART;
+              unsigned cl = (unsigned)col - COL_ART;
+              for (unsigned id = 0; id < std::size(SENSOR_LOCS); ++id) {
+                if (SENSOR_LOCS[id].row == rw && SENSOR_LOCS[id].col <= cl &&
+                    cl < SENSOR_LOCS[id].col + SENSOR_LOCS[id].len) {
+                  marklin::SensorTriggeredEvent sensorEvent{};
+                  sensorEvent.id = static_cast<uint8_t>(id);
+                  sensorEvent.state = marklin::SensorState::Occupied;
+                  TrainTrackMsg tm{.type = TrainTrackMsgType::SensorEvent, .sensorEvent = sensorEvent};
+                  notify(trainTrackTid, tm);
+                  auto [bank, number] = marklin::trackNodeIdToSensor(sensorEvent.id);
+                  notifyStatusToUI(uiTid, "Simulated sensor hit %c%u.", bank, number);
+                  break;
+                }
+              }
+            }
+          }
+          continue;
+        }
+
         PacmanMsg pacmanMsg{.type = PacmanMsgType::HumanControl, .humanControl{}};
         bool isArrow = true;
         switch (seq2) {

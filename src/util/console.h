@@ -53,6 +53,8 @@ public:
   void hideCursor() { puts("\033[?25l"); }
   void showCursor() { puts("\033[?25h"); }
 
+  void enableMouse() { puts("\033[?1006h\033[?1000h"); }
+
 private:
   int tid_;
 };
