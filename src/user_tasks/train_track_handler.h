@@ -287,7 +287,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     case marklin::NavigationSystem::State::Routed: {
       auto pathFindingState = context.pfSystem.updateState(
           trainId, train, [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); },
-          [&](auto... args) { notifyStatusToUI(context.uiTid, "%d %d %d %d %d", args...); });
+          [&](auto... args) { notifyStatusToUI(context.uiTid, "%d", args...); });
       const bool changed = pathFindingState != train.navigation.oldPathingState;
 
       switch (pathFindingState) {

@@ -100,21 +100,24 @@ private:
     }
   }
 
-  void unreserve(TrackNodeId nodeId, TrainId trainId, std::source_location loc = std::source_location::current()) {
+  // Return false if fail to unreserve due to error.
+  bool unreserve(TrackNodeId nodeId, TrainId trainId) {
     size_t id = nodeId / 2;
     if (58 <= id && id <= 61) {
-      KIT_ASSERT(!nodeOwners[58].empty(), "no reservation", loc);
-      KIT_ASSERT(nodeOwners[58].popFront() == trainId, "58 unreserved by the wrong train", loc);
-      KIT_ASSERT(!nodeOwners[59].empty(), "no reservation", loc);
-      KIT_ASSERT(nodeOwners[59].popFront() == trainId, "59 unreserved by the wrong train", loc);
-      KIT_ASSERT(!nodeOwners[60].empty(), "no reservation", loc);
-      KIT_ASSERT(nodeOwners[60].popFront() == trainId, "60 unreserved by the wrong train", loc);
-      KIT_ASSERT(!nodeOwners[61].empty(), "no reservation", loc);
-      KIT_ASSERT(nodeOwners[61].popFront() == trainId, "61 unreserved by the wrong train", loc);
+      if (nodeOwners[58].empty() || nodeOwners[59].empty() || nodeOwners[60].empty() || nodeOwners[61].empty()) {
+        return false;
+      }
+      if (nodeOwners[58].popFront() != trainId || nodeOwners[59].popFront() != trainId ||
+          nodeOwners[60].popFront() != trainId || nodeOwners[61].popFront() != trainId) {
+        return false;
+      }
     } else {
-      KIT_ASSERT(!nodeOwners[id].empty(), "no reservation", loc);
-      KIT_ASSERT(nodeOwners[id].popFront() == trainId, "unreserved by the wrong train", loc);
+      if (nodeOwners[id].empty() || nodeOwners[id].popFront() != trainId) {
+        return false;
+      }
     }
+
+    return true;
   }
 
   bool canEnter(TrackNodeId nodeId, TrainId trainId) {
@@ -158,10 +161,11 @@ private:
   }
 
   // Unreserve and remove past nodes up to but not include nodeId.
-  void popPastNodes(TrainId trainId, TrackNodeId nodeId) {
+  // Return false if error occurs.
+  bool popPastNodes(TrainId trainId, TrackNodeId nodeId) {
     auto& nodes = paths[trainId].nodes;
     if (!kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) { return node.srce->id == nodeId; })) {
-      return;
+      return true;
     }
 
     while (!nodes.empty()) {
@@ -169,15 +173,19 @@ private:
       if (node.srce->id == nodeId) {
         break;
       }
-      unreserve(node.srce->id, trainId);
+      if (!unreserve(node.srce->id, trainId)) {
+        return false;
+      }
       nodes.popFront();
     }
+
+    return true;
   }
 
-  bool isTrespassing(TrainId trainId, const Train& train) {
+  int isTrespassing(TrainId trainId, const Train& train) {
     const PathingState state = pathingStates[trainId];
     if (state != PathingState::Moving && state != PathingState::Yielding) {
-      return false;
+      return 0;
     }
 
     // Last sensor trespassing.
@@ -185,7 +193,7 @@ private:
     bool inPath = kit::contains_if(nodes.begin(), nodes.end(),
                                    [&](auto& node) { return node.srce->id == train.kinematics.lastSensor->id; });
     if (inPath && !canEnter(train.kinematics.lastSensor->id, trainId)) {
-      return true;
+      return 1;
     }
 
     // Estimated node trespassing.
@@ -204,19 +212,19 @@ private:
       }
 
       if (margin < TRESPASSING_BACKOFF_MARGIN) {
-        return true;
+        return 2;
       }
     } else if (state == PathingState::Moving) {
       // Check if estimated position is not part of the path.
       // Usually caused by switch failure.
       if (it == nodes.end()) {
-        return true;
+        return 3;
       }
 
       // Check if train runs too fast and trespassed.
       // Usually caused by not stopping in time.
       if (!canEnter(it->srce->id, trainId)) {
-        return true;
+        return 4;
       }
     }
     return false;
@@ -235,8 +243,9 @@ public:
   PathingState updateState(TrainId trainId, Train& train, const auto& updateSwitch,
                            [[maybe_unused]] const auto& printer) {
 
-    if (isTrespassing(trainId, train)) {
+    if (int reason = isTrespassing(trainId, train); reason != 0) {
       isEmergencyReroutingProtocolActivated = true;
+      printer(reason);
     }
     if (isEmergencyReroutingProtocolActivated) {
       pathingStates[trainId] = PathingState::Trespassing;
@@ -249,7 +258,12 @@ public:
     }
     case PathingState::Yielding:
     case PathingState::Moving: {
-      popPastNodes(trainId, train.kinematics.lastSensor->id);
+      if (!popPastNodes(trainId, train.kinematics.lastSensor->id)) {
+        isEmergencyReroutingProtocolActivated = true;
+        pathingStates[trainId] = PathingState::Trespassing;
+        printer(5);
+        break;
+      }
 
       // Calculate the reserved distance.
       Distance enterableDistance = -train.kinematics.estimatedNodeOffset;
