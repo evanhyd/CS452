@@ -29,6 +29,7 @@ void uiControllerTask() {
   if (uiTid < 0) {
     logError("failed to find UI server");
   }
+  int pacmanTid = ::WhoIs(PACMAN_SERVER_NAME);
 
   cmd::CommandBuffer cmdBuf;
   notify(uiTid, UIMsg{.type = UIMsgType::PromptClear, .empty{}});
@@ -40,6 +41,46 @@ void uiControllerTask() {
     }
 
     char ch = static_cast<char>(c);
+
+    if (ch == '\x1b') {
+      int seq1 = ::Getc(ioServerTid);
+      int seq2 = ::Getc(ioServerTid);
+
+      if (seq1 == '[') {
+        PacmanMsg pacmanMsg{.type = PacmanMsgType::HumanControl, .humanControl{}};
+        bool isArrow = true;
+        switch (seq2) {
+        case 'A':
+          pacmanMsg.humanControl.action = HumanControlAction::SpeedUp;
+          break;
+        case 'B':
+          pacmanMsg.humanControl.action = HumanControlAction::SpeedDown;
+          break;
+        case 'C':
+          pacmanMsg.humanControl.action = HumanControlAction::SwitchRight;
+          break;
+        case 'D':
+          pacmanMsg.humanControl.action = HumanControlAction::SwitchLeft;
+          break;
+        default:
+          isArrow = false;
+          break;
+        }
+
+        if (isArrow) {
+          if (pacmanTid < 0) {
+            pacmanTid = ::WhoIs(PACMAN_SERVER_NAME);
+          }
+          if (pacmanTid >= 0) {
+            notify(pacmanTid, pacmanMsg);
+          }
+          continue;
+        }
+      }
+
+      // Ignore unknown escape sequences.
+      continue;
+    }
 
     if (ch == '\r' || ch == '\n') {
       cmd::ParsedCommand parsed = cmdBuf.parse();

@@ -47,6 +47,7 @@ inline void sendGameStateToPacman(TrainTrackServerContext& context) {
     entry.estimatedNodeId = train.kinematics.estimatedNode ? train.kinematics.estimatedNode->id : INVALID_TRACK_NODE_ID;
     entry.lastSensorId = train.kinematics.lastSensor ? train.kinematics.lastSensor->id : INVALID_TRACK_NODE_ID;
     entry.direction = train.kinematics.direction;
+    entry.offlineSpeedLevel = train.kinematics.offlineSpeedLevel;
     entry.estimatedNodeOffset = train.kinematics.estimatedNodeOffset;
     entry.lastSensorOffset = train.kinematics.lastSensorOffset;
     entry.isTracked = train.kinematics.state == marklin::KinematicsSystem::State::Tracked;

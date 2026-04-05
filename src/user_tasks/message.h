@@ -111,6 +111,14 @@ struct TrainTrackMsg {
 enum class PacmanMsgType : int {
   TimerTick,
   GameStateUpdate,
+  HumanControl,
+};
+
+enum class HumanControlAction : uint8_t {
+  SpeedUp,
+  SpeedDown,
+  SwitchLeft,
+  SwitchRight,
 };
 
 inline constexpr marklin::TrackNodeId INVALID_TRACK_NODE_ID =
@@ -121,6 +129,7 @@ struct PacmanTrainStateEntry {
   marklin::TrackNodeId estimatedNodeId;
   marklin::TrackNodeId lastSensorId;
   marklin::TrainDirection direction;
+  marklin::SpeedLevel offlineSpeedLevel;
   marklin::Distance estimatedNodeOffset;
   marklin::Distance lastSensorOffset;
   bool isTracked;
@@ -136,9 +145,14 @@ struct PacmanMsg {
     unsigned count;
   };
 
+  struct HumanControlData {
+    HumanControlAction action;
+  };
+
   union {
     TimeData time;
     GameStateUpdateData gameStateUpdate;
+    HumanControlData humanControl;
   };
 };
 
