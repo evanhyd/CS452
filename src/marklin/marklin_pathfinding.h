@@ -68,7 +68,7 @@ private:
   static constexpr Distance STOPPING_MARGIN = 300'000;            // 30 cm
 
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
-  std::array<TrainId, NUM_RESERVATION_NODES> finalDestination{};
+  std::array<TrainId, NUM_RESERVATION_NODES> blockers{};
   std::array<TrainPath, MAX_TRAIN_ID> paths{};
   std::array<PathingState, MAX_TRAIN_ID> pathingStates{};
 
@@ -109,8 +109,21 @@ private:
   }
 
   bool isPassable(TrackNodeId nodeId, TrainId trainId) {
-    return finalDestination[nodeId / 2] == NO_TRAIN || finalDestination[nodeId / 2] == trainId;
+    TrainId owner = getBlockerOwner(nodeId);
+    return owner == NO_TRAIN || owner == trainId;
   }
+
+  void setBlocker(TrackNodeId nodeId, TrainId trainId) {
+    for (TrainId& owner : blockers) {
+      if (owner == trainId) {
+        owner = NO_TRAIN;
+        break;
+      }
+    }
+    blockers[nodeId / 2] = trainId;
+  }
+
+  TrainId getBlockerOwner(TrackNodeId nodeId) { return blockers[nodeId / 2]; }
 
   Distance getEdgeWeight(const TrackEdge& edge) {
     static constexpr Distance PENALTY_PER_WAITER = 3'000'000; // 3 m
@@ -206,7 +219,7 @@ public:
 
   const TrainPath& getTrainPath(TrainId trainId) const { return paths[trainId]; }
 
-  PathingState updateState(TrainTrackState& ttState, TrainId trainId, const Train& train, const auto& updateSwitch,
+  PathingState updateState(TrainId trainId, Train& train, const auto& updateSwitch,
                            [[maybe_unused]] const auto& printer) {
 
     if (isTrespassing(trainId, train)) {
@@ -309,32 +322,41 @@ public:
       break;
     }
     case PathingState::Trespassing: {
-      if (!kit::contains_if(pathingStates.begin(), pathingStates.end(),
-                            [](auto s) { return s == PathingState::Moving || s == PathingState::Yielding; })) {
-
-        if (isEmergencyReroutingProtocolActivated) {
-          // Clear all the reservation and blockages.
-          nodeOwners = {};
-          finalDestination = {};
-          trespassingCount = kit::count(pathingStates.begin(), pathingStates.end(), PathingState::Trespassing);
+      // Resets the system once.
+      if (isEmergencyReroutingProtocolActivated) {
+        bool hasRoutedTrain = kit::contains_if(pathingStates.begin(), pathingStates.end(), [](auto s) {
+          return s == PathingState::Moving || s == PathingState::Yielding;
+        });
+        if (!hasRoutedTrain) {
           isEmergencyReroutingProtocolActivated = false;
+          nodeOwners = {};
+          paths = {};
+          trespassingCount = kit::count(pathingStates.begin(), pathingStates.end(), PathingState::Trespassing);
         }
+      }
 
-        if (train.kinematics.isStationary()) {
-          // Reset train path and update final blockage.
-          paths[trainId].nodes.clear();
-          finalDestination[train.kinematics.estimatedNode->id / 2] = trainId;
-          --trespassingCount;
-          pathingStates[trainId] = PathingState::Resuming;
-        }
+      if (train.kinematics.isStationary()) {
+        --trespassingCount;
+        setBlocker(train.kinematics.estimatedNode->id, trainId);
+        pathingStates[trainId] = PathingState::Resuming;
       }
       break;
     }
     case PathingState::Resuming: {
+      // Wait to synchronize all the trespassing trains.
       if (trespassingCount == 0) {
-        planPath(ttState, trainId, train.kinematics.estimatedNode->id, paths[trainId].destination->id,
-                 paths[trainId].offset);
-        pathingStates[trainId] = PathingState::Moving;
+
+        // Tick 1: Request train to find a new path.
+        if (!train.navigation.findingPathTask.reqeusetToResume) {
+          train.navigation.findingPathTask.reqeusetToResume = true;
+          break;
+        }
+
+        // Tick 2: Check the result.
+        train.navigation.findingPathTask.reqeusetToResume = false;
+        if (!train.navigation.findingPathTask.isResumed) {
+          pathingStates[trainId] = PathingState::Idling;
+        }
       }
       break;
     }
@@ -405,11 +427,6 @@ public:
           continue;
         }
 
-        // Avoid flipipng the train.
-        // if (edge.dest->type == TrackNode::Type::Branch && (u.dist + edge.dist) <= 50'000) {
-        //   continue;
-        // }
-
         Distance dist = u.dist + getEdgeWeight(edge);
         if (dist < minDistances[v]) {
           minDistances[v] = dist;
@@ -421,13 +438,7 @@ public:
 
     // Extract the path.
     if (isReachable) {
-      // Move the destination.
-      if (paths[trainId].destination) {
-        finalDestination[paths[trainId].destination->id / 2] = NO_TRAIN;
-      }
-      finalDestination[dest / 2] = trainId;
-
-      // Update the path.
+      setBlocker(dest, trainId);
       paths[trainId].destination = &ttState.getTrackNodeById(dest);
       paths[trainId].offset = offset;
 

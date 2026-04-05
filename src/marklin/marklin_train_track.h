@@ -93,6 +93,8 @@ class NavigationSystem {
     Distance offset = 0;
     SpeedLevel maxSpeedLevel = 0;
     bool isReversing = false;
+    bool reqeusetToResume = false;
+    bool isResumed = false;
     uint32_t retryAtTicks = 0;
     uint32_t retryBackoffTicks = 0;
   };

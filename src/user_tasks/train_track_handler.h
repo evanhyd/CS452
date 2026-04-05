@@ -41,7 +41,7 @@ inline void makeTrainGotoRandomSensor(TrainTrackServerContext& context, marklin:
   marklin::TrackNodeId dest = pickWanderDestination(context, train.navigation.findingPathTask.dest);
   const uint32_t retryAtTicks = train.navigation.findingPathTask.retryAtTicks;
   const uint32_t retryBackoffTicks = train.navigation.findingPathTask.retryBackoffTicks;
-  train.navigation.findingPathTask = {dest, 0, speedLevel, false, retryAtTicks, retryBackoffTicks};
+  train.navigation.findingPathTask = {dest, 0, speedLevel, false, false, false, retryAtTicks, retryBackoffTicks};
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
 }
 
@@ -284,8 +284,7 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
     }
     case marklin::NavigationSystem::State::Routed: {
       auto pathFindingState = context.pfSystem.updateState(
-          context.ttState, trainId, train,
-          [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); },
+          trainId, train, [&](marklin::SwitchId id, marklin::SwitchState st) { broadcastSwitchState(context, id, st); },
           [&](auto... args) { notifyStatusToUI(context.uiTid, "%d %d %d %d %d", args...); });
       const bool changed = pathFindingState != train.navigation.oldPathingState;
 
@@ -307,8 +306,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Can enter all nodes within the stopping distance.
         // Moving toward the destination.
         if (changed) {
-          //   notifyStatusToUI(context.uiTid, "Train %u is continuing toward %s", trainId,
-          //                    context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           broadcastTrainSpeedLevel(context, trainId, train.navigation.findingPathTask.maxSpeedLevel);
         }
         break;
@@ -317,8 +314,6 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Can not enter all nodes within the stopping distance.
         // Slowing down.
         if (changed) {
-          //   notifyStatusToUI(context.uiTid, "Train %u is yielding at %s", trainId,
-          //                    context.ttState.getTrackNodeById(train.kinematics.estimatedNode->id).name);
           broadcastTrainSpeedLevel(context, trainId, 0);
         }
         break;
@@ -328,23 +323,35 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
         // Destination is within the stopping distance.
         // Slowing down.
         if (changed) {
-          //   notifyStatusToUI(context.uiTid, "Train %u is arriving at %s", trainId,
-          //                    context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           broadcastTrainSpeedLevel(context, trainId, 0);
         }
         break;
       }
       case marklin::PathingState::Trespassing: {
         if (changed) {
-          //   notifyStatusToUI(context.uiTid, "Train %u trespassed", trainId);
           broadcastTrainSpeedLevel(context, trainId, 0);
         }
         break;
       }
       case marklin::PathingState::Resuming: {
-        if (changed) {
-          //   notifyStatusToUI(context.uiTid, "Train %u resuming", trainId);
-          broadcastTrainSpeedLevel(context, trainId, 0);
+        if (train.navigation.findingPathTask.reqeusetToResume) {
+          train.navigation.findingPathTask.isResumed =
+              context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
+                                        train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset);
+          if (!train.navigation.findingPathTask.isResumed) {
+            // Reverse and try agian.
+            // Update kinematics and prediction.
+            broadcastReverseTrainDirection(context, trainId);
+            train.kinematics.reverseSensor();
+            marklin::Distance distToNext = 0;
+            marklin::TrackNode* nextSensor =
+                marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
+            train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
+                                           train.kinematics.estimatedSpeed, context.currentTicks);
+            train.navigation.findingPathTask.isResumed = context.pfSystem.planPath(
+                context.ttState, trainId, train.kinematics.estimatedNode->id, train.navigation.findingPathTask.dest,
+                train.navigation.findingPathTask.offset);
+          }
         }
         break;
       }
