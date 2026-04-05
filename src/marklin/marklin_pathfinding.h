@@ -165,20 +165,34 @@ private:
     // Estimated node trespassing.
     auto it = kit::find_if(nodes.begin(), nodes.end(),
                            [&](auto& node) { return node.srce->id == train.kinematics.estimatedNode->id; });
-    Distance margin = -train.kinematics.estimatedNodeOffset;
-    Distance lastDist = 0;
-    for (; it != nodes.end(); ++it) {
-      if (!canEnter(it->srce->id, trainId)) {
-        break;
+    if (state == PathingState::Yielding) {
+      // Check if yield in time.
+      Distance margin = -train.kinematics.estimatedNodeOffset;
+      Distance lastDist = 0;
+      for (; it != nodes.end(); ++it) {
+        if (!canEnter(it->srce->id, trainId)) {
+          break;
+        }
+        margin += lastDist;
+        lastDist = it->srce->edges[it->direction].dist;
       }
-      margin += lastDist;
-      lastDist = it->srce->edges[it->direction].dist;
-    }
 
-    if (margin < TRESPASSING_BACKOFF_MARGIN) {
-      return true;
-    }
+      if (margin < TRESPASSING_BACKOFF_MARGIN) {
+        return true;
+      }
+    } else if (state == PathingState::Moving) {
+      // Check if estimated position is not part of the path.
+      // Usually caused by switch failure.
+      if (it == nodes.end()) {
+        return true;
+      }
 
+      // Check if train runs too fast and trespassed.
+      // Usually caused by not stopping in time.
+      if (!canEnter(it->srce->id, trainId)) {
+        return true;
+      }
+    }
     return false;
   }
 
