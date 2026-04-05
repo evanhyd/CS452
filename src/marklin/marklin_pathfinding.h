@@ -322,7 +322,7 @@ public:
       break;
     }
     case PathingState::Trespassing: {
-      // Resets the system once.
+      // Synchronize here and reset the system.
       if (isEmergencyReroutingProtocolActivated) {
         bool hasRoutedTrain = kit::contains_if(pathingStates.begin(), pathingStates.end(), [](auto s) {
           return s == PathingState::Moving || s == PathingState::Yielding || s == PathingState::Arriving;

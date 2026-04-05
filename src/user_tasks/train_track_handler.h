@@ -335,10 +335,10 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       }
       case marklin::PathingState::Resuming: {
         if (train.navigation.findingPathTask.reqeusetToResume) {
-          train.navigation.findingPathTask.isResumed =
+          bool isResumed =
               context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
                                         train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset);
-          if (!train.navigation.findingPathTask.isResumed) {
+          if (!isResumed) {
             // Reverse and try agian.
             // Update kinematics and prediction.
             broadcastReverseTrainDirection(context, trainId);
@@ -348,9 +348,18 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
                 marklin::getNextSensor(context.ttState, *train.kinematics.lastSensor, distToNext);
             train.prediction.triggerSensor(*train.kinematics.lastSensor, nextSensor, distToNext,
                                            train.kinematics.estimatedSpeed, context.currentTicks);
-            train.navigation.findingPathTask.isResumed = context.pfSystem.planPath(
-                context.ttState, trainId, train.kinematics.estimatedNode->id, train.navigation.findingPathTask.dest,
-                train.navigation.findingPathTask.offset);
+            isResumed = context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
+                                                  train.navigation.findingPathTask.dest,
+                                                  train.navigation.findingPathTask.offset);
+          }
+
+          train.navigation.findingPathTask.isResumed = isResumed;
+          if (isResumed) {
+            notifyStatusToUI(context.uiTid, "Train %u resumed to the destination %s", trainId,
+                             context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
+          } else {
+            notifyStatusToUI(context.uiTid, "Train %u failed to resume to the destination %s", trainId,
+                             context.ttState.getTrackNodeById(train.navigation.findingPathTask.dest).name);
           }
         }
         break;
