@@ -444,10 +444,13 @@ void uiViewServerTask() {
         } else {
           console.puts(COLORS[2 * i]);
           for (unsigned j = 0; j < entry.nodeCount; ++j) {
-            console.printf("%s ", entry.nodes[j]->name);
-            if (j + 1 == entry.lockCount) {
+            if (j == entry.lockCount) {
               console.puts(COLORS[2 * i + 1]);
             }
+            if (j > 0) {
+              console.putc(' ');
+            }
+            console.printf("%s", entry.nodes[j]->name);
           }
           console.puts(RESET_COLOR);
         }
