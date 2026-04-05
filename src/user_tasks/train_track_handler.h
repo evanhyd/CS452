@@ -199,19 +199,20 @@ inline void gotoCmdHandler(TrainTrackServerContext& context, marklin::TrainId id
   marklin::TrackNode* dest = context.ttState.getTrackNodeByName(location);
   KIT_ASSERT(dest, "Invalid track node name for goto.");
 
-  // Check busy status.
   initTrain(context, id);
   marklin::Train& train = context.ttState.getTrain(id);
-  if (train.navigation.state != marklin::NavigationSystem::State::Manual) {
+  const bool wasManual = train.navigation.state == marklin::NavigationSystem::State::Manual;
+  if (train.navigation.state == marklin::NavigationSystem::State::Reversing) {
     notifyStatusToUI(context.uiTid, "Train %u is busy right now.", id);
     return;
   }
 
   train.navigation.isWandering = false;
-  train.navigation.findingPathTask = {dest->id, offset, speedLevel, false};
+  train.navigation.findingPathTask = {dest->id, offset, speedLevel, false, false, 0, 0};
+  train.navigation.oldPathingState = marklin::PathingState::Idling;
   train.navigation.state = marklin::NavigationSystem::State::FindingPath;
   broadcastTrainSpeedLevel(context, id, speedLevel);
-  notifyStatusToUI(context.uiTid, "Goto train %u to %s.", id, dest->name);
+  notifyStatusToUI(context.uiTid, "Goto train %u to %s%s.", id, dest->name, wasManual ? "" : " (retarget)");
 }
 
 inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {

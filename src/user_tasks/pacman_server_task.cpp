@@ -20,6 +20,7 @@ constexpr int PACMAN_TICK_PERIOD_TICKS = 50;
 constexpr marklin::Distance GHOST_CATCH_DISTANCE_UM = 400'000;
 constexpr marklin::SpeedLevel GHOST_SPEED_LEVEL = 5;
 constexpr unsigned AMBUSH_LOOKAHEAD_NODES = 2;
+constexpr uint32_t GHOST_GOTO_DEBOUNCE_TICKS = 300;
 
 constexpr marklin::TrainId DEFAULT_HUMAN_TRAIN_ID = 13;
 constexpr marklin::TrainId DEFAULT_CHASER_TRAIN_ID = 14;
@@ -119,6 +120,8 @@ struct GameState {
   marklin::TrackNodeId lastHumanNodeForChaser = INVALID_TRACK_NODE_ID;
   marklin::TrackNodeId lastAmbusherTargetNode = INVALID_TRACK_NODE_ID;
   marklin::TrackNodeId lastHumanSensorForScoring = INVALID_TRACK_NODE_ID;
+  uint32_t lastChaserGotoTicks = std::numeric_limits<uint32_t>::max();
+  uint32_t lastAmbusherGotoTicks = std::numeric_limits<uint32_t>::max();
 
   bool hasSnapshot = false;
   bool isGameOver = false;
@@ -251,7 +254,12 @@ void maybeTriggerLoss(GameState& state, int trainTrackTid, int uiTid, marklin::T
   }
 }
 
-void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackState& trackState) {
+bool debouncePassed(uint32_t lastTicks, uint32_t currentTicks) {
+  return lastTicks == std::numeric_limits<uint32_t>::max() || currentTicks - lastTicks >= GHOST_GOTO_DEBOUNCE_TICKS;
+}
+
+void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackState& trackState,
+                      uint32_t currentTicks) {
   if (state.isGameOver || state.isGameWon) {
     return;
   }
@@ -263,9 +271,11 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
 
   marklin::TrackNode& humanNode = trackState.getTrackNodeById(human->estimatedNodeId);
 
-  if (state.lastHumanNodeForChaser != human->estimatedNodeId) {
+  if (state.lastHumanNodeForChaser != human->estimatedNodeId &&
+      debouncePassed(state.lastChaserGotoTicks, currentTicks)) {
     sendGotoCommand(trainTrackTid, state.ghostChaserTrainId, GHOST_SPEED_LEVEL, humanNode.name);
     state.lastHumanNodeForChaser = human->estimatedNodeId;
+    state.lastChaserGotoTicks = currentTicks;
   }
 
   marklin::TrackNode* ambushTarget =
@@ -274,9 +284,10 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
     ambushTarget = &humanNode;
   }
 
-  if (state.lastAmbusherTargetNode != ambushTarget->id) {
+  if (state.lastAmbusherTargetNode != ambushTarget->id && debouncePassed(state.lastAmbusherGotoTicks, currentTicks)) {
     sendGotoCommand(trainTrackTid, state.ghostAmbusherTrainId, GHOST_SPEED_LEVEL, ambushTarget->name);
     state.lastAmbusherTargetNode = ambushTarget->id;
+    state.lastAmbusherGotoTicks = currentTicks;
   }
 }
 
@@ -361,7 +372,7 @@ void pacmanServerTask() {
       if (!state.hasSnapshot) {
         break;
       }
-      maybeRouteGhosts(state, trainTrackTid, trackState);
+      maybeRouteGhosts(state, trainTrackTid, trackState, msg.time.ticks);
       maybeTriggerLoss(state, trainTrackTid, uiTid, trackState);
       break;
     }
