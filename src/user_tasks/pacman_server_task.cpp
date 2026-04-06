@@ -103,6 +103,8 @@ struct GameState {
 
   std::bitset<DOT_SENSOR_COUNT> activeDots{};
   uint32_t score = 0;
+  bool playingBazz = false;
+  int playingBazzFor = 0;
 
   marklin::TrackId currentTrackId = 0;
   uint32_t lastGameStateTicks = 0;
@@ -257,7 +259,7 @@ void sendPacmanStatusToUI(int uiTid, const GameState& state) {
 void resetPacmanState(GameState& state, marklin::TrainTrackState& trackState, int uiTid) {
   state = {};
   state.activeDots.set();
-  trackState = {};
+  trackState.reset();
   for (const auto& mapping : SWITCH_ARROW_MAPPINGS) {
     trackState.setSwitchState(mapping.switchId, marklin::SwitchState::Straight);
   }
@@ -387,10 +389,13 @@ void handleHumanSwitchControl(GameState& state, int trainTrackTid, int uiTid, ma
     return;
   }
 
+  // if (153 <= switchId && switchId <= 156) {
+  // } else {
   marklin::SwitchState target = mappedSwitchState(switchId, leftArrow);
   sendSwitchCommand(trainTrackTid, switchId, target);
   notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", switchId,
                    target == marklin::SwitchState::Straight ? 'S' : 'C');
+  // }
 }
 
 void handleHumanControl(GameState& state, const PacmanMsg& msg, int trainTrackTid, int uiTid,
@@ -518,8 +523,8 @@ bool maybeConsumeDot(GameState& state, int uiTid, int dispatcherTid) {
     ++state.score;
     sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(
                                         state.humanTrainId, marklin::TrainFunction::BazzingSound, true));
-    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(
-                                        state.humanTrainId, marklin::TrainFunction::BazzingSound, false));
+    state.playingBazz = true;
+    state.playingBazzFor = 2;
     sendPacmanStatusToUI(uiTid, state);
     return true;
   }
@@ -551,7 +556,6 @@ void maybeTriggerLoss(GameState& state, int trainTrackTid, int uiTid, marklin::T
   if (!human) {
     return;
   }
-  marklin::Distance minDistance = marklin::INF_DISTANCE;
   for (unsigned i = 0; i < state.registeredGhostCount; ++i) {
     const PacmanTrainStateEntry* ghost = getTrainState(state, state.registeredGhosts[i]);
     if (!ghost) {
@@ -559,22 +563,18 @@ void maybeTriggerLoss(GameState& state, int trainTrackTid, int uiTid, marklin::T
     }
     marklin::Distance d = estimateSeparationUm(trackState, *human, *ghost);
     if (d < GHOST_CATCH_DISTANCE_UM) {
-      minDistance = d;
-      break;
+      state.isGameOver = true;
+      state.humanDesiredSignedSpeedLevel = 0;
+      state.humanDesiredSpeedInitialized = true;
+      stopAllActiveTrains(trainTrackTid, state);
+      notifyStatusToUI(uiTid, "Pacman GAME OVER! Score: %u", state.score);
+      sendPacmanStatusToUI(uiTid, state);
+      return;
     }
-  }
-
-  if (minDistance <= GHOST_CATCH_DISTANCE_UM) {
-    state.isGameOver = true;
-    state.humanDesiredSignedSpeedLevel = 0;
-    state.humanDesiredSpeedInitialized = true;
-    stopAllActiveTrains(trainTrackTid, state);
-    notifyStatusToUI(uiTid, "Pacman GAME OVER! Score: %u", state.score);
-    sendPacmanStatusToUI(uiTid, state);
   }
 }
 
-void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackState& trackState,
+void maybeRouteGhosts(GameState& state, int trainTrackTid, int uiTid, marklin::TrainTrackState& trackState,
                       uint32_t currentTicks) {
   if (state.isGameOver || state.isGameWon) {
     return;
@@ -593,6 +593,7 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
 
   if (marklin::isValidTrainId(state.ghostChaserTrainId) && state.lastHumanNodeForChaser != human->estimatedNodeId &&
       debounceElapsed(state.lastChaserGotoTicks, currentTicks, GHOST_GOTO_DEBOUNCE_TICKS)) {
+    notifyStatusToUI(uiTid, "Pacman ghost chaser target: %s", humanNode.name);
     sendGotoCommand(trainTrackTid, state.ghostChaserTrainId, ghostSpeedLevel(state, state.ghostChaserTrainId),
                     humanNode.name);
     state.lastHumanNodeForChaser = human->estimatedNodeId;
@@ -606,6 +607,7 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
 
   if (marklin::isValidTrainId(state.ghostAmbusherTrainId) && state.lastAmbusherTargetNode != ambushTarget->id &&
       debounceElapsed(state.lastAmbusherGotoTicks, currentTicks, GHOST_GOTO_DEBOUNCE_TICKS)) {
+    notifyStatusToUI(uiTid, "Pacman ghost ambusher target: %s", ambushTarget->name);
     sendGotoCommand(trainTrackTid, state.ghostAmbusherTrainId, ghostSpeedLevel(state, state.ghostAmbusherTrainId),
                     ambushTarget->name);
     state.lastAmbusherTargetNode = ambushTarget->id;
@@ -711,8 +713,17 @@ void pacmanServerTask() {
       if (!state.hasSnapshot) {
         break;
       }
-      maybeRouteGhosts(state, trainTrackTid, trackState, msg.time.ticks);
+      maybeRouteGhosts(state, trainTrackTid, uiTid, trackState, msg.time.ticks);
       maybeTriggerLoss(state, trainTrackTid, uiTid, trackState);
+      if (state.playingBazz) {
+        if (state.playingBazzFor > 0) {
+          --state.playingBazzFor;
+        } else {
+          state.playingBazz = false;
+          sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(
+                                              state.humanTrainId, marklin::TrainFunction::BazzingSound, false));
+        }
+      }
       break;
     }
     case PacmanMsgType::GameStateUpdate: {

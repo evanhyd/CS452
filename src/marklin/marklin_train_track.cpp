@@ -2430,7 +2430,9 @@ void KinematicsSystem::onTick(TrainTrackState& ttState, TrainId trainId) {
     KIT_ASSERT(lastSensor, "tracked train last sensor must be non-null");
     KIT_ASSERT(estimatedNode, "tracked train estimated node must be non-null");
     lastSensorOffset += estimatedSpeed;
-    estimatedNodeOffset += estimatedSpeed;
+    if (estimatedNode->type != marklin::TrackNode::Type::Exit || estimatedNodeOffset < 0) {
+      estimatedNodeOffset += estimatedSpeed;
+    }
     for (;;) {
       Distance dist = 0;
       TrackNode* next = getNextTrackNode(ttState, *estimatedNode, dist);

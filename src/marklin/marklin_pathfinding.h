@@ -135,6 +135,7 @@ private:
   static constexpr Distance TRESPASSING_BACKOFF_MARGIN = 200'000; // 20 cm
   static constexpr Distance OVERSHOOT_MARGIN = 200'000;           // 20 cm
   static constexpr Distance UNDERSHOOT_MARGIN = 250'000;          // 25 cm
+  static constexpr Distance TRAILING_LOCK_MARGIN = 300'000;       // 30 cm
 
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
   std::array<TrainId, NUM_RESERVATION_NODES> blockers{};
@@ -216,26 +217,55 @@ private:
     return (n1.edges[Straight].dest == &n2) || (n1.edges[Curved].dest == &n2);
   }
 
-  // Unreserve and remove past nodes up to but not include nodeId.
+  // Unreserve and remove past nodes while keeping a trailing safety margin behind train position.
   // Return false if error occurs.
-  bool popPastNodes(TrainId trainId, TrackNodeId nodeId) {
+  bool popPastNodes(TrainId trainId, TrackNodeId nodeId, Distance estimatedNodeOffset) {
     auto& nodes = paths[trainId].nodes;
+
+    Distance distFromFrontToEstimated = 0;
+    bool foundEstimated = false;
+    for (const auto& node : nodes) {
+      if (node.srce->id == nodeId) {
+        foundEstimated = true;
+        break;
+      }
+      distFromFrontToEstimated += node.srce->edges[node.direction].dist;
+    }
+
+    if (!foundEstimated) {
+      return false;
+    }
+
+    Distance keepBehindDistance = TRAILING_LOCK_MARGIN - estimatedNodeOffset;
+    if (keepBehindDistance < 0) {
+      keepBehindDistance = 0;
+    }
+
     while (!nodes.empty()) {
       const auto& node = nodes.front();
       if (node.srce->id == nodeId) {
         break;
       }
+
+      if (distFromFrontToEstimated <= keepBehindDistance) {
+        break;
+      }
+
+      Distance distToNext = node.srce->edges[node.direction].dist;
       if (!unreserve(node.srce->id, trainId)) {
         return false;
       }
       nodes.popFront();
+      distFromFrontToEstimated -= distToNext;
     }
 
     return true;
   }
 
   int isTrespassing(TrainId trainId, const Train& train, const auto& printer) {
-    auto printer_ = [&]<class... Args>(kit::FormatSpec<Args...> fmt, const Args&... args) { printer(fmt, args...); };
+    [[maybe_unused]] auto printer_ = [&]<class... Args>(kit::FormatSpec<Args...> fmt, const Args&... args) {
+      printer(fmt, args...);
+    };
     const PathingState state = pathingStates[trainId];
     if (state != PathingState::Moving && state != PathingState::Yielding) {
       return 0;
@@ -277,12 +307,12 @@ private:
     } else if (state == PathingState::Moving) {
       // Check if moving in the wrong position.
       if (it == nodes.end()) {
-        char buf[200], *p = buf;
-        for (const auto& node : nodes) {
-          p = kit::formatString(p, "%s ", node.srce->name);
-        }
-        printer_("For train %d, estimatedNode %s is not in path %s", trainId, train.kinematics.estimatedNode->name,
-                 buf);
+        // char buf[200], *p = buf;
+        // for (const auto& node : nodes) {
+        //   p = kit::formatString(p, "%s ", node.srce->name);
+        // }
+        // printer_("For train %d, estimatedNode %s is not in path %s", trainId, train.kinematics.estimatedNode->name,
+        //          buf);
         return 4;
       }
 
@@ -356,7 +386,7 @@ public:
       }
 
       // Pop it afterward.
-      if (!popPastNodes(trainId, train.kinematics.estimatedNode->id)) {
+      if (!popPastNodes(trainId, train.kinematics.estimatedNode->id, train.kinematics.estimatedNodeOffset)) {
         isEmergencyReroutingProtocolActivated = true;
         pathingStates[trainId] = PathingState::Trespassing;
         printer_("%d", 6);

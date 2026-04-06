@@ -5,6 +5,7 @@
 #include "train_track_server_context.h"
 #include "train_track_util.h"
 #include "user_tasks/send_util.h"
+#include "util/ctfmt.h"
 #include "util/debug.h"
 #include "util/kit_algorithm.h"
 
@@ -154,41 +155,51 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
                                                        marklin::TrainId trainId, marklin::TrainId reserverId) {
   SensorAttributionCandidate candidate{.trainId = trainId, .score = 0};
   marklin::Train& train = context.ttState.getTrain(trainId);
-
+  char buf[200], *ptr = buf;
   if (reserverId == trainId) {
-    candidate.score += 100;
-  } else if (reserverId != marklin::NO_TRAIN && train.navigation.state == marklin::NavigationSystem::State::Routed) {
-    candidate.score -= 50;
+    ptr = kit::formatString(ptr, "+400(res) ");
+    candidate.score += 400;
+  } else if (train.navigation.state == marklin::NavigationSystem::State::Routed) {
+    ptr = kit::formatString(ptr, "-500(!res) ");
+    candidate.score -= 500;
+  } else if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
+    ptr = kit::formatString(ptr, "+30(manual) ");
+    candidate.score += 30;
   }
 
   if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
-    candidate.score += 200;
+    ptr = kit::formatString(ptr, "+300(pred) ");
+    candidate.score += 300;
   }
 
-  if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked && train.kinematics.estimatedNode) {
+  if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked) {
     marklin::Distance distToSensor =
-        marklin::shortestDistanceToNode(context.ttState, train.kinematics.estimatedNode->id, sensor.id) -
-        train.kinematics.estimatedNodeOffset;
+        kit::min(marklin::shortestDistanceToNode(context.ttState, train.kinematics.estimatedNode->id, sensor.id) -
+                     train.kinematics.estimatedNodeOffset,
+                 marklin::shortestDistanceToNode(context.ttState, sensor.id, train.kinematics.estimatedNode->id) +
+                     train.kinematics.estimatedNodeOffset);
     if (distToSensor < marklin::INF_DISTANCE) {
-      int32_t distanceScore = 220 - distToSensor / 15'000;
-      candidate.score += kit::clamp(distanceScore, int32_t(-90), int32_t(220));
+      int32_t distanceScore = -distToSensor / 1000;
+      candidate.score += distanceScore;
+      ptr = kit::formatString(ptr, "%d(dist %u) ", distanceScore, distToSensor);
     } else {
-      candidate.score -= 1000;
+      ptr = kit::formatString(ptr, "-10k(unrch) ");
+      candidate.score -= 10'000;
     }
   } else {
+    ptr = kit::formatString(ptr, "-30(!trk) ");
     candidate.score -= 30;
   }
 
-  if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
-    candidate.score += 50;
-  }
+  ptr = kit::formatString(ptr, "Sum: %d", candidate.score);
+  notifyStatusToUI(context.uiTid, "%s T%u: %s", sensor.name, trainId, buf);
 
   return candidate;
 }
 
 inline marklin::TrainId attributeSensorOwner(TrainTrackServerContext& context, marklin::TrackNode& sensor) {
   marklin::TrainId reserverId = context.pfSystem.getReserver(sensor.id);
-  SensorAttributionCandidate best{.trainId = marklin::NO_TRAIN, .score = std::numeric_limits<int32_t>::min()};
+  SensorAttributionCandidate best{.trainId = marklin::NO_TRAIN, .score = -1000};
   for (marklin::TrainId id : context.activeTrains) {
     SensorAttributionCandidate candidate = scoreSensorCandidate(context, sensor, id, reserverId);
     if (candidate.score > best.score) {
