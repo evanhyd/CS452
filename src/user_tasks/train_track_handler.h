@@ -168,6 +168,15 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
         return id;
       }
     }
+
+    // Priority 4: Pair with a train in Manual state.
+    for (marklin::TrainId id : context.activeTrains) {
+      marklin::Train& train = context.ttState.getTrain(id);
+      if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
+        return id;
+      }
+    }
+
     return marklin::NO_TRAIN;
   }();
   if (ownerId == marklin::NO_TRAIN) {
@@ -219,6 +228,13 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
   context.currentTicks = ticks;
   bool shouldUpdateTrainUI = context.currentTicks - context.lastTrainUIRefreshTicks >= 10;
   bool shouldSendGameStateToPacman = context.currentTicks - context.lastPacmanRefreshTicks >= 50;
+
+  if (!context.hasEmergency && context.pfSystem.hasEmergency()) {
+    context.hasEmergency = true;
+  } else if (context.hasEmergency && !context.pfSystem.hasEmergency()) {
+    context.hasEmergency = false;
+    context.lastEmergencyTick = ticks;
+  }
 
   for (marklin::TrainId trainId : context.activeTrains) {
     marklin::Train& train = context.ttState.getTrain(trainId);
@@ -339,6 +355,13 @@ inline void timerTickHandler(TrainTrackServerContext& context, uint32_t ticks) {
       }
       case marklin::PathingState::Resuming: {
         if (train.navigation.findingPathTask.reqeusetToResume) {
+
+          if (ticks - context.lastEmergencyTick < 100) {
+            train.navigation.findingPathTask.isResumed = false;
+            notifyStatusToUI(context.uiTid, "Train %u abort resuming", trainId);
+            break;
+          }
+
           bool isResumed =
               context.pfSystem.planPath(context.ttState, trainId, train.kinematics.estimatedNode->id,
                                         train.navigation.findingPathTask.dest, train.navigation.findingPathTask.offset);

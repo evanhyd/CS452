@@ -181,7 +181,6 @@ private:
     return true;
   }
 
-public:
   int isTrespassing(TrainId trainId, const Train& train, const auto& printer) {
     auto printer_ = [&]<class... Args>(kit::FormatSpec<Args...> fmt, const Args&... args) { printer(fmt, args...); };
     const PathingState state = pathingStates[trainId];
@@ -189,13 +188,14 @@ public:
       return 0;
     }
 
-    // Last sensor trespassing.
     auto& nodes = paths[trainId].nodes;
-    bool inPath = kit::contains_if(nodes.begin(), nodes.end(),
-                                   [&](auto& node) { return node.srce->id == train.kinematics.lastSensor->id; });
-    if (inPath && !canEnter(train.kinematics.lastSensor->id, trainId)) {
-      return 1;
-    }
+
+    // // Last sensor trespassing.
+    // bool inPath = kit::contains_if(nodes.begin(), nodes.end(),
+    //                                [&](auto& node) { return node.srce->id == train.kinematics.lastSensor->id; });
+    // if (inPath && !canEnter(train.kinematics.lastSensor->id, trainId)) {
+    //   return 1;
+    // }
 
     // Estimated node trespassing.
     auto it = kit::find_if(nodes.begin(), nodes.end(),
@@ -241,6 +241,9 @@ public:
     }
     return false;
   }
+
+public:
+  bool hasEmergency() const { return isEmergencyReroutingProtocolActivated; }
 
   TrainId getReserver(TrackNodeId nodeId) const {
     if (nodeOwners[nodeId / 2].empty()) {

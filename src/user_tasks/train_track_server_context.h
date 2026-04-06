@@ -22,5 +22,8 @@ struct TrainTrackServerContext {
   RingBuffer<TrainStatesEntry, marklin::NUM_TRAIN_IN_LAB> trainStates{};
   uint32_t lastTrainUIRefreshTicks = 0;
   uint32_t lastPacmanRefreshTicks = 0;
+
+  uint32_t lastEmergencyTick = 0;
+  bool hasEmergency = false;
 };
 } // namespace k4
