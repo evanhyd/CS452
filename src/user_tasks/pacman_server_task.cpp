@@ -237,6 +237,26 @@ void sendPacmanDotsToUI(int uiTid, const GameState& state) {
                       .pacmanDots{.activeMask = static_cast<uint64_t>(state.activeDots.to_ullong())}});
 }
 
+int currentHumanSpeedLevel(const GameState& state) {
+  if (state.humanDesiredSpeedInitialized) {
+    return state.humanDesiredSignedSpeedLevel;
+  }
+
+  const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
+  return human ? signedHumanSpeedLevel(*human) : 0;
+}
+
+void sendPacmanStatusToUI(int uiTid, const GameState& state) {
+  notify(uiTid, UIMsg{.type = UIMsgType::PacmanStatus,
+                      .pacmanStatus{
+                          .humanTrainId = state.humanTrainId,
+                          .ghostChaserTrainId = state.ghostChaserTrainId,
+                          .ghostAmbusherTrainId = state.ghostAmbusherTrainId,
+                          .humanSpeedLevel = currentHumanSpeedLevel(state),
+                          .score = state.score,
+                      }});
+}
+
 void stopAllActiveTrains(int trainTrackTid, const GameState& state) {
   for (size_t idx = 1; idx < state.trainPresent.size(); ++idx) {
     if (!state.trainPresent[idx]) {
@@ -280,13 +300,15 @@ marklin::SwitchId findUpcomingSwitch(const PacmanTrainStateEntry& human, marklin
     node = node->reverse;
   }
 
+  marklin::Distance totalDist = 0;
   for (unsigned i = 0; i < UPCOMING_SWITCH_LOOKAHEAD_STEPS && node != nullptr; ++i) {
-    if (node->type == marklin::TrackNode::Type::Branch && marklin::isValidSwitchId(node->num)) {
+    if (totalDist >= 300'000 && node->type == marklin::TrackNode::Type::Branch && marklin::isValidSwitchId(node->num)) {
       return node->num;
     }
 
     marklin::Distance segmentDist = 0;
     node = marklin::getNextTrackNode(trackState, *node, segmentDist);
+    totalDist += segmentDist;
   }
 
   return 0;
@@ -302,30 +324,30 @@ void applyHumanDesiredSpeed(GameState& state, int trainTrackTid, int uiTid, bool
 
   if (desired == 0) {
     state.humanReversePending = false;
-    notifyStatusToUI(uiTid, "Pacman human speed -> 0");
+    sendPacmanStatusToUI(uiTid, state);
     return;
   }
 
   if (currentBackward == desiredBackward) {
     state.humanReversePending = false;
-    notifyStatusToUI(uiTid, "Pacman human speed -> %d", desired);
+    sendPacmanStatusToUI(uiTid, state);
     return;
   }
 
   if (state.humanReversePending) {
-    notifyStatusToUI(uiTid, "Pacman human speed -> %d (reversing)", desired);
+    sendPacmanStatusToUI(uiTid, state);
     return;
   }
 
   if (!debounceElapsed(state.lastHumanReverseCmdTicks, ticks, HUMAN_REVERSE_CMD_DEBOUNCE_TICKS)) {
-    notifyStatusToUI(uiTid, "Pacman human speed -> %d (reverse cooldown)", desired);
+    sendPacmanStatusToUI(uiTid, state);
     return;
   }
 
   reverseTrainDirection(trainTrackTid, state.humanTrainId);
   state.humanReversePending = true;
   state.lastHumanReverseCmdTicks = ticks;
-  notifyStatusToUI(uiTid, "Pacman human speed -> %d (reverse)", desired);
+  sendPacmanStatusToUI(uiTid, state);
 }
 
 void handleHumanSpeedControl(GameState& state, int trainTrackTid, int uiTid, int delta) {
@@ -429,6 +451,7 @@ void handleRegisterGhost(GameState& state, const PacmanMsg& msg, int uiTid) {
 
   if (!state.ghostRegistered[trainId]) {
     notifyStatusToUI(uiTid, "Pacman ghost registration full (max %u).", MAX_REGISTERED_GHOSTS);
+    sendPacmanStatusToUI(uiTid, state);
     return;
   }
 
@@ -441,6 +464,7 @@ void handleRegisterGhost(GameState& state, const PacmanMsg& msg, int uiTid) {
   if (state.registeredGhostCount != oldCount || wasRegistered) {
     notifyRoleAssignment(uiTid, state);
   }
+  sendPacmanStatusToUI(uiTid, state);
 }
 
 void handleRegisterHuman(GameState& state, const PacmanMsg& msg, int uiTid) {
@@ -453,6 +477,7 @@ void handleRegisterHuman(GameState& state, const PacmanMsg& msg, int uiTid) {
   registerHumanTrain(state, trainId);
   notifyStatusToUI(uiTid, "Pacman human set to train %u.", trainId);
   notifyRoleAssignment(uiTid, state);
+  sendPacmanStatusToUI(uiTid, state);
 }
 
 marklin::Distance estimateSeparationUm(marklin::TrainTrackState& trackState, const PacmanTrainStateEntry& lhs,
@@ -492,6 +517,7 @@ bool maybeConsumeDot(GameState& state, int uiTid) {
     state.activeDots.reset(sensorIdx);
     ++state.score;
     notifyStatusToUI(uiTid, "Pacman ate dot %u. Score: %u", human->lastSensorId, state.score);
+    sendPacmanStatusToUI(uiTid, state);
     return true;
   }
   return false;
@@ -506,8 +532,11 @@ void maybeTriggerWin(GameState& state, int trainTrackTid, int uiTid) {
   }
 
   state.isGameWon = true;
+  state.humanDesiredSignedSpeedLevel = 0;
+  state.humanDesiredSpeedInitialized = true;
   stopAllActiveTrains(trainTrackTid, state);
   notifyStatusToUI(uiTid, "Pacman WIN! Final score: %u", state.score);
+  sendPacmanStatusToUI(uiTid, state);
 }
 
 void maybeTriggerLoss(GameState& state, int trainTrackTid, int uiTid, marklin::TrainTrackState& trackState) {
@@ -538,8 +567,11 @@ void maybeTriggerLoss(GameState& state, int trainTrackTid, int uiTid, marklin::T
 
   if (minDistance <= GHOST_CATCH_DISTANCE_UM) {
     state.isGameOver = true;
+    state.humanDesiredSignedSpeedLevel = 0;
+    state.humanDesiredSpeedInitialized = true;
     stopAllActiveTrains(trainTrackTid, state);
     notifyStatusToUI(uiTid, "Pacman GAME OVER! Score: %u", state.score);
+    sendPacmanStatusToUI(uiTid, state);
   }
 }
 
@@ -666,6 +698,7 @@ void pacmanServerTask() {
   marklin::TrainTrackState trackState{};
   notifyStatusToUI(uiTid, "Pacman server online. Use 'human <id>' and 'ghost <id> <speed>'.");
   sendPacmanDotsToUI(uiTid, state);
+  sendPacmanStatusToUI(uiTid, state);
 
   for (;;) {
     PacmanMsg msg{};
@@ -684,6 +717,7 @@ void pacmanServerTask() {
     }
     case PacmanMsgType::GameStateUpdate: {
       updateSnapshot(state, msg, trackState);
+      sendPacmanStatusToUI(uiTid, state);
       if (maybeConsumeDot(state, uiTid)) {
         sendPacmanDotsToUI(uiTid, state);
       }

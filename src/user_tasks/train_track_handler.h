@@ -65,6 +65,11 @@ inline void setSpeedCmdHandler(TrainTrackServerContext& context, marklin::TrainI
   // Check busy status.
   initTrain(context, trainId);
   marklin::Train& train = context.ttState.getTrain(trainId);
+  if (train.navigation.state == marklin::NavigationSystem::State::Reversing) {
+    train.navigation.reversingTask.preReversingSpeedLevel = speedLevel;
+    notifyStatusToUI(context.uiTid, "Train %u will reverse with speed %u.", trainId, speedLevel);
+    return;
+  }
   if (train.navigation.state != marklin::NavigationSystem::State::Manual) {
     notifyStatusToUI(context.uiTid, "Train %u is busy right now.", trainId);
     return;

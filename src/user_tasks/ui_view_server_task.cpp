@@ -28,6 +28,7 @@ constexpr unsigned ROW_CMD_HISTORY = 20;
 constexpr unsigned ROW_STATUS = 40;
 constexpr unsigned STATUS_HISTORY_SIZE = 16;
 constexpr unsigned ROW_PROMPT = ROW_STATUS + STATUS_HISTORY_SIZE + 2;
+constexpr unsigned ROW_PACMAN_UI = ROW_PROMPT + 3;
 
 constexpr unsigned CMD_HISTORY_DEBOUNCE_TICKS = 50;
 
@@ -155,6 +156,14 @@ void drawPacmanDot(Console& console, unsigned dotIndex, bool active) {
   }
 }
 
+void drawPacmanTrainId(Console& console, marklin::TrainId trainId) {
+  if (marklin::isValidTrainId(trainId)) {
+    console.printf("%u", trainId);
+  } else {
+    console.puts("--");
+  }
+}
+
 void renderSwitch(Console& console, unsigned id, marklin::SwitchState state) {
   unsigned row, col;
   if (id >= 1 && id <= 11) {
@@ -188,6 +197,41 @@ void uiViewServerTask() {
   Console console{ioServerTid};
 
   uint64_t pacmanDotsMask = ALL_PACMAN_DOTS_MASK;
+  UIMsg::PacmanStatusData pacmanStatus{
+      .humanTrainId = marklin::NO_TRAIN,
+      .ghostChaserTrainId = marklin::NO_TRAIN,
+      .ghostAmbusherTrainId = marklin::NO_TRAIN,
+      .humanSpeedLevel = 0,
+      .score = 0,
+  };
+
+  auto drawPacmanStatus = [&] {
+    console.moveCursor(ROW_PACMAN_UI, 1);
+    console.puts(BOLD);
+    console.puts("Pacman:");
+    console.puts(RESET_COLOR);
+    console.clearToEol();
+
+    console.moveCursor(ROW_PACMAN_UI + 1, 1);
+    console.puts("Human Train: ");
+    drawPacmanTrainId(console, pacmanStatus.humanTrainId);
+    console.clearToEol();
+
+    console.moveCursor(ROW_PACMAN_UI + 2, 1);
+    console.puts("Ghost Trains: ");
+    drawPacmanTrainId(console, pacmanStatus.ghostChaserTrainId);
+    console.puts(", ");
+    drawPacmanTrainId(console, pacmanStatus.ghostAmbusherTrainId);
+    console.clearToEol();
+
+    console.moveCursor(ROW_PACMAN_UI + 3, 1);
+    console.printf("Human Speed Level: %d", pacmanStatus.humanSpeedLevel);
+    console.clearToEol();
+
+    console.moveCursor(ROW_PACMAN_UI + 4, 1);
+    console.printf("Score: %u", pacmanStatus.score);
+    console.clearToEol();
+  };
 
   auto redrawBaseUI = [&] {
     console.clearScreen();
@@ -220,6 +264,7 @@ void uiViewServerTask() {
     for (unsigned i = 0; i < PACMAN_DOT_COUNT; ++i) {
       drawPacmanDot(console, i, pacmanDotsMask & (uint64_t{1} << i));
     }
+    drawPacmanStatus();
     console.puts(RESET_COLOR);
   };
 
@@ -399,6 +444,11 @@ void uiViewServerTask() {
         }
       }
       pacmanDotsMask = msg.pacmanDots.activeMask;
+      break;
+    }
+    case UIMsgType::PacmanStatus: {
+      pacmanStatus = msg.pacmanStatus;
+      drawPacmanStatus();
       break;
     }
     case UIMsgType::TrainStates: {

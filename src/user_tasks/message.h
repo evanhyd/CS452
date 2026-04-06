@@ -182,6 +182,7 @@ enum class UIMsgType : int {
   RedrawSensors,
   RedrawCmdHistory,
   RedrawPacmanDots,
+  PacmanStatus,
   TrainStates,
 };
 
@@ -222,6 +223,14 @@ struct UIMsg {
     uint64_t activeMask;
   };
 
+  struct PacmanStatusData {
+    marklin::TrainId humanTrainId;
+    marklin::TrainId ghostChaserTrainId;
+    marklin::TrainId ghostAmbusherTrainId;
+    int humanSpeedLevel;
+    uint32_t score;
+  };
+
   struct TrainStatesData {
     TrainStatesEntry entries[marklin::NUM_TRAIN_IN_LAB];
     unsigned count;
@@ -237,6 +246,7 @@ struct UIMsg {
     SensorHistoryData sensorHistory;
     CmdHistoryData cmdHistory;
     PacmanDotsData pacmanDots;
+    PacmanStatusData pacmanStatus;
     TrainStatesData trainStates;
   };
 };
