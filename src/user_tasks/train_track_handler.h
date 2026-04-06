@@ -151,11 +151,6 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
   if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
     candidate.score += 200;
   }
-  if (train.prediction.predictedTicks != 0) {
-    int32_t dt = static_cast<int32_t>(absTickDelta(context.currentTicks, train.prediction.predictedTicks));
-    int32_t timingScore = 120 - dt * 3;
-    candidate.score += kit::clamp(timingScore, int32_t(-40), int32_t(120));
-  }
 
   if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked && train.kinematics.estimatedNode) {
     marklin::TrackNode* start = train.kinematics.estimatedNode;
@@ -163,10 +158,6 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
     if (distToSensor < marklin::INF_DISTANCE) {
       int32_t distanceScore = 220 - distToSensor / 15'000;
       candidate.score += kit::clamp(distanceScore, int32_t(-90), int32_t(220));
-
-      if (train.kinematics.offlineSpeedLevel == 0 && distToSensor > 600'000) {
-        candidate.score -= 60;
-      }
     } else {
       candidate.score -= 1000;
     }
