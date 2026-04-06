@@ -187,55 +187,72 @@ void uiViewServerTask() {
 
   Console console{ioServerTid};
 
-  console.clearScreen();
-  console.enableMouse();
-  console.hideCursor();
-  console.puts(RESET_COLOR);
-  console.moveCursor(ROW_SWITCHES, 1);
-  console.puts(BOLD);
-  console.puts("Switches:");
-  console.moveCursor(ROW_SENSORS, COL_SENSORS);
-  console.puts("Sensors:");
-  console.moveCursor(ROW_TRAINS, COL_TRAINS);
-  console.puts("Trains:");
-  console.moveCursor(ROW_CMD_HISTORY, 1);
-  console.puts("Command history:");
-  console.moveCursor(ROW_PROMPT, 1);
-  console.puts("> ");
-  console.puts(RESET_COLOR);
+  uint64_t pacmanDotsMask = ALL_PACMAN_DOTS_MASK;
 
-  for (unsigned i = 0; i < std::size(ART); ++i) {
-    console.moveCursor(ROW_ART + i, COL_ART);
-    console.puts(ART[i]);
-  }
-  for (marklin::SwitchId id = 1; id <= 18; ++id) {
-    renderSwitchStateMarkers(console, id, marklin::SwitchState::Straight, false);
-  }
-  for (marklin::SwitchId id = 153; id <= 156; ++id) {
-    renderSwitchStateMarkers(console, id, marklin::SwitchState::Straight, false);
-  }
-  for (unsigned i = 0; i < PACMAN_DOT_COUNT; ++i) {
-    drawPacmanDot(console, i, true);
-  }
-  console.puts(RESET_COLOR);
+  auto redrawBaseUI = [&] {
+    console.clearScreen();
+    console.enableMouse();
+    console.hideCursor();
+    console.puts(RESET_COLOR);
+    console.moveCursor(ROW_SWITCHES, 1);
+    console.puts(BOLD);
+    console.puts("Switches:");
+    console.moveCursor(ROW_SENSORS, COL_SENSORS);
+    console.puts("Sensors:");
+    console.moveCursor(ROW_TRAINS, COL_TRAINS);
+    console.puts("Trains:");
+    console.moveCursor(ROW_CMD_HISTORY, 1);
+    console.puts("Command history:");
+    console.moveCursor(ROW_PROMPT, 1);
+    console.puts("> ");
+    console.puts(RESET_COLOR);
+
+    for (unsigned i = 0; i < std::size(ART); ++i) {
+      console.moveCursor(ROW_ART + i, COL_ART);
+      console.puts(ART[i]);
+    }
+    for (marklin::SwitchId id = 1; id <= 18; ++id) {
+      renderSwitchStateMarkers(console, id, marklin::SwitchState::Straight, false);
+    }
+    for (marklin::SwitchId id = 153; id <= 156; ++id) {
+      renderSwitchStateMarkers(console, id, marklin::SwitchState::Straight, false);
+    }
+    for (unsigned i = 0; i < PACMAN_DOT_COUNT; ++i) {
+      drawPacmanDot(console, i, pacmanDotsMask & (uint64_t{1} << i));
+    }
+    console.puts(RESET_COLOR);
+  };
 
   NodeRenderStyle sensorStyles[80];
   NodeRenderStyle switchStyles[18];
   NodeRenderStyle centerSwitchStyles[4];
-  for (unsigned i = 0; i < 80; ++i) {
-    sensorStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
-  }
-  for (unsigned i = 0; i < 18; ++i) {
-    switchStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
-  }
-  for (unsigned i = 0; i < 4; ++i) {
-    centerSwitchStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
-  }
+  auto resetStyleCaches = [&] {
+    for (unsigned i = 0; i < 80; ++i) {
+      sensorStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
+    }
+    for (unsigned i = 0; i < 18; ++i) {
+      switchStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
+    }
+    for (unsigned i = 0; i < 4; ++i) {
+      centerSwitchStyles[i] = NodeRenderStyle{.lockTrain = NO_TRAIN, .pathTrain = NO_TRAIN, .estimatedTrain = NO_TRAIN};
+    }
+  };
+  resetStyleCaches();
+
+  marklin::SwitchState switchStates[18];
+  marklin::SwitchState centerSwitchStates[4];
+  auto redrawAllSwitches = [&] {
+    for (marklin::SwitchId id = 1; id <= 18; ++id) {
+      renderSwitch(console, id, switchStates[id - 1]);
+    }
+    for (marklin::SwitchId id = 153; id <= 156; ++id) {
+      renderSwitch(console, id, centerSwitchStates[id - 153]);
+    }
+  };
 
   bool cmdHistoryDirty = false;
   unsigned cmdHistoryDrawnTicks = 0;
   UIMsg::CmdHistoryData cmdHistoryToDraw;
-  uint64_t pacmanDotsMask = ALL_PACMAN_DOTS_MASK;
 
   auto maybeDrawCmdHistory = [&](unsigned currentTicks) {
     if (cmdHistoryDirty && currentTicks - cmdHistoryDrawnTicks >= CMD_HISTORY_DEBOUNCE_TICKS) {
@@ -271,7 +288,22 @@ void uiViewServerTask() {
     std::array<char, 128> msg;
   };
   History<MessageWithTimestamp, STATUS_HISTORY_SIZE> statusHistory;
+  auto drawStatusHistory = [&] {
+    console.moveCursor(ROW_STATUS + static_cast<unsigned>(statusHistory.capacity - statusHistory.size()) + 1, 1);
+    for (const auto& entry : statusHistory) {
+      console.putTimestamp(entry.ticks);
+      console.puts(" ");
+      unsigned len = console.puts(entry.msg.data()) + sizeof("00:00.0 ");
+      for (unsigned i = len; i < COL_ART; ++i) {
+        console.putc(' ');
+      }
+      console.nextLine();
+    }
+  };
+
   uint32_t currentTicks = 0;
+
+  redrawBaseUI();
 
   UIMsg msg;
   for (;;) {
@@ -295,21 +327,23 @@ void uiViewServerTask() {
       console.clearToEol();
       break;
     }
+    case UIMsgType::ResetView: {
+      redrawBaseUI();
+      resetStyleCaches();
+      currentTicks = 0;
+      cmdHistoryDirty = true;
+      cmdHistoryDrawnTicks = 0;
+      maybeDrawCmdHistory(currentTicks);
+      drawStatusHistory();
+      redrawAllSwitches();
+      break;
+    }
     case UIMsgType::LogStatus: {
       statusHistory.push({
           .ticks = currentTicks,
           .msg = msg.status.msg,
       });
-      console.moveCursor(ROW_STATUS + static_cast<unsigned>(statusHistory.capacity - statusHistory.size()) + 1, 1);
-      for (const auto& entry : statusHistory) {
-        console.putTimestamp(entry.ticks);
-        console.puts(" ");
-        unsigned len = console.puts(entry.msg.data()) + sizeof("00:00.0 ");
-        for (unsigned i = len; i < COL_ART; ++i) {
-          console.putc(' ');
-        }
-        console.nextLine();
-      }
+      drawStatusHistory();
       break;
     }
     case UIMsgType::DrawSystemTime: {
@@ -330,7 +364,14 @@ void uiViewServerTask() {
       break;
     }
     case UIMsgType::UpdateSwitch: {
-      renderSwitch(console, msg.switchUpdate.switchId, msg.switchUpdate.state);
+      marklin::SwitchId switchId = msg.switchUpdate.switchId;
+      marklin::SwitchState state = msg.switchUpdate.state;
+      renderSwitch(console, switchId, state);
+      if (switchId >= 1 && switchId <= 18) {
+        switchStates[switchId - 1] = state;
+      } else if (switchId >= 153 && switchId <= 156) {
+        centerSwitchStates[switchId - 153] = state;
+      }
       break;
     }
     case UIMsgType::RedrawSensors: {

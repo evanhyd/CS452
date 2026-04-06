@@ -68,6 +68,11 @@ void uiControllerTask() {
           int col = parseSgrInt(ioServerTid, terminator);
           int row = parseSgrInt(ioServerTid, terminator);
           if (terminator == 'M') {
+            if (row <= 1 && col <= 1) {
+              cmdBuf.clear();
+              notify(uiTid, UIMsg{.type = UIMsgType::ResetView, .empty{}});
+              continue;
+            }
             if (row >= (int)ROW_ART && col >= (int)COL_ART) {
               unsigned rw = (unsigned)row - ROW_ART;
               unsigned cl = (unsigned)col - COL_ART;

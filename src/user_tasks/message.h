@@ -174,6 +174,7 @@ enum class UIMsgType : int {
   PromptInsert,
   PromptDelete,
   PromptClear,
+  ResetView,
   LogStatus,
   DrawSystemTime,
   DrawIdleTime,
