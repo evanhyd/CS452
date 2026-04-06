@@ -33,9 +33,9 @@ inline constexpr std::array OFFLINE_SPEED_TRAIN_14 = {0,    90,   280,  510,  72
 inline constexpr std::array OFFLINE_SPEED_TRAIN_15 = {0,    80,   250,  470,  670,  956,  1322, 1792,
                                                       2276, 2808, 3354, 3988, 4630, 5314, 5992};
 inline constexpr std::array OFFLINE_SPEED_TRAIN_17 = {0,    60,   200,  450,  650,  936,  1302, 1792,
-                                                      2287, 2811, 3407, 3992, 4673, 5278, 5956};
+                                                      2337, 2811, 3407, 4080, 4673, 5278, 6140};
 inline constexpr std::array OFFLINE_SPEED_TRAIN_18 = {0,    90,   270,  490,  690,  976,  1400, 1880,
-                                                      2364, 2908, 3534, 4138, 4809, 5462, 6174};
+                                                      2434, 2908, 3534, 4272, 4809, 5462, 6440};
 inline constexpr std::array OFFLINE_SPEED_TRAIN_55 = {0,    30,   100,  200,  350,  580,  1017, 1404,
                                                       1759, 2324, 2796, 3326, 4036, 4543, 5237};
 

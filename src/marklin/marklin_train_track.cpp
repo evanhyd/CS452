@@ -2428,19 +2428,17 @@ void KinematicsSystem::onTick(TrainTrackState& ttState, TrainId trainId) {
   // Apply the estimated speed to update the estimated position.
   if (state == State::Tracked) {
     KIT_ASSERT(lastSensor, "tracked train last sensor must be non-null");
+    KIT_ASSERT(estimatedNode, "tracked train estimated node must be non-null");
     lastSensorOffset += estimatedSpeed;
-    Distance offset = lastSensorOffset;
-    TrackNode* last = lastSensor;
+    estimatedNodeOffset += estimatedSpeed;
     for (;;) {
       Distance dist = 0;
-      TrackNode* next = getNextTrackNode(ttState, *last, dist);
-      if (!next || offset < dist) {
-        estimatedNode = last;
-        estimatedNodeOffset = offset;
+      TrackNode* next = getNextTrackNode(ttState, *estimatedNode, dist);
+      if (!next || estimatedNodeOffset < dist) {
         break;
       }
-      offset -= dist;
-      last = next;
+      estimatedNodeOffset -= dist;
+      estimatedNode = next;
     }
   }
 }

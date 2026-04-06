@@ -260,14 +260,14 @@ template <typename... Args> void formatSink(Sink& sink, FormatSpec<Args...> spec
   }
 }
 
-template <typename... Args> void formatString(char* buffer, FormatSpec<Args...> spec, const Args&... args) {
+template <typename... Args> char* formatString(char* buffer, FormatSpec<Args...> spec, const Args&... args) {
   struct S {
     char* buf;
     void operator()(char c) { *buf++ = c; }
   };
   auto sink = Sink::make(S{buffer});
   formatSink(sink, spec, args...);
-  *sink.template get<S>().buf = '\0';
+  return &(*sink.template get<S>().buf = '\0');
 }
 
 template <typename... Args> void printf(int tid, FormatSpec<Args...> spec, const Args&... args) {

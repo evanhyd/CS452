@@ -1,7 +1,9 @@
 #pragma once
 #include "marklin/marklin_def.h"
+#include "marklin/marklin_event.h"
 #include "marklin/marklin_train_track.h"
 #include "marklin_measured_data.h"
+#include "util/ctfmt.h"
 #include "util/debug.h"
 #include "util/kit_algorithm.h"
 #include "util/ring_buffer.h"
@@ -78,7 +80,8 @@ class PathFindingSystem {
 private:
   static constexpr Distance YIELDING_MARGIN = 300'000;            // 30 cm
   static constexpr Distance TRESPASSING_BACKOFF_MARGIN = 200'000; // 20 cm
-  static constexpr Distance STOPPING_MARGIN = 300'000;            // 30 cm
+  static constexpr Distance OVERSHOOT_MARGIN = 200'000;           // 20 cm
+  static constexpr Distance UNDERSHOOT_MARGIN = 250'000;          // 25 cm
 
   std::array<RingBuffer<TrainId, MAX_TRAIN_ID>, NUM_RESERVATION_NODES> nodeOwners{}; // FIFO reservation order.
   std::array<TrainId, NUM_RESERVATION_NODES> blockers{};
@@ -164,10 +167,6 @@ private:
   // Return false if error occurs.
   bool popPastNodes(TrainId trainId, TrackNodeId nodeId) {
     auto& nodes = paths[trainId].nodes;
-    if (!kit::contains_if(nodes.begin(), nodes.end(), [&](auto& node) { return node.srce->id == nodeId; })) {
-      return true;
-    }
-
     while (!nodes.empty()) {
       const auto& node = nodes.front();
       if (node.srce->id == nodeId) {
@@ -182,7 +181,9 @@ private:
     return true;
   }
 
-  int isTrespassing(TrainId trainId, const Train& train) {
+public:
+  int isTrespassing(TrainId trainId, const Train& train, const auto& printer) {
+    auto printer_ = [&]<class... Args>(kit::FormatSpec<Args...> fmt, const Args&... args) { printer(fmt, args...); };
     const PathingState state = pathingStates[trainId];
     if (state != PathingState::Moving && state != PathingState::Yielding) {
       return 0;
@@ -199,7 +200,13 @@ private:
     // Estimated node trespassing.
     auto it = kit::find_if(nodes.begin(), nodes.end(),
                            [&](auto& node) { return node.srce->id == train.kinematics.estimatedNode->id; });
+
     if (state == PathingState::Yielding) {
+      // Check if yield at the right place.
+      if (it == nodes.end()) {
+        return 2;
+      }
+
       // Check if yield in time.
       Distance margin = -train.kinematics.estimatedNodeOffset;
       Distance lastDist = 0;
@@ -212,25 +219,29 @@ private:
       }
 
       if (margin < TRESPASSING_BACKOFF_MARGIN) {
-        return 2;
+        return 3;
       }
     } else if (state == PathingState::Moving) {
-      // Check if estimated position is not part of the path.
-      // Usually caused by switch failure.
+      // Check if moving in the wrong position.
       if (it == nodes.end()) {
-        return 3;
+        char buf[200], *p = buf;
+        for (const auto& node : nodes) {
+          p = kit::formatString(p, "%s ", node.srce->name);
+        }
+        printer_("For train %d, estimatedNode %s is not in path %s", trainId, train.kinematics.estimatedNode->name,
+                 buf);
+        return 4;
       }
 
       // Check if train runs too fast and trespassed.
       // Usually caused by not stopping in time.
       if (!canEnter(it->srce->id, trainId)) {
-        return 4;
+        return 5;
       }
     }
     return false;
   }
 
-public:
   TrainId getReserver(TrackNodeId nodeId) const {
     if (nodeOwners[nodeId / 2].empty()) {
       return NO_TRAIN;
@@ -242,10 +253,10 @@ public:
 
   PathingState updateState(TrainId trainId, Train& train, const auto& updateSwitch,
                            [[maybe_unused]] const auto& printer) {
-
-    if (int reason = isTrespassing(trainId, train); reason != 0) {
+    auto printer_ = [&]<class... Args>(kit::FormatSpec<Args...> fmt, const Args&... args) { printer(fmt, args...); };
+    if (int reason = isTrespassing(trainId, train, printer); reason != 0) {
       isEmergencyReroutingProtocolActivated = true;
-      printer(reason);
+      printer_("%d", reason);
     }
     if (isEmergencyReroutingProtocolActivated) {
       pathingStates[trainId] = PathingState::Trespassing;
@@ -258,13 +269,6 @@ public:
     }
     case PathingState::Yielding:
     case PathingState::Moving: {
-      if (!popPastNodes(trainId, train.kinematics.lastSensor->id)) {
-        isEmergencyReroutingProtocolActivated = true;
-        pathingStates[trainId] = PathingState::Trespassing;
-        printer(5);
-        break;
-      }
-
       // Calculate the reserved distance.
       Distance enterableDistance = -train.kinematics.estimatedNodeOffset;
       Distance distToNextNode = 0;
@@ -275,7 +279,7 @@ public:
       for (auto& node : paths[trainId].nodes) {
         if (canEnter(node.srce->id, trainId)) {
           // Switch switches close to us to avoid flipipng the train.
-          if (seenEstimated && seenNodeCount <= 5) {
+          if (seenNodeCount <= 5) {
             if (node.srce->type == TrackNode::Type::Branch) {
               updateSwitch(node.srce->num, node.direction == Straight ? SwitchState::Straight : SwitchState::Curved);
             }
@@ -293,6 +297,14 @@ public:
         } else {
           break;
         }
+      }
+
+      // Pop it afterward.
+      if (!popPastNodes(trainId, train.kinematics.estimatedNode->id)) {
+        isEmergencyReroutingProtocolActivated = true;
+        pathingStates[trainId] = PathingState::Trespassing;
+        printer_("%d", 6);
+        break;
       }
 
       // Add the destination offset if it can enter the destination node.
@@ -320,7 +332,7 @@ public:
           };
           bool shouldUndershoot = hasDangerAhead(dest);
           bool shouldOvershoot = hasDangerAhead(dest->reverse);
-          return (int(shouldOvershoot) - int(shouldUndershoot)) * STOPPING_MARGIN;
+          return (int(shouldOvershoot) * OVERSHOOT_MARGIN - int(shouldUndershoot) * UNDERSHOOT_MARGIN);
         }();
         if (enterableDistance + margin <= stoppingDistance) {
           pathingStates[trainId] = PathingState::Arriving;
@@ -440,6 +452,12 @@ public:
 
         // Ignore permanent stationary.
         if (!isPassable(v, trainId)) {
+          continue;
+        }
+
+        // If the train is on the switch, do not change the state.
+        if (edge.src->id == srce && edge.src->type == TrackNode::Type::Branch &&
+            TrackDirection(i) != (ttState.getSwitchState(edge.src->num) == SwitchState::Straight ? Straight : Curved)) {
           continue;
         }
 
