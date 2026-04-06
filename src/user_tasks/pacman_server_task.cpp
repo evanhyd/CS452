@@ -389,13 +389,28 @@ void handleHumanSwitchControl(GameState& state, int trainTrackTid, int uiTid, ma
     return;
   }
 
-  // if (153 <= switchId && switchId <= 156) {
-  // } else {
-  marklin::SwitchState target = mappedSwitchState(switchId, leftArrow);
-  sendSwitchCommand(trainTrackTid, switchId, target);
-  notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", switchId,
-                   target == marklin::SwitchState::Straight ? 'S' : 'C');
-  // }
+  if (switchId == 153 || switchId == 154) {
+    if (leftArrow) {
+      sendSwitchCommand(trainTrackTid, 154, marklin::SwitchState::Curved);
+      notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", 154, 'C');
+    } else {
+      sendSwitchCommand(trainTrackTid, 153, marklin::SwitchState::Curved);
+      notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", 153, 'C');
+    }
+  } else if (switchId == 155 || switchId == 156) {
+    if (leftArrow) {
+      sendSwitchCommand(trainTrackTid, 156, marklin::SwitchState::Curved);
+      notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", 156, 'C');
+    } else {
+      sendSwitchCommand(trainTrackTid, 155, marklin::SwitchState::Curved);
+      notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", 155, 'C');
+    }
+  } else {
+    marklin::SwitchState target = mappedSwitchState(switchId, leftArrow);
+    sendSwitchCommand(trainTrackTid, switchId, target);
+    notifyStatusToUI(uiTid, "Pacman %s -> switch %u %c", leftArrow ? "left" : "right", switchId,
+                     target == marklin::SwitchState::Straight ? 'S' : 'C');
+  }
 }
 
 void handleHumanControl(GameState& state, const PacmanMsg& msg, int trainTrackTid, int uiTid,
@@ -524,7 +539,7 @@ bool maybeConsumeDot(GameState& state, int uiTid, int dispatcherTid) {
     sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(
                                         state.humanTrainId, marklin::TrainFunction::BazzingSound, true));
     state.playingBazz = true;
-    state.playingBazzFor = 2;
+    state.playingBazzFor = 1;
     sendPacmanStatusToUI(uiTid, state);
     return true;
   }

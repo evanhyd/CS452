@@ -155,20 +155,20 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
                                                        marklin::TrainId trainId, marklin::TrainId reserverId) {
   SensorAttributionCandidate candidate{.trainId = trainId, .score = 0};
   marklin::Train& train = context.ttState.getTrain(trainId);
-  char buf[200], *ptr = buf;
+  // char buf[200], *ptr = buf;
   if (reserverId == trainId) {
-    ptr = kit::formatString(ptr, "+400(res) ");
+    // ptr = kit::formatString(ptr, "+400(res) ");
     candidate.score += 400;
   } else if (train.navigation.state == marklin::NavigationSystem::State::Routed) {
-    ptr = kit::formatString(ptr, "-500(!res) ");
+    // ptr = kit::formatString(ptr, "-500(!res) ");
     candidate.score -= 500;
   } else if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
-    ptr = kit::formatString(ptr, "+30(manual) ");
+    // ptr = kit::formatString(ptr, "+30(manual) ");
     candidate.score += 30;
   }
 
   if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
-    ptr = kit::formatString(ptr, "+300(pred) ");
+    // ptr = kit::formatString(ptr, "+300(pred) ");
     candidate.score += 300;
   }
 
@@ -181,18 +181,18 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
     if (distToSensor < marklin::INF_DISTANCE) {
       int32_t distanceScore = -distToSensor / 1000;
       candidate.score += distanceScore;
-      ptr = kit::formatString(ptr, "%d(dist %u) ", distanceScore, distToSensor);
+      // ptr = kit::formatString(ptr, "%d(dist %u) ", distanceScore, distToSensor);
     } else {
-      ptr = kit::formatString(ptr, "-10k(unrch) ");
+      // ptr = kit::formatString(ptr, "-10k(unrch) ");
       candidate.score -= 10'000;
     }
   } else {
-    ptr = kit::formatString(ptr, "-30(!trk) ");
+    // ptr = kit::formatString(ptr, "-30(!trk) ");
     candidate.score -= 30;
   }
 
-  ptr = kit::formatString(ptr, "Sum: %d", candidate.score);
-  notifyStatusToUI(context.uiTid, "%s T%u: %s", sensor.name, trainId, buf);
+  // ptr = kit::formatString(ptr, "Sum: %d", candidate.score);
+  // notifyStatusToUI(context.uiTid, "%s T%u: %s", sensor.name, trainId, buf);
 
   return candidate;
 }
