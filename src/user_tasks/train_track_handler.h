@@ -128,6 +128,14 @@ inline void setSwitchCmdHandler(TrainTrackServerContext& context, marklin::Switc
   broadcastSwitchState(context, switchId, state);
 }
 
+inline void toggleSwitchCmdHandler(TrainTrackServerContext& context, marklin::SwitchId switchId) {
+  KIT_ASSERT(marklin::isValidSwitchId(switchId), "invalid switch id");
+  marklin::SwitchState nextState = context.ttState.getSwitchState(switchId) == marklin::SwitchState::Straight
+                                       ? marklin::SwitchState::Curved
+                                       : marklin::SwitchState::Straight;
+  broadcastSwitchState(context, switchId, nextState);
+}
+
 inline void setTrackCmdHandler(TrainTrackServerContext& context, marklin::TrackId trackId) {
   KIT_ASSERT(marklin::isValidTrack(trackId), "invalid track id");
   resetContext(context);
@@ -148,9 +156,9 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
   marklin::Train& train = context.ttState.getTrain(trainId);
 
   if (reserverId == trainId) {
-    candidate.score += 120;
-  } else if (reserverId != marklin::NO_TRAIN) {
-    candidate.score -= 30;
+    candidate.score += 100;
+  } else if (reserverId != marklin::NO_TRAIN && train.navigation.state == marklin::NavigationSystem::State::Routed) {
+    candidate.score -= 50;
   }
 
   if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
@@ -158,8 +166,9 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
   }
 
   if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked && train.kinematics.estimatedNode) {
-    marklin::TrackNode* start = train.kinematics.estimatedNode;
-    marklin::Distance distToSensor = marklin::shortestDistanceToNode(context.ttState, start->id, sensor.id);
+    marklin::Distance distToSensor =
+        marklin::shortestDistanceToNode(context.ttState, train.kinematics.estimatedNode->id, sensor.id) -
+        train.kinematics.estimatedNodeOffset;
     if (distToSensor < marklin::INF_DISTANCE) {
       int32_t distanceScore = 220 - distToSensor / 15'000;
       candidate.score += kit::clamp(distanceScore, int32_t(-90), int32_t(220));
@@ -171,11 +180,7 @@ inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& 
   }
 
   if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
-    candidate.score += 60;
-  }
-
-  if (train.kinematics.state == marklin::KinematicsSystem::State::Lost) {
-    candidate.score -= 20;
+    candidate.score += 50;
   }
 
   return candidate;

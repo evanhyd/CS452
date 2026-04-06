@@ -56,6 +56,16 @@ inline void sendGameStateToPacman(TrainTrackServerContext& context) {
   notify(context.pacmanTid, pm);
 }
 
+inline void sendSwitchStateToPacman(TrainTrackServerContext& context, marklin::SwitchId id,
+                                    marklin::SwitchState state) {
+  if (context.pacmanTid < 0 && (context.pacmanTid = ::WhoIs(PACMAN_SERVER_NAME)) < 0) {
+    return;
+  }
+
+  notify(context.pacmanTid,
+         PacmanMsg{.type = PacmanMsgType::SwitchStateUpdate, .switchStateUpdate{.switchId = id, .state = state}});
+}
+
 inline void sendSwitchToUI(TrainTrackServerContext& context, marklin::SwitchId id, marklin::SwitchState state) {
   notify(context.uiTid, UIMsg{.type = UIMsgType::UpdateSwitch, .switchUpdate{.switchId = id, .state = state}});
 }
@@ -90,12 +100,14 @@ void broadcastSwitchState(TrainTrackServerContext& context, marklin::SwitchId id
     if (context.ttState.getSwitchState(pairingId) == marklin::SwitchState::Curved) {
       context.ttState.setSwitchState(pairingId, marklin::SwitchState::Straight);
       sendSwitchToUI(context, pairingId, marklin::SwitchState::Straight);
+      sendSwitchStateToPacman(context, pairingId, marklin::SwitchState::Straight);
     }
   }
 
   context.ttState.setSwitchState(id, state);
   sendToDispatcher(context.dispatcherTid, marklin::MMessage::setSwitchState(id, state));
   sendSwitchToUI(context, id, state);
+  sendSwitchStateToPacman(context, id, state);
 }
 
 template <bool forceUpdate = false>

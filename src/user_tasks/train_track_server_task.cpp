@@ -46,6 +46,9 @@ void trainTrackTask() {
     case TrainTrackMsgType::SetSwitchCmd:
       setSwitchCmdHandler(context, msg.setSwitchCmd.switchId, msg.setSwitchCmd.state);
       break;
+    case TrainTrackMsgType::ToggleSwitchCmd:
+      toggleSwitchCmdHandler(context, msg.toggleSwitchCmd.switchId);
+      break;
     case TrainTrackMsgType::SetTrackCmd:
       setTrackCmdHandler(context, msg.setTrackCmd.trackId);
       break;

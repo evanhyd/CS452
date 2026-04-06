@@ -62,6 +62,7 @@ enum class TrainTrackMsgType : int {
   WanderCmd,
   ReverseCmd,
   SetSwitchCmd,
+  ToggleSwitchCmd,
   SetTrackCmd,
   GotoCmd,
   SensorEvent,
@@ -86,6 +87,9 @@ struct TrainTrackMsg {
     marklin::SwitchId switchId;
     marklin::SwitchState state;
   };
+  struct ToggleSwitchCmdData {
+    marklin::SwitchId switchId;
+  };
   struct SetTrackCmdData {
     marklin::TrackId trackId;
   };
@@ -100,6 +104,7 @@ struct TrainTrackMsg {
     WanderCmdData wanderCmd;
     ReverseCmdData reverseCmd;
     SetSwitchCmdData setSwitchCmd;
+    ToggleSwitchCmdData toggleSwitchCmd;
     SetTrackCmdData setTrackCmd;
     GotoCmdData gotoCmd;
     marklin::SensorTriggeredEvent sensorEvent;
@@ -111,6 +116,8 @@ struct TrainTrackMsg {
 enum class PacmanMsgType : int {
   TimerTick,
   GameStateUpdate,
+  SwitchStateUpdate,
+  ResetState,
   HumanControl,
   RegisterGhost,
   RegisterHuman,
@@ -147,6 +154,11 @@ struct PacmanMsg {
     unsigned count;
   };
 
+  struct SwitchStateUpdateData {
+    marklin::SwitchId switchId;
+    marklin::SwitchState state;
+  };
+
   struct HumanControlData {
     HumanControlAction action;
   };
@@ -163,6 +175,7 @@ struct PacmanMsg {
   union {
     TimeData time;
     GameStateUpdateData gameStateUpdate;
+    SwitchStateUpdateData switchStateUpdate;
     HumanControlData humanControl;
     RegisterGhostData registerGhost;
     RegisterHumanData registerHuman;

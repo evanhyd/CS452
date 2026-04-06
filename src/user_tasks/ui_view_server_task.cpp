@@ -51,6 +51,10 @@ constexpr const char* COLORS[2 * marklin::NUM_TRAIN_IN_LAB] = {
     // yellow
     "\033[30;103m",
     "\033[40;93m",
+    "",
+    "",
+    "",
+    "",
 };
 constexpr const char* RESET_COLOR = "\033[0m";
 constexpr const char* BOLD = "\033[1m";
@@ -62,16 +66,16 @@ constexpr uint64_t ALL_PACMAN_DOTS_MASK = (uint64_t{1} << PACMAN_DOT_COUNT) - 1;
 constexpr uint8_t NO_TRAIN = static_cast<uint8_t>(-1);
 
 constexpr const char* BRIGHT_FG[marklin::NUM_TRAIN_IN_LAB] = {
-    "\033[92m", "\033[91m", "\033[94m", "\033[95m", "\033[96m", "\033[93m",
+    "\033[92m", "\033[91m", "\033[94m", "\033[95m", "\033[96m", "\033[93m", "", "",
 };
 constexpr const char* REGULAR_FG[marklin::NUM_TRAIN_IN_LAB] = {
-    "\033[32m", "\033[31m", "\033[34m", "\033[35m", "\033[36m", "\033[33m",
+    "\033[32m", "\033[31m", "\033[34m", "\033[35m", "\033[36m", "\033[33m", "", "",
 };
 constexpr const char* BRIGHT_BG[marklin::NUM_TRAIN_IN_LAB] = {
-    "\033[102m", "\033[101m", "\033[104m", "\033[105m", "\033[106m", "\033[103m",
+    "\033[102m", "\033[101m", "\033[104m", "\033[105m", "\033[106m", "\033[103m", "", "",
 };
 constexpr const char* REGULAR_BG_BOLD[marklin::NUM_TRAIN_IN_LAB] = {
-    "\033[1;42m", "\033[1;41m", "\033[1;44m", "\033[1;45m", "\033[1;46m", "\033[1;43m",
+    "\033[1;42m", "\033[1;41m", "\033[1;44m", "\033[1;45m", "\033[1;46m", "\033[1;43m", "", "",
 };
 
 struct NodeRenderStyle {

@@ -29,6 +29,35 @@ static int parseSgrInt(int ioServerTid, char& lastChar) {
 
 namespace k4 {
 
+namespace {
+
+marklin::SwitchId switchIdFromArtClick(int row, int col) {
+  if (row < static_cast<int>(ROW_ART) || col < static_cast<int>(COL_ART)) {
+    return 0;
+  }
+
+  const unsigned rw = static_cast<unsigned>(row) - ROW_ART;
+  const unsigned cl = static_cast<unsigned>(col) - COL_ART;
+
+  for (unsigned i = 0; i < std::size(SWITCH_LOCS); ++i) {
+    const auto& loc = SWITCH_LOCS[i];
+    if ((loc.row == rw || loc.row == rw + 1 || loc.row + 1 == rw) && loc.col <= cl + 1 && cl < loc.col + loc.len + 1) {
+      return static_cast<marklin::SwitchId>(i + 1);
+    }
+  }
+
+  for (unsigned i = 0; i < std::size(CENTER_SWITCH_LOCS); ++i) {
+    const auto& loc = CENTER_SWITCH_LOCS[i];
+    if (loc.row == rw && loc.col <= cl + 1 && cl < loc.col + loc.len + 1) {
+      return static_cast<marklin::SwitchId>(153 + i);
+    }
+  }
+
+  return 0;
+}
+
+} // namespace
+
 // Responsible for accepting and parsing user's terminal input.
 // It sanitizes the command and forward it to the UI server and the dispatcher server.
 void uiControllerTask() {
@@ -71,6 +100,12 @@ void uiControllerTask() {
             if (row <= 1 && col <= 1) {
               cmdBuf.clear();
               notify(uiTid, UIMsg{.type = UIMsgType::ResetView, .empty{}});
+              continue;
+            }
+            if (marklin::SwitchId switchId = switchIdFromArtClick(row, col); marklin::isValidSwitchId(switchId)) {
+              notify(trainTrackTid,
+                     TrainTrackMsg{.type = TrainTrackMsgType::ToggleSwitchCmd, .toggleSwitchCmd{.switchId = switchId}});
+              notifyStatusToUI(uiTid, "Toggled switch %u.", switchId);
               continue;
             }
             if (row >= (int)ROW_ART && col >= (int)COL_ART) {
@@ -193,6 +228,12 @@ void uiControllerTask() {
       case cmd::CmdTag::SetTrack: {
         TrainTrackMsg tm{.type = TrainTrackMsgType::SetTrackCmd, .setTrackCmd{.trackId = parsed.setTrack.trackId}};
         notify(trainTrackTid, tm);
+        if (pacmanTid < 0) {
+          pacmanTid = ::WhoIs(PACMAN_SERVER_NAME);
+        }
+        if (pacmanTid >= 0) {
+          notify(pacmanTid, PacmanMsg{.type = PacmanMsgType::ResetState, .time{}});
+        }
         notifyStatusToUI(uiTid, "Set track to %c.", parsed.setTrack.trackId == 0 ? 'A' : 'B');
         break;
       }

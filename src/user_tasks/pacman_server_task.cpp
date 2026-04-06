@@ -1,6 +1,9 @@
 #include "pacman_server_task.h"
 
 #include "kernel/syscalls.h"
+#include "marklin/marklin_def.h"
+#include "marklin/marklin_message.h"
+#include "marklin/marklin_train_track.h"
 #include "message.h"
 #include "send_util.h"
 #include "system_tasks/clock_server_task.h"
@@ -20,7 +23,7 @@ constexpr int PACMAN_TICK_PERIOD_TICKS = 50;
 constexpr marklin::Distance GHOST_CATCH_DISTANCE_UM = 400'000;
 constexpr marklin::SpeedLevel GHOST_SPEED_LEVEL = 5;
 constexpr unsigned AMBUSH_LOOKAHEAD_NODES = 2;
-constexpr uint32_t GHOST_GOTO_DEBOUNCE_TICKS = 300;
+constexpr uint32_t GHOST_GOTO_DEBOUNCE_TICKS = 500;
 constexpr uint32_t HUMAN_REVERSE_CMD_DEBOUNCE_TICKS = 50;
 constexpr unsigned UPCOMING_SWITCH_LOOKAHEAD_STEPS = 12;
 
@@ -74,23 +77,17 @@ int signedHumanSpeedLevel(const PacmanTrainStateEntry& human) {
 }
 
 marklin::TrackNode* projectLookAheadNode(marklin::TrainTrackState& trackState, marklin::TrackNodeId sourceNodeId,
-                                         marklin::TrainDirection direction, unsigned nodesAhead) {
+                                         unsigned nodesAhead) {
   if (sourceNodeId == INVALID_TRACK_NODE_ID) {
     return nullptr;
   }
-
   marklin::TrackNode* node = &trackState.getTrackNodeById(sourceNodeId);
-  if (direction == marklin::TrainDirection::Backward && node->reverse != nullptr) {
-    node = node->reverse;
-  }
-
-  for (unsigned step = 0; step < nodesAhead && node != nullptr; ++step) {
+  for (unsigned step = 0; step < nodesAhead && node; ++step) {
     if (node->type == marklin::TrackNode::Type::Exit || node->type == marklin::TrackNode::Type::None) {
       break;
     }
     node = node->edges[marklin::TrackDirection::Straight].dest;
   }
-
   return node;
 }
 
@@ -257,6 +254,17 @@ void sendPacmanStatusToUI(int uiTid, const GameState& state) {
                       }});
 }
 
+void resetPacmanState(GameState& state, marklin::TrainTrackState& trackState, int uiTid) {
+  state = {};
+  state.activeDots.set();
+  trackState = {};
+  for (const auto& mapping : SWITCH_ARROW_MAPPINGS) {
+    trackState.setSwitchState(mapping.switchId, marklin::SwitchState::Straight);
+  }
+  sendPacmanDotsToUI(uiTid, state);
+  sendPacmanStatusToUI(uiTid, state);
+}
+
 void stopAllActiveTrains(int trainTrackTid, const GameState& state) {
   for (size_t idx = 1; idx < state.trainPresent.size(); ++idx) {
     if (!state.trainPresent[idx]) {
@@ -294,18 +302,12 @@ marklin::SwitchId findUpcomingSwitch(const PacmanTrainStateEntry& human, marklin
   if (!human.isTracked || human.estimatedNodeId == INVALID_TRACK_NODE_ID) {
     return 0;
   }
-
   marklin::TrackNode* node = &trackState.getTrackNodeById(human.estimatedNodeId);
-  if (human.direction == marklin::TrainDirection::Backward && node->reverse != nullptr) {
-    node = node->reverse;
-  }
-
   marklin::Distance totalDist = 0;
-  for (unsigned i = 0; i < UPCOMING_SWITCH_LOOKAHEAD_STEPS && node != nullptr; ++i) {
+  for (unsigned i = 0; i < UPCOMING_SWITCH_LOOKAHEAD_STEPS && node; ++i) {
     if (totalDist >= 300'000 && node->type == marklin::TrackNode::Type::Branch && marklin::isValidSwitchId(node->num)) {
       return node->num;
     }
-
     marklin::Distance segmentDist = 0;
     node = marklin::getNextTrackNode(trackState, *node, segmentDist);
     totalDist += segmentDist;
@@ -363,13 +365,9 @@ void handleHumanSpeedControl(GameState& state, int trainTrackTid, int uiTid, int
   }
 
   int next = state.humanDesiredSignedSpeedLevel + delta;
-  if (next < -static_cast<int>(marklin::MAX_SPEED_LEVEL)) {
-    next = -static_cast<int>(marklin::MAX_SPEED_LEVEL);
+  if (next < -static_cast<int>(marklin::MAX_SPEED_LEVEL) || next > static_cast<int>(marklin::MAX_SPEED_LEVEL)) {
+    return;
   }
-  if (next > static_cast<int>(marklin::MAX_SPEED_LEVEL)) {
-    next = static_cast<int>(marklin::MAX_SPEED_LEVEL);
-  }
-
   state.humanDesiredSignedSpeedLevel = next;
   applyHumanDesiredSpeed(state, trainTrackTid, uiTid, human && human->direction == marklin::TrainDirection::Backward,
                          state.lastGameStateTicks);
@@ -378,7 +376,7 @@ void handleHumanSpeedControl(GameState& state, int trainTrackTid, int uiTid, int
 void handleHumanSwitchControl(GameState& state, int trainTrackTid, int uiTid, marklin::TrainTrackState& trackState,
                               bool leftArrow) {
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
-  if (human == nullptr) {
+  if (!human) {
     notifyStatusToUI(uiTid, "Pacman control: no human train state yet.");
     return;
   }
@@ -492,15 +490,17 @@ marklin::Distance estimateSeparationUm(marklin::TrainTrackState& trackState, con
     return absDist(lhs.estimatedNodeOffset, rhs.estimatedNodeOffset);
   }
   const marklin::Distance lhsToRhs =
-      marklin::shortestDistanceToNode(trackState, lhs.estimatedNodeId, rhs.estimatedNodeId);
+      marklin::shortestDistanceToNode(trackState, lhs.estimatedNodeId, rhs.estimatedNodeId) - lhs.estimatedNodeOffset +
+      rhs.estimatedNodeOffset;
   const marklin::Distance rhsToLhs =
-      marklin::shortestDistanceToNode(trackState, rhs.estimatedNodeId, lhs.estimatedNodeId);
+      marklin::shortestDistanceToNode(trackState, rhs.estimatedNodeId, lhs.estimatedNodeId) - rhs.estimatedNodeOffset +
+      lhs.estimatedNodeOffset;
   return kit::min(lhsToRhs, rhsToLhs);
 }
 
-bool maybeConsumeDot(GameState& state, int uiTid) {
+bool maybeConsumeDot(GameState& state, int uiTid, int dispatcherTid) {
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
-  if (human == nullptr || !human->isTracked || human->lastSensorId == INVALID_TRACK_NODE_ID) {
+  if (!human || !human->isTracked || human->lastSensorId == INVALID_TRACK_NODE_ID) {
     return false;
   }
   if (human->lastSensorId == state.lastHumanSensorForScoring) {
@@ -516,7 +516,10 @@ bool maybeConsumeDot(GameState& state, int uiTid) {
   if (state.activeDots.test(sensorIdx)) {
     state.activeDots.reset(sensorIdx);
     ++state.score;
-    notifyStatusToUI(uiTid, "Pacman ate dot %u. Score: %u", human->lastSensorId, state.score);
+    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(
+                                        state.humanTrainId, marklin::TrainFunction::BazzingSound, true));
+    sendToDispatcher(dispatcherTid, marklin::MMessage::setTrainFunctionState(
+                                        state.humanTrainId, marklin::TrainFunction::BazzingSound, false));
     sendPacmanStatusToUI(uiTid, state);
     return true;
   }
@@ -545,23 +548,19 @@ void maybeTriggerLoss(GameState& state, int trainTrackTid, int uiTid, marklin::T
   }
 
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
-  const PacmanTrainStateEntry* ghost1 = getTrainState(state, state.ghostChaserTrainId);
-  const PacmanTrainStateEntry* ghost2 = getTrainState(state, state.ghostAmbusherTrainId);
-  if (human == nullptr) {
+  if (!human) {
     return;
   }
-
-  marklin::Distance minDistance = std::numeric_limits<marklin::Distance>::max();
-  if (ghost1 != nullptr) {
-    marklin::Distance d = estimateSeparationUm(trackState, *human, *ghost1);
-    if (d < minDistance) {
-      minDistance = d;
+  marklin::Distance minDistance = marklin::INF_DISTANCE;
+  for (unsigned i = 0; i < state.registeredGhostCount; ++i) {
+    const PacmanTrainStateEntry* ghost = getTrainState(state, state.registeredGhosts[i]);
+    if (!ghost) {
+      continue;
     }
-  }
-  if (ghost2 != nullptr) {
-    marklin::Distance d = estimateSeparationUm(trackState, *human, *ghost2);
-    if (d < minDistance) {
+    marklin::Distance d = estimateSeparationUm(trackState, *human, *ghost);
+    if (d < GHOST_CATCH_DISTANCE_UM) {
       minDistance = d;
+      break;
     }
   }
 
@@ -586,7 +585,7 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
   }
 
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
-  if (human == nullptr || !human->isTracked || human->estimatedNodeId == INVALID_TRACK_NODE_ID) {
+  if (!human || !human->isTracked || human->estimatedNodeId == INVALID_TRACK_NODE_ID) {
     return;
   }
 
@@ -600,9 +599,8 @@ void maybeRouteGhosts(GameState& state, int trainTrackTid, marklin::TrainTrackSt
     state.lastChaserGotoTicks = currentTicks;
   }
 
-  marklin::TrackNode* ambushTarget =
-      projectLookAheadNode(trackState, human->estimatedNodeId, human->direction, AMBUSH_LOOKAHEAD_NODES);
-  if (ambushTarget == nullptr) {
+  marklin::TrackNode* ambushTarget = projectLookAheadNode(trackState, human->estimatedNodeId, AMBUSH_LOOKAHEAD_NODES);
+  if (!ambushTarget) {
     ambushTarget = &humanNode;
   }
 
@@ -637,7 +635,7 @@ void updateSnapshot(GameState& state, const PacmanMsg& msg, marklin::TrainTrackS
   }
 
   const PacmanTrainStateEntry* human = getTrainState(state, state.humanTrainId);
-  if (human != nullptr) {
+  if (human) {
     if (!state.humanDesiredSpeedInitialized) {
       state.humanDesiredSignedSpeedLevel = signedHumanSpeedLevel(*human);
       state.humanDesiredSpeedInitialized = true;
@@ -688,17 +686,19 @@ void pacmanServerTask() {
   if (uiTid < 0) {
     logError("failed to find UI view server");
   }
+  int dispatcherTid = ::WhoIs(MARKLIN_DISPATCHER_SERVER_NAME);
+  if (dispatcherTid < 0) {
+    logError("failed to find dispatcher server");
+  }
 
   if (::Create(1, pacmanTickNotifierTask) < 0) {
     logError("failed to create pacman timer notifier");
   }
 
   GameState state{};
-  state.activeDots.set();
   marklin::TrainTrackState trackState{};
+  resetPacmanState(state, trackState, uiTid);
   notifyStatusToUI(uiTid, "Pacman server online. Use 'human <id>' and 'ghost <id> <speed>'.");
-  sendPacmanDotsToUI(uiTid, state);
-  sendPacmanStatusToUI(uiTid, state);
 
   for (;;) {
     PacmanMsg msg{};
@@ -718,10 +718,19 @@ void pacmanServerTask() {
     case PacmanMsgType::GameStateUpdate: {
       updateSnapshot(state, msg, trackState);
       sendPacmanStatusToUI(uiTid, state);
-      if (maybeConsumeDot(state, uiTid)) {
+      if (maybeConsumeDot(state, uiTid, dispatcherTid)) {
         sendPacmanDotsToUI(uiTid, state);
       }
       maybeTriggerWin(state, trainTrackTid, uiTid);
+      break;
+    }
+    case PacmanMsgType::SwitchStateUpdate: {
+      trackState.setSwitchState(msg.switchStateUpdate.switchId, msg.switchStateUpdate.state);
+      break;
+    }
+    case PacmanMsgType::ResetState: {
+      resetPacmanState(state, trackState, uiTid);
+      notifyStatusToUI(uiTid, "Pacman state reset.");
       break;
     }
     case PacmanMsgType::HumanControl: {
