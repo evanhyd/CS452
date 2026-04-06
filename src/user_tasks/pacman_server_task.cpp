@@ -94,60 +94,6 @@ marklin::TrackNode* projectLookAheadNode(marklin::TrainTrackState& trackState, m
   return node;
 }
 
-marklin::Distance shortestPathDistance(marklin::TrainTrackState& trackState, marklin::TrackNodeId sourceNodeId,
-                                       marklin::TrackNodeId destNodeId) {
-  static constexpr marklin::Distance INF = std::numeric_limits<marklin::Distance>::max() / 4;
-  if (sourceNodeId == INVALID_TRACK_NODE_ID || destNodeId == INVALID_TRACK_NODE_ID) {
-    return INF;
-  }
-
-  std::array<marklin::Distance, marklin::NUM_TRACK_NODES> minDistance{};
-  std::array<bool, marklin::NUM_TRACK_NODES> visited{};
-  for (marklin::Distance& dist : minDistance) {
-    dist = INF;
-  }
-
-  const size_t sourceIdx = static_cast<size_t>(sourceNodeId);
-  const size_t destIdx = static_cast<size_t>(destNodeId);
-  minDistance[sourceIdx] = 0;
-
-  for (size_t iter = 0; iter < marklin::NUM_TRACK_NODES; ++iter) {
-    size_t bestNodeIdx = marklin::NUM_TRACK_NODES;
-    marklin::Distance bestDistance = INF;
-
-    for (size_t nodeIdx = 0; nodeIdx < marklin::NUM_TRACK_NODES; ++nodeIdx) {
-      if (!visited[nodeIdx] && minDistance[nodeIdx] < bestDistance) {
-        bestDistance = minDistance[nodeIdx];
-        bestNodeIdx = nodeIdx;
-      }
-    }
-
-    if (bestNodeIdx == marklin::NUM_TRACK_NODES) {
-      break;
-    }
-    if (bestNodeIdx == destIdx) {
-      return minDistance[bestNodeIdx];
-    }
-
-    visited[bestNodeIdx] = true;
-    marklin::TrackNode& node = trackState.getTrackNodeById(static_cast<marklin::TrackNodeId>(bestNodeIdx));
-    size_t numEdges = marklin::outgoingEdgeCount(node);
-    for (size_t i = 0; i < numEdges; ++i) {
-      const marklin::TrackEdge& edge = node.edges[i];
-      if (edge.dest == nullptr) {
-        continue;
-      }
-      const size_t neighborIdx = static_cast<size_t>(edge.dest->id);
-      const marklin::Distance candidateDistance = minDistance[bestNodeIdx] + edge.dist;
-      if (candidateDistance < minDistance[neighborIdx]) {
-        minDistance[neighborIdx] = candidateDistance;
-      }
-    }
-  }
-
-  return minDistance[destIdx];
-}
-
 struct GameState {
   marklin::TrainId humanTrainId = marklin::NO_TRAIN;
   marklin::TrainId ghostChaserTrainId = marklin::NO_TRAIN;
@@ -511,18 +457,19 @@ void handleRegisterHuman(GameState& state, const PacmanMsg& msg, int uiTid) {
 
 marklin::Distance estimateSeparationUm(marklin::TrainTrackState& trackState, const PacmanTrainStateEntry& lhs,
                                        const PacmanTrainStateEntry& rhs) {
-  constexpr marklin::Distance INF = std::numeric_limits<marklin::Distance>::max() / 4;
   if (!lhs.isTracked || !rhs.isTracked) {
-    return INF;
+    return marklin::INF_DISTANCE;
   }
   if (lhs.estimatedNodeId == INVALID_TRACK_NODE_ID || rhs.estimatedNodeId == INVALID_TRACK_NODE_ID) {
-    return INF;
+    return marklin::INF_DISTANCE;
   }
   if (lhs.estimatedNodeId == rhs.estimatedNodeId) {
     return absDist(lhs.estimatedNodeOffset, rhs.estimatedNodeOffset);
   }
-  const marklin::Distance lhsToRhs = shortestPathDistance(trackState, lhs.estimatedNodeId, rhs.estimatedNodeId);
-  const marklin::Distance rhsToLhs = shortestPathDistance(trackState, rhs.estimatedNodeId, lhs.estimatedNodeId);
+  const marklin::Distance lhsToRhs =
+      marklin::shortestDistanceToNode(trackState, lhs.estimatedNodeId, rhs.estimatedNodeId);
+  const marklin::Distance rhsToLhs =
+      marklin::shortestDistanceToNode(trackState, rhs.estimatedNodeId, lhs.estimatedNodeId);
   return kit::min(lhsToRhs, rhsToLhs);
 }
 

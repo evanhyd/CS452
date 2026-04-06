@@ -9,6 +9,7 @@
 #include "util/ring_buffer.h"
 #include "util/static_priority_queue.h"
 #include <cassert>
+#include <limits>
 #include <numeric>
 #include <source_location>
 
@@ -61,6 +62,58 @@ constexpr size_t outgoingEdgeCount(const marklin::TrackNode& node) {
   default:
     return 0;
   }
+}
+
+constexpr Distance shortestDistanceToNode(TrainTrackState& state, TrackNodeId srce, TrackNodeId dest) {
+  if (srce >= NUM_TRACK_NODES || dest >= NUM_TRACK_NODES) {
+    return INF_DISTANCE;
+  }
+
+  std::array<Distance, NUM_TRACK_NODES> minDistances{};
+  std::array<bool, NUM_TRACK_NODES> visited{};
+  kit::fill(minDistances.begin(), minDistances.end(), INF_DISTANCE);
+
+  const size_t srceIdx = static_cast<size_t>(srce);
+  const size_t destIdx = static_cast<size_t>(dest);
+  minDistances[srceIdx] = 0;
+
+  for (size_t iter = 0; iter < NUM_TRACK_NODES; ++iter) {
+    size_t bestNodeId = NUM_TRACK_NODES;
+    Distance bestDistance = INF_DISTANCE;
+
+    for (size_t nodeId = 0; nodeId < NUM_TRACK_NODES; ++nodeId) {
+      if (!visited[nodeId] && minDistances[nodeId] < bestDistance) {
+        bestDistance = minDistances[nodeId];
+        bestNodeId = nodeId;
+      }
+    }
+
+    if (bestNodeId == NUM_TRACK_NODES) {
+      break;
+    }
+
+    if (bestNodeId == destIdx) {
+      return minDistances[bestNodeId];
+    }
+
+    visited[bestNodeId] = true;
+    TrackNode& node = state.getTrackNodeById(static_cast<TrackNodeId>(bestNodeId));
+    size_t numEdges = outgoingEdgeCount(node);
+    for (size_t edgeIdx = 0; edgeIdx < numEdges; ++edgeIdx) {
+      const TrackEdge& edge = node.edges[edgeIdx];
+      if (!edge.dest) {
+        continue;
+      }
+
+      const size_t neighborId = static_cast<size_t>(edge.dest->id);
+      Distance candidateDistance = minDistances[bestNodeId] + edge.dist;
+      if (candidateDistance < minDistances[neighborId]) {
+        minDistances[neighborId] = candidateDistance;
+      }
+    }
+  }
+
+  return minDistances[destIdx];
 }
 
 static constexpr size_t NUM_RESERVATION_NODES = NUM_TRACK_NODES / 2;

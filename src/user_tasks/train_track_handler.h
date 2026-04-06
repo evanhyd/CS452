@@ -1,6 +1,5 @@
 #pragma once
 #include "marklin/marklin_def.h"
-#include "marklin/marklin_measured_data.h"
 #include "marklin/marklin_pathfinding.h"
 #include "marklin/marklin_train_track.h"
 #include "train_track_server_context.h"
@@ -131,6 +130,73 @@ inline void setTrackCmdHandler(TrainTrackServerContext& context, marklin::TrackI
   notifyStatusToUI(context.uiTid, "Switched track to %c.", (trackId == 0 ? 'A' : 'B'));
 }
 
+inline uint32_t absTickDelta(uint32_t lhs, uint32_t rhs) { return lhs >= rhs ? lhs - rhs : rhs - lhs; }
+
+struct SensorAttributionCandidate {
+  marklin::TrainId trainId;
+  int32_t score;
+};
+
+inline SensorAttributionCandidate scoreSensorCandidate(TrainTrackServerContext& context, marklin::TrackNode& sensor,
+                                                       marklin::TrainId trainId, marklin::TrainId reserverId) {
+  SensorAttributionCandidate candidate{.trainId = trainId, .score = 0};
+  marklin::Train& train = context.ttState.getTrain(trainId);
+
+  if (reserverId == trainId) {
+    candidate.score += 120;
+  } else if (reserverId != marklin::NO_TRAIN) {
+    candidate.score -= 30;
+  }
+
+  if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
+    candidate.score += 200;
+  }
+  if (train.prediction.predictedTicks != 0) {
+    int32_t dt = static_cast<int32_t>(absTickDelta(context.currentTicks, train.prediction.predictedTicks));
+    int32_t timingScore = 120 - dt * 3;
+    candidate.score += kit::clamp(timingScore, int32_t(-40), int32_t(120));
+  }
+
+  if (train.kinematics.state == marklin::KinematicsSystem::State::Tracked && train.kinematics.estimatedNode) {
+    marklin::TrackNode* start = train.kinematics.estimatedNode;
+    marklin::Distance distToSensor = marklin::shortestDistanceToNode(context.ttState, start->id, sensor.id);
+    if (distToSensor < marklin::INF_DISTANCE) {
+      int32_t distanceScore = 220 - distToSensor / 15'000;
+      candidate.score += kit::clamp(distanceScore, int32_t(-90), int32_t(220));
+
+      if (train.kinematics.offlineSpeedLevel == 0 && distToSensor > 600'000) {
+        candidate.score -= 60;
+      }
+    } else {
+      candidate.score -= 1000;
+    }
+  } else {
+    candidate.score -= 30;
+  }
+
+  if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
+    candidate.score += 60;
+  }
+
+  if (train.kinematics.state == marklin::KinematicsSystem::State::Lost) {
+    candidate.score -= 20;
+  }
+
+  return candidate;
+}
+
+inline marklin::TrainId attributeSensorOwner(TrainTrackServerContext& context, marklin::TrackNode& sensor) {
+  marklin::TrainId reserverId = context.pfSystem.getReserver(sensor.id);
+  SensorAttributionCandidate best{.trainId = marklin::NO_TRAIN, .score = std::numeric_limits<int32_t>::min()};
+  for (marklin::TrainId id : context.activeTrains) {
+    SensorAttributionCandidate candidate = scoreSensorCandidate(context, sensor, id, reserverId);
+    if (candidate.score > best.score) {
+      best = candidate;
+    }
+  }
+  return best.trainId;
+}
+
 inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::SensorTriggeredEvent& sensorEvent) {
   if (sensorEvent.state != marklin::SensorState::Occupied) {
     return;
@@ -146,39 +212,7 @@ inline void sensorEventHandler(TrainTrackServerContext& context, const marklin::
   // Obtain the train that triggers the sensor.
   marklin::TrackNode& sensor = context.ttState.getTrackNodeById(sensorEvent.id);
 
-  marklin::TrainId ownerId = [&] -> marklin::TrainId {
-    // Priority 1: Explicit Lock Ownership.
-    marklin::TrainId trainId = context.pfSystem.getReserver(sensor.id);
-    if (trainId != marklin::NO_TRAIN) {
-      return trainId;
-    }
-
-    // Priority 2: Prediction Matching.
-    for (marklin::TrainId id : context.activeTrains) {
-      marklin::Train& train = context.ttState.getTrain(id);
-      if (train.prediction.sensor && train.prediction.sensor->id == sensor.id) {
-        return id;
-      }
-    }
-
-    // Priority 3: Pair with the train in Lost state.
-    for (marklin::TrainId id : context.activeTrains) {
-      marklin::Train& train = context.ttState.getTrain(id);
-      if (train.kinematics.state == marklin::KinematicsSystem::State::Lost) {
-        return id;
-      }
-    }
-
-    // Priority 4: Pair with a train in Manual state.
-    for (marklin::TrainId id : context.activeTrains) {
-      marklin::Train& train = context.ttState.getTrain(id);
-      if (train.navigation.state == marklin::NavigationSystem::State::Manual) {
-        return id;
-      }
-    }
-
-    return marklin::NO_TRAIN;
-  }();
+  marklin::TrainId ownerId = attributeSensorOwner(context, sensor);
   if (ownerId == marklin::NO_TRAIN) {
     return;
   }

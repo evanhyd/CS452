@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace marklin {
 
@@ -12,6 +13,7 @@ using Speed = int32_t;
 using SpeedLevel = uint16_t;
 using CANSpeed = uint16_t;
 using Distance = int32_t; // um
+inline constexpr Distance INF_DISTANCE = std::numeric_limits<Distance>::max() / 4;
 using TrainId = uint8_t;
 using SensorNumber = uint8_t; // the "12" in A12
 using SwitchId = uint8_t;
@@ -22,12 +24,12 @@ using TrackId = uint32_t;     // Track A (0) or Track B (1)
 /**********************************
 Magic Constant
 ***********************************/
-static constexpr size_t MAX_TRAIN_ID = 21;
-static constexpr size_t NUM_TRACK_NODES = 144;
-static constexpr size_t NUM_SWITCHES = 22;
-static constexpr size_t NUM_TRAIN_IN_LAB = 8;
-static constexpr size_t MAX_SPEED_LEVEL = 14;
+inline constexpr size_t MAX_TRAIN_ID = 21;
+inline constexpr size_t NUM_TRACK_NODES = 144;
+inline constexpr size_t NUM_SWITCHES = 22;
+inline constexpr size_t NUM_TRAIN_IN_LAB = 8;
+inline constexpr size_t MAX_SPEED_LEVEL = 14;
 
-static constexpr TrainId NO_TRAIN = 0;
+inline constexpr TrainId NO_TRAIN = 0;
 
 } // namespace marklin
